@@ -8,6 +8,7 @@ export default function ProfilePage() {
   const router = useRouter()
   const user = session?.user as any
   const [savedCount, setSavedCount] = useState(0)
+  const [portalLoading, setPortalLoading] = useState(false)
 
   useEffect(() => {
     async function fetchSavedCount() {
@@ -21,6 +22,24 @@ export default function ProfilePage() {
     }
     fetchSavedCount()
   }, [])
+
+  async function handleManageSubscription() {
+    setPortalLoading(true)
+    try {
+      const res = await fetch('/api/stripe/portal', { method: 'POST' })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        alert('Erreur lors de l\'accès au portail d\'abonnement')
+      }
+    } catch (e) {
+      console.error('Error:', e)
+      alert('Erreur lors de l\'accès au portail d\'abonnement')
+    } finally {
+      setPortalLoading(false)
+    }
+  }
 
   return (
     <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-lg">
@@ -38,11 +57,40 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Subscription Status */}
+      {user?.stripeCustomerId && (
+        <div className="mb-5 p-4 rounded-lg border border-stone-200 bg-stone-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-sm font-medium text-stone-700">Abonnement</div>
+              <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                user?.subscriptionStatus === 'active' ? 'bg-green-100 text-green-700' :
+                user?.subscriptionStatus === 'past_due' ? 'bg-amber-100 text-amber-700' :
+                user?.subscriptionStatus === 'canceled' ? 'bg-red-100 text-red-700' :
+                'bg-stone-100 text-stone-700'
+              }`}>
+                {user?.subscriptionStatus === 'active' ? 'Actif' :
+                 user?.subscriptionStatus === 'past_due' ? 'En retard' :
+                 user?.subscriptionStatus === 'canceled' ? 'Annulé' :
+                 'Inactif'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Menu */}
       <div className="space-y-0.5 mb-5">
         <MenuItem icon="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" label="Mes offres sauvegardées" onClick={() => router.push('/saved')} />
         <MenuItem icon="M12 12m-3 0a3 3 0 106 0 3 3 0 00-6 0 M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4" label="Paramètres du compte" />
-        <MenuItem icon="M1 4h22v16a2 2 0 01-2 2H3a2 2 0 01-2-2V4z M1 10h22" label="Gérer mon abonnement" />
+        {user?.stripeCustomerId && (
+          <MenuItem
+            icon="M1 4h22v16a2 2 0 01-2 2H3a2 2 0 01-2-2V4z M1 10h22"
+            label="Gérer mon abonnement"
+            onClick={handleManageSubscription}
+            disabled={portalLoading}
+          />
+        )}
         <MenuItem icon="M12 12m-10 0a10 10 0 1020 0 10 10 0 00-20 0 M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3 M12 17h.01" label="Guide d'utilisation" />
       </div>
 
@@ -54,9 +102,13 @@ export default function ProfilePage() {
   )
 }
 
-function MenuItem({ icon, label, onClick }: { icon: string; label: string; onClick?: () => void }) {
+function MenuItem({ icon, label, onClick, disabled }: { icon: string; label: string; onClick?: () => void; disabled?: boolean }) {
   return (
-    <button onClick={onClick} className="flex items-center justify-between w-full px-4 py-3.5 bg-white rounded-lg border border-stone-200 hover:border-purple-300 transition">
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="flex items-center justify-between w-full px-4 py-3.5 bg-white rounded-lg border border-stone-200 hover:border-purple-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+    >
       <div className="flex items-center gap-3">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-stone-500">
           {icon.split(' M').map((d, i) => <path key={i} d={i === 0 ? d : 'M' + d} />)}

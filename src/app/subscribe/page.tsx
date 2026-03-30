@@ -1,11 +1,34 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function SubscribePage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const [message, setMessage] = useState<{ type: 'success' | 'info'; text: string } | null>(null)
+
+  useEffect(() => {
+    const subscribed = searchParams.get('subscribed')
+    const canceled = searchParams.get('canceled')
+
+    if (subscribed === 'true') {
+      setMessage({
+        type: 'success',
+        text: 'Ton abonnement est actif ! Redirection...',
+      })
+      const timer = setTimeout(() => {
+        router.push('/feed')
+      }, 2000)
+      return () => clearTimeout(timer)
+    } else if (canceled === 'true') {
+      setMessage({
+        type: 'info',
+        text: 'Paiement annulé. Tu peux réessayer quand tu veux.',
+      })
+    }
+  }, [searchParams, router])
 
   async function handleSubscribe() {
     setLoading(true)
@@ -17,6 +40,31 @@ export default function SubscribePage() {
       setLoading(false)
       alert('Erreur lors de la redirection vers le paiement')
     }
+  }
+
+  if (message) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-600 flex items-center justify-center px-4">
+        <div className="max-w-md w-full">
+          <div className={`rounded-2xl p-8 text-center ${
+            message.type === 'success'
+              ? 'bg-green-100 border-2 border-green-400'
+              : 'bg-blue-100 border-2 border-blue-400'
+          }`}>
+            <div className={`text-4xl mb-4 ${
+              message.type === 'success' ? 'text-green-500' : 'text-blue-500'
+            }`}>
+              {message.type === 'success' ? '✓' : 'ℹ'}
+            </div>
+            <p className={`text-lg font-bold ${
+              message.type === 'success' ? 'text-green-700' : 'text-blue-700'
+            }`}>
+              {message.text}
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

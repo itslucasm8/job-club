@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
+import { sendSubscriptionConfirmation } from '@/lib/email'
 
 export async function POST(req: Request) {
   const body = await req.text()
@@ -17,22 +18,39 @@ export async function POST(req: Request) {
 
   switch (event.type) {
     case 'checkout.session.completed': {
-      const s = event.data.object as any
-      await prisma.user.updateMany({
-        where: { stripeCustomerId: s.customer as string },
-        data: { subscriptionStatus: 'active', subscriptionId: s.subscription as string },
-      })
+      try {
+        const s = event.data.object as any
+        await prisma.user.updateMany({
+          where: { stripeCustomerId: s.customer as string },
+          data: { subscriptionStatus: 'active', subscriptionId: s.subscription as string },
+        })
+        // Send confirmation email
+        const user = await prisma.user.findFirst({ where: { stripeCustomerId: s.customer as string } })
+        if (user) {
+          sendSubscriptionConfirmation(user.email, user.name).catch(console.error)
+        }
+      } catch (e) {
+        console.error('checkout.session.completed error:', e)
+      }
       break
     }
     case 'customer.subscription.updated': {
-      const sub = event.data.object as any
-      const status = sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : 'inactive'
-      await prisma.user.updateMany({ where: { subscriptionId: sub.id }, data: { subscriptionStatus: status } })
+      try {
+        const sub = event.data.object as any
+        const status = sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : 'inactive'
+        await prisma.user.updateMany({ where: { subscriptionId: sub.id }, data: { subscriptionStatus: status } })
+      } catch (e) {
+        console.error('customer.subscription.updated error:', e)
+      }
       break
     }
     case 'customer.subscription.deleted': {
-      const sub = event.data.object as any
-      await prisma.user.updateMany({ where: { subscriptionId: sub.id }, data: { subscriptionStatus: 'canceled', subscriptionId: null } })
+      try {
+        const sub = event.data.object as any
+        await prisma.user.updateMany({ where: { subscriptionId: sub.id }, data: { subscriptionStatus: 'canceled', subscriptionId: null } })
+      } catch (e) {
+        console.error('customer.subscription.deleted error:', e)
+      }
       break
     }
   }
