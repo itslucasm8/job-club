@@ -2,20 +2,26 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { createJobSchema, jobQuerySchema, getFirstValidationError } from '@/lib/validation'
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-    const state = searchParams.get('state')
-    const category = searchParams.get('category')
-    const q = searchParams.get('q')
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
+    const queryParams = Object.fromEntries(searchParams.entries())
+
+    // Validate with Zod
+    const result = jobQuerySchema.safeParse(queryParams)
+    if (!result.success) {
+      return NextResponse.json({ error: getFirstValidationError(result.error) }, { status: 400 })
+    }
+
+    const { state, category, q, page } = result.data
     const limit = 20
 
     const where: any = { active: true }
-    if (state && state !== 'all') where.state = state
-    if (category && category !== 'all') where.category = category
-    if (q && q.length <= 200) {
+    if (state !== 'all') where.state = state
+    if (category !== 'all') where.category = category
+    if (q) {
       where.OR = [
         { title: { contains: q } },
         { company: { contains: q } },
@@ -44,23 +50,26 @@ export async function POST(req: Request) {
     }
     const data = await req.json()
 
-    // Validate required fields
-    if (!data.title || !data.company || !data.state || !data.category || !data.description) {
-      return NextResponse.json({ error: 'Champs obligatoires manquants' }, { status: 400 })
+    // Validate with Zod
+    const result = createJobSchema.safeParse(data)
+    if (!result.success) {
+      return NextResponse.json({ error: getFirstValidationError(result.error) }, { status: 400 })
     }
+
+    const { title, company, state, location, category, type, pay, description, applyUrl, sourceUrl } = result.data
 
     const job = await prisma.job.create({
       data: {
-        title: data.title,
-        company: data.company,
-        state: data.state,
-        location: data.location || '',
-        category: data.category,
-        type: data.type || 'casual',
-        pay: data.pay || null,
-        description: data.description,
-        applyUrl: data.applyUrl || null,
-        sourceUrl: data.sourceUrl || null,
+        title,
+        company,
+        state,
+        location,
+        category,
+        type,
+        pay: pay || null,
+        description,
+        applyUrl: applyUrl || null,
+        sourceUrl: sourceUrl || null,
       },
     })
     return NextResponse.json(job, { status: 201 })
