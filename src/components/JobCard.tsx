@@ -4,7 +4,7 @@ import { catLabel, typeLabel, timeAgo } from '@/lib/utils'
 interface Job {
   id: string; title: string; company: string; state: string; location: string;
   category: string; type: string; pay: string | null; description: string;
-  createdAt: string; applyUrl: string | null;
+  createdAt: string;
 }
 
 const tagColor: Record<string, string> = {
@@ -44,18 +44,12 @@ export default function JobCard({ job, saved, onSave, onClick }: { job: Job; sav
       </div>
 
       <div className="flex items-center justify-between px-4 py-2.5 border-t border-stone-100 bg-stone-50/50">
-        <div className="flex gap-4">
-          <button onClick={e => { e.stopPropagation(); onSave() }}
-            className={`flex items-center gap-1.5 text-[12px] ${saved ? 'text-red-500' : 'text-stone-400 hover:text-purple-600'} transition`}>
-            <svg viewBox="0 0 24 24" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" className="w-[18px] h-[18px]">
-              <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
-            </svg>
-            {saved ? 'Sauvegardé' : 'Sauvegarder'}
-          </button>
-        </div>
-        <button onClick={e => { e.stopPropagation(); if (job.applyUrl) window.open(job.applyUrl, '_blank') }}
-          className={`text-[12px] font-bold px-4 py-1.5 rounded-full transition ${job.applyUrl ? 'bg-purple-700 text-white hover:bg-purple-800' : 'bg-stone-200 text-stone-400 cursor-default'}`}>
-          Postuler
+        <button onClick={e => { e.stopPropagation(); onSave() }}
+          className={`flex items-center gap-1.5 text-[12px] ${saved ? 'text-red-500' : 'text-stone-400 hover:text-purple-600'} transition`}>
+          <svg viewBox="0 0 24 24" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" className="w-[18px] h-[18px]">
+            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+          </svg>
+          {saved ? 'Sauvegardé' : 'Sauvegarder'}
         </button>
       </div>
     </div>

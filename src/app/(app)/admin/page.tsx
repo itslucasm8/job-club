@@ -8,7 +8,7 @@ export default function AdminPage() {
   const [publishing, setPublishing] = useState(false)
   const [url, setUrl] = useState('')
   const [form, setForm] = useState({
-    title: '', company: '', state: '', location: '', category: '', type: 'casual', pay: '', description: '', applyUrl: '', sourceUrl: '',
+    title: '', company: '', state: '', location: '', category: '', type: 'casual', pay: '', description: '', sourceUrl: '',
   })
 
   function set(key: string, val: string) { setForm(prev => ({ ...prev, [key]: val })) }
@@ -98,13 +98,10 @@ export default function AdminPage() {
       <div className="mb-4">
         <Field label="Salaire (optionnel)" value={form.pay} onChange={v => set('pay', v)} placeholder="ex: $28-32/h ou Piece rate" />
       </div>
-      <div className="mb-4">
+      <div className="mb-6">
         <label className="block text-[13px] font-semibold text-stone-600 mb-1">Description *</label>
         <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={5} placeholder="Décris le poste, les conditions, comment postuler..."
           className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400 resize-y" />
-      </div>
-      <div className="mb-6">
-        <Field label="Lien pour postuler" value={form.applyUrl} onChange={v => set('applyUrl', v)} placeholder="https://..." />
       </div>
 
       <button onClick={handlePublish} disabled={publishing}
