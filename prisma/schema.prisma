@@ -8,17 +8,20 @@ datasource db {
 }
 
 model User {
-  id                 String    @id @default(cuid())
-  email              String    @unique
-  name               String?
-  passwordHash       String
-  role               String    @default("user")
-  stripeCustomerId   String?
-  subscriptionStatus String    @default("inactive")
-  subscriptionId     String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  savedJobs          SavedJob[]
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  name                 String?
+  passwordHash         String
+  role                 String    @default("user")
+  stripeCustomerId     String?
+  subscriptionStatus   String    @default("inactive")
+  subscriptionId       String?
+  preferredStates      String?   // Comma-separated state codes e.g. "QLD,NSW"
+  preferredCategories  String?   // Comma-separated categories e.g. "Agriculture,Construction"
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  savedJobs            SavedJob[]
+  notifications        Notification[]
 }
 
 model Job {
@@ -47,6 +50,20 @@ model SavedJob {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   @@unique([userId, jobId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   @default("new_job") // new_job
+  title     String
+  message   String
+  jobId     String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, read])
+  @@index([userId, createdAt])
 }
 
 model PasswordReset {

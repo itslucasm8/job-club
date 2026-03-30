@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createJobSchema, jobQuerySchema, getFirstValidationError } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import { createJobNotifications } from '@/lib/notifications'
 
 export async function GET(req: Request) {
   try {
@@ -73,6 +74,15 @@ export async function POST(req: Request) {
         sourceUrl: sourceUrl || null,
       },
     })
+
+    // Fire-and-forget notification creation
+    createJobNotifications(job).catch((error) => {
+      logger.error('Failed to trigger job notifications', {
+        jobId: job.id,
+        error: String(error),
+      })
+    })
+
     return NextResponse.json(job, { status: 201 })
   } catch (e) {
     logger.error('POST /api/jobs failed', { route: '/api/jobs', error: String(e) })

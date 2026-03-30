@@ -82,7 +82,7 @@ export default function ProfilePage() {
       {/* Menu */}
       <div className="space-y-0.5 mb-5">
         <MenuItem icon="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" label="Mes offres sauvegardées" onClick={() => router.push('/saved')} />
-        <MenuItem icon="M12 12m-3 0a3 3 0 106 0 3 3 0 00-6 0 M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4" label="Paramètres du compte" />
+        <MenuItem icon="M12 12m-3 0a3 3 0 106 0 3 3 0 00-6 0 M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4" label="Paramètres du compte" onClick={() => router.push('/settings')} />
         {user?.stripeCustomerId && (
           <MenuItem
             icon="M1 4h22v16a2 2 0 01-2 2H3a2 2 0 01-2-2V4z M1 10h22"
@@ -91,7 +91,7 @@ export default function ProfilePage() {
             disabled={portalLoading}
           />
         )}
-        <MenuItem icon="M12 12m-10 0a10 10 0 1020 0 10 10 0 00-20 0 M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3 M12 17h.01" label="Guide d'utilisation" />
+        <MenuItem icon="M12 12m-10 0a10 10 0 1020 0 10 10 0 00-20 0 M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3 M12 17h.01" label="Guide d'utilisation" onClick={() => router.push('/guide')} />
       </div>
 
       <button onClick={() => signOut({ callbackUrl: '/' })}

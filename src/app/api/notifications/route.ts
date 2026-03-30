@@ -1,0 +1,124 @@
+import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
+import { z } from 'zod'
+
+const markAsReadSchema = z.union([
+  z.object({ ids: z.array(z.string()) }),
+  z.object({ markAllRead: z.literal(true) }),
+])
+
+export async function GET(req: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    }
+
+    const userId = (session.user as any).id
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      include: {
+        // We'll manually fetch job titles since Notification model may not have explicit relation
+        // but we can query it separately if jobId exists
+      },
+    })
+
+    // Fetch job titles for notifications that have jobId
+    const notificationsWithJobs = await Promise.all(
+      notifications.map(async (notif) => {
+        let jobTitle = null
+        if (notif.jobId) {
+          const job = await prisma.job.findUnique({
+            where: { id: notif.jobId },
+            select: { title: true },
+          })
+          jobTitle = job?.title || null
+        }
+        return {
+          ...notif,
+          jobTitle,
+        }
+      })
+    )
+
+    return NextResponse.json(notificationsWithJobs)
+  } catch (e) {
+    logger.error('GET /api/notifications failed', {
+      route: '/api/notifications',
+      error: String(e),
+    })
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    }
+
+    const userId = (session.user as any).id
+    const data = await req.json()
+
+    // Validate request body
+    const result = markAsReadSchema.safeParse(data)
+    if (!result.success) {
+      return NextResponse.json({ error: 'Format invalide' }, { status: 400 })
+    }
+
+    const validData = result.data
+
+    if ('markAllRead' in validData) {
+      // Mark all notifications as read
+      const updated = await prisma.notification.updateMany({
+        where: { userId },
+        data: { read: true },
+      })
+      logger.info('Marked all notifications as read', {
+        userId,
+        count: updated.count,
+      })
+      return NextResponse.json({ marked: updated.count })
+    } else {
+      // Mark specific notifications as read
+      const { ids } = validData
+
+      // Verify all notifications belong to this user
+      const notifications = await prisma.notification.findMany({
+        where: { id: { in: ids }, userId },
+      })
+
+      if (notifications.length !== ids.length) {
+        return NextResponse.json(
+          { error: 'Certaines notifications sont introuvables' },
+          { status: 404 }
+        )
+      }
+
+      const updated = await prisma.notification.updateMany({
+        where: { id: { in: ids } },
+        data: { read: true },
+      })
+
+      logger.info('Marked specific notifications as read', {
+        userId,
+        count: updated.count,
+      })
+
+      return NextResponse.json({ marked: updated.count })
+    }
+  } catch (e) {
+    logger.error('PATCH /api/notifications failed', {
+      route: '/api/notifications',
+      error: String(e),
+    })
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  }
+}
