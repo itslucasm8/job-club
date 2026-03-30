@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createJobSchema, jobQuerySchema, getFirstValidationError } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 export async function GET(req: Request) {
   try {
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ jobs, total, page, pages: Math.ceil(total / limit) })
   } catch (e) {
-    console.error('GET /api/jobs error:', e)
+    logger.error('GET /api/jobs failed', { route: '/api/jobs', error: String(e) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -74,7 +75,7 @@ export async function POST(req: Request) {
     })
     return NextResponse.json(job, { status: 201 })
   } catch (e) {
-    console.error('POST /api/jobs error:', e)
+    logger.error('POST /api/jobs failed', { route: '/api/jobs', error: String(e) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import { sendSubscriptionConfirmation } from '@/lib/email'
+import { logger } from '@/lib/logger'
 
 export async function POST(req: Request) {
   const body = await req.text()
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
           sendSubscriptionConfirmation(user.email, user.name).catch(console.error)
         }
       } catch (e) {
-        console.error('checkout.session.completed error:', e)
+        logger.error('checkout.session.completed event failed', { route: '/api/stripe/webhook', error: String(e) })
       }
       break
     }
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
         const status = sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : 'inactive'
         await prisma.user.updateMany({ where: { subscriptionId: sub.id }, data: { subscriptionStatus: status } })
       } catch (e) {
-        console.error('customer.subscription.updated error:', e)
+        logger.error('customer.subscription.updated event failed', { route: '/api/stripe/webhook', error: String(e) })
       }
       break
     }
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
         const sub = event.data.object as any
         await prisma.user.updateMany({ where: { subscriptionId: sub.id }, data: { subscriptionStatus: 'canceled', subscriptionId: null } })
       } catch (e) {
-        console.error('customer.subscription.deleted error:', e)
+        logger.error('customer.subscription.deleted event failed', { route: '/api/stripe/webhook', error: String(e) })
       }
       break
     }

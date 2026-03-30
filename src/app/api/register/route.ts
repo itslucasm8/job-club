@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { registerSchema, getFirstValidationError } from '@/lib/validation'
 import { sendWelcomeEmail } from '@/lib/email'
+import { logger } from '@/lib/logger'
 
 export async function POST(req: Request) {
   try {
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ id: user.id, email: user.email }, { status: 201 })
   } catch (e) {
-    console.error('POST /api/register error:', e)
+    logger.error('POST /api/register failed', { route: '/api/register', error: String(e) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
