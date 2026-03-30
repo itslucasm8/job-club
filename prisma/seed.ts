@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 
 const prisma = new PrismaClient();
+const isProduction = process.env.NODE_ENV === 'production';
 
 function daysAgo(n: number): Date {
   const d = new Date();
@@ -12,6 +13,8 @@ function daysAgo(n: number): Date {
 }
 
 async function main() {
+  console.log(`Seeding database (NODE_ENV=${process.env.NODE_ENV})...`);
+
   // Create admin user
   const adminPassword = await hash('admin123', 12);
   const admin = await prisma.user.upsert({
@@ -27,23 +30,29 @@ async function main() {
   });
   console.log(`Admin user created: ${admin.email}`);
 
-  // Create demo subscriber
-  const demoPassword = await hash('demo123', 12);
-  const demo = await prisma.user.upsert({
-    where: { email: 'demo@jobclub.com.au' },
-    update: {},
-    create: {
-      email: 'demo@jobclub.com.au',
-      name: 'Marie Dupont',
-      passwordHash: demoPassword,
-      role: 'user',
-      subscriptionStatus: 'active',
-    },
-  });
-  console.log(`Demo user created: ${demo.email}`);
+  // In development only: create demo subscriber
+  if (!isProduction) {
+    const demoPassword = await hash('demo123', 12);
+    const demo = await prisma.user.upsert({
+      where: { email: 'demo@jobclub.com.au' },
+      update: {},
+      create: {
+        email: 'demo@jobclub.com.au',
+        name: 'Marie Dupont',
+        passwordHash: demoPassword,
+        role: 'user',
+        subscriptionStatus: 'active',
+      },
+    });
+    console.log(`Demo user created: ${demo.email}`);
+  }
 
-  // Real-style jobs matching actual Podia posts
-  const jobs = [
+  // In development only: create demo jobs
+  if (isProduction) {
+    console.log('Production mode: skipping demo jobs');
+  } else {
+    // Real-style jobs matching actual Podia posts
+    const jobs = [
     {
       title: 'WE\'RE HIRING – WAREHOUSE POSITION',
       company: 'Mount Isa Pets & Produce',
@@ -813,10 +822,11 @@ Email us at sarah.robertson@gmail.com with a bit about yourself and any childcar
     },
   ];
 
-  for (const job of jobs) {
-    await prisma.job.create({ data: job });
+    for (const job of jobs) {
+      await prisma.job.create({ data: job });
+    }
+    console.log(`${jobs.length} jobs created`);
   }
-  console.log(`${jobs.length} jobs created`);
 }
 
 main()
