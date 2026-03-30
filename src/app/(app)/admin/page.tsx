@@ -17,6 +17,7 @@ export default function AdminPage() {
   const [extracting, setExtracting] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [url, setUrl] = useState('')
+  const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set())
   const [form, setForm] = useState({
     title: '', company: '', state: '', location: '', category: '', type: 'casual', pay: '', description: '', sourceUrl: '',
   })
@@ -88,8 +89,51 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/extract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
       const data = await res.json()
-      setForm(prev => ({ ...prev, title: data.title || prev.title, description: data.description || prev.description, sourceUrl: url }))
-    } catch {}
+
+      // Track which fields were actually populated from extraction
+      const fieldsToHighlight = new Set<string>()
+      const updates: any = {}
+
+      // Update all fields from extracted data
+      if (data.title && data.title !== form.title) {
+        updates.title = data.title
+        fieldsToHighlight.add('title')
+      }
+      if (data.company && data.company !== form.company) {
+        updates.company = data.company
+        fieldsToHighlight.add('company')
+      }
+      if (data.state && data.state !== form.state) {
+        updates.state = data.state
+        fieldsToHighlight.add('state')
+      }
+      if (data.location && data.location !== form.location) {
+        updates.location = data.location
+        fieldsToHighlight.add('location')
+      }
+      if (data.category && data.category !== form.category) {
+        updates.category = data.category
+        fieldsToHighlight.add('category')
+      }
+      if (data.pay && data.pay !== form.pay) {
+        updates.pay = data.pay
+        fieldsToHighlight.add('pay')
+      }
+      if (data.description && data.description !== form.description) {
+        updates.description = data.description
+        fieldsToHighlight.add('description')
+      }
+
+      updates.sourceUrl = url
+
+      setForm(prev => ({ ...prev, ...updates }))
+      setHighlightedFields(fieldsToHighlight)
+
+      // Clear highlight after 2 seconds
+      setTimeout(() => setHighlightedFields(new Set()), 2000)
+    } catch (err) {
+      console.error('Extraction error:', err)
+    }
     setExtracting(false)
   }
 
@@ -130,12 +174,16 @@ export default function AdminPage() {
       {/* Form */}
       <h2 className="text-base font-bold text-stone-800 mb-4">Détails du poste</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <Field label="Titre du poste *" value={form.title} onChange={v => set('title', v)} placeholder="ex: Fruit Picker - Bundaberg" />
-        <Field label="Entreprise *" value={form.company} onChange={v => set('company', v)} placeholder="ex: Sunny Farms QLD" />
+        <Field label="Titre du poste *" value={form.title} onChange={v => set('title', v)} placeholder="ex: Fruit Picker - Bundaberg" highlighted={highlightedFields.has('title')} />
+        <Field label="Entreprise *" value={form.company} onChange={v => set('company', v)} placeholder="ex: Sunny Farms QLD" highlighted={highlightedFields.has('company')} />
         <div>
           <label className="block text-[13px] font-semibold text-stone-600 mb-1">State *</label>
           <select value={form.state} onChange={e => set('state', e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400 bg-white appearance-none">
+            className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none bg-white appearance-none transition-all ${
+              highlightedFields.has('state')
+                ? 'border-green-400 bg-green-50 focus:border-green-500'
+                : 'border-stone-200 focus:border-purple-400'
+            }`}>
             <option value="">Sélectionner...</option>
             <option value="QLD">Queensland (QLD)</option><option value="NSW">New South Wales (NSW)</option>
             <option value="VIC">Victoria (VIC)</option><option value="SA">South Australia (SA)</option>
@@ -143,11 +191,15 @@ export default function AdminPage() {
             <option value="NT">Northern Territory (NT)</option><option value="ACT">ACT</option>
           </select>
         </div>
-        <Field label="Ville / Région" value={form.location} onChange={v => set('location', v)} placeholder="ex: Bundaberg" />
+        <Field label="Ville / Région" value={form.location} onChange={v => set('location', v)} placeholder="ex: Bundaberg" highlighted={highlightedFields.has('location')} />
         <div>
           <label className="block text-[13px] font-semibold text-stone-600 mb-1">Catégorie *</label>
           <select value={form.category} onChange={e => set('category', e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400 bg-white appearance-none">
+            className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none bg-white appearance-none transition-all ${
+              highlightedFields.has('category')
+                ? 'border-green-400 bg-green-50 focus:border-green-500'
+                : 'border-stone-200 focus:border-purple-400'
+            }`}>
             <option value="">Sélectionner...</option>
             <option value="farm">Agriculture / Ferme</option><option value="hospitality">Hôtellerie / Restauration</option>
             <option value="construction">Construction / BTP</option><option value="trade">Métiers / Trade</option>
@@ -165,12 +217,16 @@ export default function AdminPage() {
         </div>
       </div>
       <div className="mb-4">
-        <Field label="Salaire (optionnel)" value={form.pay} onChange={v => set('pay', v)} placeholder="ex: $28-32/h ou Piece rate" />
+        <Field label="Salaire (optionnel)" value={form.pay} onChange={v => set('pay', v)} placeholder="ex: $28-32/h ou Piece rate" highlighted={highlightedFields.has('pay')} />
       </div>
       <div className="mb-6">
         <label className="block text-[13px] font-semibold text-stone-600 mb-1">Description *</label>
         <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={5} placeholder="Décris le poste, les conditions, comment postuler..."
-          className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400 resize-y" />
+          className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none resize-y transition-all ${
+            highlightedFields.has('description')
+              ? 'border-green-400 bg-green-50 focus:border-green-500'
+              : 'border-stone-200 focus:border-purple-400'
+          }`} />
       </div>
 
       <button onClick={handlePublish} disabled={publishing}
@@ -238,12 +294,16 @@ export default function AdminPage() {
   )
 }
 
-function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder: string }) {
+function Field({ label, value, onChange, placeholder, highlighted = false }: { label: string; value: string; onChange: (v: string) => void; placeholder: string; highlighted?: boolean }) {
   return (
     <div>
       <label className="block text-[13px] font-semibold text-stone-600 mb-1">{label}</label>
       <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400" />
+        className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none transition-all ${
+          highlighted
+            ? 'border-green-400 bg-green-50 focus:border-green-500'
+            : 'border-stone-200 focus:border-purple-400'
+        }`} />
     </div>
   )
 }
