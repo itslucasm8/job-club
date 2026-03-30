@@ -50,7 +50,7 @@ export default function Sidebar() {
       <div className="px-3 pb-5 space-y-0.5">
         {STATES.map(s => (
           <button key={s.code} onClick={() => router.push(`/feed?state=${s.code}`)}
-            className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-[13px] text-stone-500 hover:bg-stone-50 hover:text-stone-700 transition">
+            className="w-full px-3 py-2 rounded-lg text-[13px] text-stone-500 hover:bg-stone-50 hover:text-stone-700 transition text-left">
             <span>{s.code} — {s.name}</span>
           </button>
         ))}
