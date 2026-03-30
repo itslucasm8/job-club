@@ -1,15 +1,84 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+
+type User = {
+  id: string
+  email: string
+  name: string | null
+  role: string
+  createdAt: string
+}
 
 export default function AdminPage() {
   const router = useRouter()
+  const { data: session } = useSession()
   const [extracting, setExtracting] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [url, setUrl] = useState('')
   const [form, setForm] = useState({
     title: '', company: '', state: '', location: '', category: '', type: 'casual', pay: '', description: '', sourceUrl: '',
   })
+
+  // User management
+  const [users, setUsers] = useState<User[]>([])
+  const [usersLoading, setUsersLoading] = useState(true)
+  const [togglingUser, setTogglingUser] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchUsers()
+  }, [])
+
+  async function fetchUsers() {
+    try {
+      const res = await fetch('/api/admin/users')
+      if (res.ok) {
+        const data = await res.json()
+        setUsers(data)
+      }
+    } catch (err) {
+      console.error('Erreur lors du chargement des utilisateurs:', err)
+    } finally {
+      setUsersLoading(false)
+    }
+  }
+
+  async function toggleUserRole(userId: string, currentRole: string) {
+    // Prevent self-demotion
+    if (userId === (session?.user as any)?.id && currentRole === 'admin') {
+      alert('Tu ne peux pas te rétrograder toi-même')
+      return
+    }
+
+    const newRole = currentRole === 'admin' ? 'user' : 'admin'
+    setTogglingUser(userId)
+
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, role: newRole }),
+      })
+
+      if (res.ok) {
+        const updated = await res.json()
+        setUsers(users.map(u => u.id === userId ? { ...u, role: updated.role } : u))
+      } else {
+        alert('Erreur lors de la mise à jour du rôle')
+      }
+    } catch (err) {
+      console.error('Erreur:', err)
+      alert('Erreur lors de la mise à jour du rôle')
+    } finally {
+      setTogglingUser(null)
+    }
+  }
+
+  function formatDate(dateString: string) {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' })
+  }
 
   function set(key: string, val: string) { setForm(prev => ({ ...prev, [key]: val })) }
 
@@ -108,6 +177,63 @@ export default function AdminPage() {
         className="w-full py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[15px] transition disabled:opacity-50">
         {publishing ? 'Publication...' : '🚀 Publier l\'offre'}
       </button>
+
+      {/* User Management Section */}
+      <div className="mt-12 pt-12 border-t border-stone-200">
+        <h2 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">Gestion des utilisateurs</h2>
+        <p className="text-sm text-stone-500 mb-6">Gérez les rôles des utilisateurs et les permissions d'administrateur</p>
+
+        {usersLoading ? (
+          <div className="text-center py-8 text-stone-500">Chargement des utilisateurs...</div>
+        ) : users.length === 0 ? (
+          <div className="text-center py-8 text-stone-500">Aucun utilisateur trouvé</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b-2 border-stone-200">
+                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">Nom</th>
+                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">Email</th>
+                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">Rôle</th>
+                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">Inscription</th>
+                  <th className="text-center px-4 py-3 font-semibold text-sm text-stone-700">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(user => (
+                  <tr key={user.id} className="border-b border-stone-100 hover:bg-stone-50 transition">
+                    <td className="px-4 py-3 text-sm text-stone-900">{user.name || 'N/A'}</td>
+                    <td className="px-4 py-3 text-sm text-stone-700">{user.email}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        user.role === 'admin'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-stone-100 text-stone-700'
+                      }`}>
+                        {user.role === 'admin' ? 'Admin' : 'Utilisateur'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-stone-600">{formatDate(user.createdAt)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => toggleUserRole(user.id, user.role)}
+                        disabled={togglingUser === user.id || (user.id === (session?.user as any)?.id && user.role === 'admin')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                          user.role === 'admin'
+                            ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 disabled:opacity-50'
+                            : 'bg-purple-100 hover:bg-purple-200 text-purple-900 disabled:opacity-50'
+                        }`}
+                      >
+                        {togglingUser === user.id ? '...' : (user.role === 'admin' ? 'Rétrograder' : 'Promouvoir')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
