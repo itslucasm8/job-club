@@ -1,11 +1,19 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { STATES, CATEGORIES } from '@/lib/utils'
 import JobCard from '@/components/JobCard'
 import JobModal from '@/components/JobModal'
 
 export default function FeedPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="text-stone-400">Chargement...</div></div>}>
+      <FeedContent />
+    </Suspense>
+  )
+}
+
+function FeedContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [jobs, setJobs] = useState<any[]>([])
