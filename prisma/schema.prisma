@@ -48,3 +48,12 @@ model SavedJob {
   job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   @@unique([userId, jobId])
 }
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

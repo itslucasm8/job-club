@@ -58,6 +58,10 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <p className="text-center mt-3">
+          <Link href="/reset-password" className="text-sm text-purple-600 hover:underline">Mot de passe oublié ?</Link>
+        </p>
+
         <p className="text-center mt-4 text-sm text-stone-500">
           Pas encore membre ?{' '}
           <Link href="/register" className="text-purple-700 font-semibold hover:underline">Créer un compte</Link>

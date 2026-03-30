@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { registerSchema, getFirstValidationError } from '@/lib/validation'
+import { sendWelcomeEmail } from '@/lib/email'
 
 export async function POST(req: Request) {
   try {
@@ -25,6 +26,10 @@ export async function POST(req: Request) {
     const user = await prisma.user.create({
       data: { email, passwordHash, name },
     })
+
+    // Send welcome email (fire and forget)
+    sendWelcomeEmail(user.email, user.name || '').catch(console.error)
+
     return NextResponse.json({ id: user.id, email: user.email }, { status: 201 })
   } catch (e) {
     console.error('POST /api/register error:', e)
