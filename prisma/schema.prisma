@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String?
+  passwordHash       String
+  role               String    @default("user")
+  stripeCustomerId   String?
+  subscriptionStatus String    @default("inactive")
+  subscriptionId     String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  savedJobs          SavedJob[]
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  title       String
+  company     String
+  state       String
+  location    String
+  category    String
+  type        String    @default("casual")
+  pay         String?
+  description String
+  applyUrl    String?
+  sourceUrl   String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  savedBy     SavedJob[]
+}
+
+model SavedJob {
+  id        String   @id @default(cuid())
+  userId    String
+  jobId     String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  @@unique([userId, jobId])
+}

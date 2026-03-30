@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --purple: #6b21a8;
+  --purple-light: #9333ea;
+  --purple-dark: #581c87;
+  --purple-bg: #f3e8ff;
+  --orange: #f59e0b;
+}
