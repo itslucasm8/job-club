@@ -3,6 +3,14 @@ import { hash } from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+function daysAgo(n: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  d.setHours(Math.floor(Math.random() * 12) + 7); // 7am-7pm
+  d.setMinutes(Math.floor(Math.random() * 60));
+  return d;
+}
+
 async function main() {
   // Create admin user
   const adminPassword = await hash('admin123', 12);
@@ -74,7 +82,7 @@ Send your resume to manager@mountisapetsandproduce.com.au
 OR apply in store
 
 For more information, contact Joyce or William on: (07) 4743 2265`,
-      applyUrl: 'mailto:manager@mountisapetsandproduce.com.au',
+      createdAt: daysAgo(0),
     },
     {
       title: 'Experienced cook for weekend work',
@@ -87,7 +95,7 @@ For more information, contact Joyce or William on: (07) 4743 2265`,
       description: `Needing a cook for a busy burger bar in a brewery. We do smash burgers, pizzas and snacks, nothing fancy. Mainly Friday and Saturday night work with one weekday shift. We've got a pretty small kitchen and do a lot of prep, high volume so some experience on grill and fryers is preferred. 5-15 hours a week to start.
 
 Text me on 0499566847 or email kitchen@stonycreekbrewing.com.au`,
-      applyUrl: 'mailto:kitchen@stonycreekbrewing.com.au',
+      createdAt: daysAgo(0),
     },
     {
       title: 'Casual Team Member',
@@ -102,7 +110,7 @@ Text me on 0499566847 or email kitchen@stonycreekbrewing.com.au`,
 You can email your CV to us at sales@fnqbbq.com.au - however we prefer if you drop your CV in to us personally.
 
 Immediate start.`,
-      applyUrl: 'mailto:sales@fnqbbq.com.au',
+      createdAt: daysAgo(0),
     },
     {
       title: 'Housekeeper',
@@ -125,7 +133,7 @@ Preferably someone with previous housekeeper experience and lives in the Beaches
 Position will be on a casual basis and could be ongoing as we start to enter our busy season.
 
 You can contact us via email info@sanctuarypalmcove.com.au or pop into our reception.`,
-      applyUrl: 'mailto:info@sanctuarypalmcove.com.au',
+      createdAt: daysAgo(1),
     },
     {
       title: 'Line Crew Labourers - QLD',
@@ -153,7 +161,7 @@ Requirements:
 • Reliable and safety-conscious
 
 This role counts towards your 88 regional days for WHV holders.`,
-      applyUrl: 'https://seek.com.au/job/example-line-crew',
+      createdAt: daysAgo(1),
     },
     {
       title: 'BAR & KITCHEN STAFF REQUIRED',
@@ -168,7 +176,7 @@ This role counts towards your 88 regional days for WHV holders.`,
 BOROREN IS ONLY 25 MINS FROM BENARARY AND TANNUM SANDS
 
 APPLY BY E/MAIL ONLY PLEASE at bororenhotelmotel@gmail.com`,
-      applyUrl: 'mailto:bororenhotelmotel@gmail.com',
+      createdAt: daysAgo(1),
     },
     {
       title: 'Strawberry Runner - Armidale NSW and Ballandean QLD',
@@ -196,7 +204,7 @@ No experience necessary — training provided on arrival.
 Start date: Immediate
 
 Contact us at info@granitebeltberries.com.au to apply.`,
-      applyUrl: 'mailto:info@granitebeltberries.com.au',
+      createdAt: daysAgo(2),
     },
     {
       title: 'Staff Wanted - Work For Accommodation',
@@ -224,7 +232,7 @@ In return we ask for approximately 2-3 hours of housekeeping work per day, 5 day
 This is a great opportunity to live in one of Australia's most beautiful tropical locations while saving money on rent.
 
 Email us at stay@jackarootreehouse.com.au with a bit about yourself.`,
-      applyUrl: 'mailto:stay@jackarootreehouse.com.au',
+      createdAt: daysAgo(2),
     },
     {
       title: 'WE\'RE HIRING – PALMWOODS HOTEL',
@@ -252,7 +260,7 @@ What we're looking for:
 Located on the beautiful Sunshine Coast hinterland, we're a friendly community pub with a great team culture.
 
 Send your CV to admin@palmwoodshotel.com.au or drop it in to us!`,
-      applyUrl: 'mailto:admin@palmwoodshotel.com.au',
+      createdAt: daysAgo(2),
     },
     {
       title: 'Dishwasher / Kitchen Hand',
@@ -276,7 +284,7 @@ Details:
 • Accommodation may be available
 
 Send your CV to teahouse@lakebarrine.com.au`,
-      applyUrl: 'mailto:teahouse@lakebarrine.com.au',
+      createdAt: daysAgo(3),
     },
     {
       title: 'Farm Hand - Cattle Station',
@@ -308,7 +316,7 @@ We provide:
 • Counts towards your 88 WHV days
 
 Email your resume to admin@dotswoodstation.com.au`,
-      applyUrl: 'mailto:admin@dotswoodstation.com.au',
+      createdAt: daysAgo(3),
     },
     {
       title: 'Wait Staff & Barista',
@@ -334,7 +342,7 @@ We offer:
 • Inner city location close to public transport
 
 Send your CV and availability to jobs@thegroundscafe.com.au`,
-      applyUrl: 'mailto:jobs@thegroundscafe.com.au',
+      createdAt: daysAgo(4),
     },
     {
       title: 'Removalist / Furniture Mover',
@@ -362,7 +370,7 @@ Requirements:
 This is casual work — we'll offer you shifts as they come in, usually 3-5 days per week. Great for backpackers wanting flexible, well-paid work.
 
 Text or call Mark on 0412 555 678 or email mark@sydneyfastremovals.com.au`,
-      applyUrl: 'mailto:mark@sydneyfastremovals.com.au',
+      createdAt: daysAgo(4),
     },
     {
       title: 'Blueberry Picker - Coffs Harbour',
@@ -386,7 +394,7 @@ What we offer:
 No experience needed — we train you on day one.
 
 To apply, email your name, visa details and available start date to: hiring@ozberries.com.au`,
-      applyUrl: 'mailto:hiring@ozberries.com.au',
+      createdAt: daysAgo(5),
     },
     {
       title: 'Construction Labourer - CBD Sites',
@@ -414,7 +422,7 @@ Requirements:
 We pay weekly and rates go up after your first month. Overtime available on Saturdays.
 
 Apply via email: hr@probuild.com.au with your White Card number and a brief intro.`,
-      applyUrl: 'mailto:hr@probuild.com.au',
+      createdAt: daysAgo(5),
     },
     {
       title: 'Hotel Reception - Night Shift',
@@ -444,7 +452,7 @@ Requirements:
 Night rates are excellent and the role is perfect if you're studying during the day.
 
 Apply at careers@mantrasouthbank.com.au`,
-      applyUrl: 'mailto:careers@mantrasouthbank.com.au',
+      createdAt: daysAgo(6),
     },
     {
       title: 'Painter - Residential & Commercial',
@@ -475,7 +483,7 @@ What we offer:
 Start: Immediate
 
 Email your details to jobs@ozpainters.com.au or call Dave on 0433 888 912`,
-      applyUrl: 'mailto:jobs@ozpainters.com.au',
+      createdAt: daysAgo(6),
     },
     {
       title: 'Oyster Farm Worker',
@@ -506,7 +514,7 @@ We provide:
 • A truly unique Australian experience
 
 Apply to: farmjobs@coffinbayoysters.com.au`,
-      applyUrl: 'mailto:farmjobs@coffinbayoysters.com.au',
+      createdAt: daysAgo(7),
     },
     {
       title: 'Cleaner - Offices & Commercial',
@@ -539,7 +547,7 @@ Requirements:
 We provide all cleaning supplies and equipment.
 
 Apply at hello@sparkclean.com.au with your availability.`,
-      applyUrl: 'mailto:hello@sparkclean.com.au',
+      createdAt: daysAgo(7),
     },
     {
       title: 'Electrician - Residential New Builds',
@@ -570,7 +578,7 @@ What we offer:
 • Visa sponsorship may be available after 6 months for qualified candidates
 
 Contact: recruitment@sparksolutionswa.com.au`,
-      applyUrl: 'mailto:recruitment@sparksolutionswa.com.au',
+      createdAt: daysAgo(8),
     },
     {
       title: 'Banana Packing Shed Workers',
@@ -601,7 +609,7 @@ What we provide:
 Start: Immediate — we have positions available now.
 
 Email: jobs@nqbanana.com.au with your name, visa type, and available start date.`,
-      applyUrl: 'mailto:jobs@nqbanana.com.au',
+      createdAt: daysAgo(8),
     },
     {
       title: 'Receptionist / Admin - Backpackers Hostel',
@@ -636,7 +644,7 @@ Requirements:
 This is a great role if you want to save money (free rent!) while living in one of Australia's best beach towns.
 
 Apply to: manager@nomadsnoosa.com.au`,
-      applyUrl: 'mailto:manager@nomadsnoosa.com.au',
+      createdAt: daysAgo(9),
     },
     {
       title: 'Cherry Picker - Young NSW',
@@ -667,7 +675,7 @@ What we provide:
 All days worked count towards your 88 regional days for WHV.
 
 To secure your spot, email: picking@hilltopcheries.com.au with your name, visa details, and available dates.`,
-      applyUrl: 'mailto:picking@hilltopcheries.com.au',
+      createdAt: daysAgo(9),
     },
     {
       title: 'Sous Chef - Busy Restaurant',
@@ -703,7 +711,7 @@ We offer:
 • Opportunity to develop your career with an expanding restaurant group
 
 Apply with your CV and a brief cover letter to: chef@hobartwaterfrontkitchen.com.au`,
-      applyUrl: 'mailto:chef@hobartwaterfrontkitchen.com.au',
+      createdAt: daysAgo(10),
     },
     {
       title: 'Crocodile Farm Guide',
@@ -733,7 +741,7 @@ Requirements:
 This is genuinely one of the most unique jobs you'll ever have. Come work in the only place in Australia where you can swim with saltwater crocs!
 
 Email: jobs@crocosauruscove.com with a bit about yourself and your availability.`,
-      applyUrl: 'mailto:jobs@crocosauruscove.com',
+      createdAt: daysAgo(10),
     },
     {
       title: 'Mechanic - 4WD Specialist',
@@ -768,7 +776,7 @@ What we offer:
 • Accommodation assistance for the first month
 
 Contact: dave@outbackautorepairs.com.au or call (08) 8952 4567`,
-      applyUrl: 'mailto:dave@outbackautorepairs.com.au',
+      createdAt: daysAgo(11),
     },
     {
       title: 'Au Pair - Perth Family',
@@ -801,7 +809,7 @@ We're looking for someone who genuinely enjoys being around kids, is responsible
 Experience with children preferred. First Aid certificate is a plus.
 
 Email us at sarah.robertson@gmail.com with a bit about yourself and any childcare experience.`,
-      applyUrl: 'mailto:sarah.robertson@gmail.com',
+      createdAt: daysAgo(14),
     },
   ];
 
