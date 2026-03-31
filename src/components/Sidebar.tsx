@@ -1,6 +1,7 @@
 'use client'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
+import { useState } from 'react'
 import { STATES } from '@/lib/utils'
 
 const navItems = [
@@ -17,6 +18,7 @@ export default function Sidebar() {
   const router = useRouter()
   const { data: session } = useSession()
   const isAdmin = (session?.user as any)?.role === 'admin'
+  const [showStates, setShowStates] = useState(true)
 
   return (
     <aside className="hidden lg:flex flex-col w-64 flex-shrink-0 bg-white border-r border-stone-200 h-screen sticky top-0 overflow-y-auto">
@@ -46,15 +48,22 @@ export default function Sidebar() {
       </nav>
 
       {/* States section */}
-      <div className="px-5 pt-5 pb-2 text-[11px] font-bold uppercase tracking-wider text-stone-400">States</div>
-      <div className="px-3 pb-5 space-y-0.5">
-        {STATES.map(s => (
-          <button key={s.code} onClick={() => router.push(`/feed?state=${s.code}`)}
-            className="w-full px-3 py-2 rounded-lg text-[13px] text-stone-500 hover:bg-stone-50 hover:text-stone-700 transition text-left">
-            <span>{s.code} — {s.name}</span>
-          </button>
-        ))}
-      </div>
+      <button onClick={() => setShowStates(!showStates)} className="flex items-center justify-between w-full px-5 pt-5 pb-2 text-xs font-bold text-stone-500 uppercase tracking-wider hover:text-stone-700 transition">
+        <span>États</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 transition-transform ${showStates ? 'rotate-180' : ''}`}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {showStates && (
+        <div className="px-3 pb-5 space-y-0.5">
+          {STATES.map(s => (
+            <button key={s.code} onClick={() => router.push(`/feed?state=${s.code}`)}
+              className="w-full px-3 py-2 rounded-lg text-[13px] text-stone-500 hover:bg-stone-50 hover:text-stone-700 transition text-left">
+              <span>{s.code} — {s.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Profile */}
       <div className="mt-auto border-t border-stone-200 p-4 flex items-center gap-3">

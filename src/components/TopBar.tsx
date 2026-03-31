@@ -119,7 +119,7 @@ export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) =>
 
           {/* Dropdown */}
           {showDropdown && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-stone-200 overflow-hidden z-50">
+            <div className="absolute right-0 top-full mt-2 w-80 max-sm:fixed max-sm:left-2 max-sm:right-2 max-sm:w-auto bg-white rounded-xl shadow-xl border border-stone-200 overflow-hidden z-50 animate-dropdown-enter">
               <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100">
                 <span className="text-sm font-bold text-stone-800">Notifications</span>
                 {unreadCount > 0 && (

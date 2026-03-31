@@ -93,19 +93,25 @@ function FeedContent() {
         </div>
 
         {/* State chips */}
-        <div className="flex gap-2 overflow-x-auto mt-2.5 pb-0.5 scrollbar-none">
-          <Chip active={state === 'all'} onClick={() => updateFilter('state', 'all')}>Tous</Chip>
-          {STATES.map(s => <Chip key={s.code} active={state === s.code} onClick={() => updateFilter('state', s.code)}>{s.code}</Chip>)}
+        <div className="relative">
+          <div className="flex gap-2 overflow-x-auto mt-2.5 pb-0.5 scrollbar-none">
+            <Chip active={state === 'all'} onClick={() => updateFilter('state', 'all')}>Tous</Chip>
+            {STATES.map(s => <Chip key={s.code} active={state === s.code} onClick={() => updateFilter('state', s.code)}>{s.code}</Chip>)}
+          </div>
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none" />
         </div>
 
         {/* Category tabs */}
-        <div className="flex gap-1.5 overflow-x-auto mt-2 pb-0.5 scrollbar-none">
-          {CATEGORIES.map(c => (
-            <button key={c.key} onClick={() => updateFilter('category', c.key)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition whitespace-nowrap ${category === c.key ? 'bg-amber-400 text-stone-900 border-amber-400' : 'bg-stone-50 text-stone-500 border-stone-200 hover:border-purple-300'}`}>
-              {c.label}
-            </button>
-          ))}
+        <div className="relative">
+          <div className="flex gap-1.5 overflow-x-auto mt-2 pb-0.5 scrollbar-none">
+            {CATEGORIES.map(c => (
+              <button key={c.key} onClick={() => updateFilter('category', c.key)}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition whitespace-nowrap ${category === c.key ? 'bg-amber-400 text-stone-900 border-amber-400' : 'bg-stone-50 text-stone-500 border-stone-200 hover:border-purple-300'}`}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none" />
         </div>
       </div>
 

@@ -30,9 +30,9 @@ export default function JobModal({ job, saved, onSave, onClose }: { job: Job | n
   if (!job) return null
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-end justify-center bg-black/50 transition-opacity ${job ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+    <div className={`fixed inset-0 z-50 flex items-end justify-center bg-black/50 transition-opacity animate-fade-in ${job ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
       onClick={onClose}>
-      <div className="w-full max-w-xl max-h-[88vh] bg-white rounded-t-2xl overflow-y-auto" onClick={e => e.stopPropagation()}
+      <div className="w-full max-w-xl lg:max-w-2xl max-h-[88vh] bg-white rounded-t-2xl overflow-y-auto animate-slide-up-modal" onClick={e => e.stopPropagation()}
         onTouchStart={e => { startY.current = e.touches[0].clientY }}
         onTouchMove={e => { if (e.touches[0].clientY - startY.current > 80) onClose() }}>
         <div className="w-9 h-1 bg-stone-300 rounded-full mx-auto mt-2.5 mb-1" />

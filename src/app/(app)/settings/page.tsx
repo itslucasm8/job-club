@@ -197,7 +197,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-lg">
+    <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-lg mx-auto">
       <h1 className="text-2xl font-bold text-stone-900 mb-8">Paramètres du compte</h1>
 
       {/* Personal Information Section */}
