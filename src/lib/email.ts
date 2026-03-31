@@ -174,3 +174,46 @@ export async function sendSubscriptionConfirmation(to: string, name: string) {
     html: getEmailTemplate('Abonnement confirmé', content),
   })
 }
+
+export async function sendJobAlertEmail(
+  to: string,
+  name: string,
+  job: { title: string; company: string; state: string; category: string }
+) {
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://jobclub.fr'
+
+  const categoryLabels: Record<string, string> = {
+    farm: 'Agriculture',
+    hospitality: 'Hôtellerie',
+    construction: 'Construction',
+    trade: 'Métiers',
+    retail: 'Commerce',
+    cleaning: 'Nettoyage',
+    other: 'Autre',
+  }
+
+  const content = `
+    <div class="content">
+      <p>Salut ${name || 'ami'},</p>
+      <p>Une nouvelle offre correspond à tes critères !</p>
+      <div style="background-color: #f3e8ff; border-radius: 8px; padding: 16px; margin: 20px 0;">
+        <p style="margin: 0 0 4px 0; font-size: 16px; font-weight: 700; color: #1c1917;">${job.title}</p>
+        <p style="margin: 0 0 4px 0; font-size: 14px; color: #57534e;">${job.company} — ${job.state}</p>
+        <p style="margin: 0; font-size: 13px; color: #78716c;">${categoryLabels[job.category] || job.category}</p>
+      </div>
+      <div style="text-align: center;">
+        <a href="${baseUrl}/feed" class="button">Voir l'offre</a>
+      </div>
+      <div class="divider"></div>
+      <p style="font-size: 12px; color: #6b7280;">Tu peux désactiver les alertes email dans tes <a href="${baseUrl}/settings" style="color: #6b21a8;">paramètres</a>.</p>
+    </div>
+  `
+
+  return resend.emails.send({
+    from: FROM,
+    to,
+    subject: `Nouvelle offre : ${job.title}`,
+    html: getEmailTemplate('Nouvelle offre', content),
+  })
+}
