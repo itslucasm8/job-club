@@ -26,6 +26,7 @@ export default function SettingsPage() {
   // Preferences state
   const [preferredStates, setPreferredStates] = useState<string[]>([])
   const [preferredCategories, setPreferredCategories] = useState<string[]>([])
+  const [emailAlerts, setEmailAlerts] = useState(true)
   const [loadingPreferences, setLoadingPreferences] = useState(false)
   const [toastPreferences, setToastPreferences] = useState<Toast>(null)
 
@@ -53,6 +54,7 @@ export default function SettingsPage() {
         const data = await res.json()
         setPreferredStates(data.preferredStates || [])
         setPreferredCategories(data.preferredCategories || [])
+        setEmailAlerts(data.emailAlerts !== false)
       }
     } catch (error) {
       console.error('Failed to fetch preferences:', error)
@@ -159,7 +161,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/user/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ preferredStates, preferredCategories }),
+        body: JSON.stringify({ preferredStates, preferredCategories, emailAlerts }),
       })
 
       const data = await res.json()
@@ -301,6 +303,25 @@ export default function SettingsPage() {
           <p className="text-sm text-stone-600 mb-5 italic">
             Tu recevras des notifications pour les nouvelles offres correspondant à tes préférences. Si aucune sélection, tu recevras toutes les notifications.
           </p>
+
+          {/* Email alerts toggle */}
+          <div className="flex items-center justify-between py-3 mb-4 border-b border-stone-100">
+            <div>
+              <div className="text-sm font-semibold text-stone-900">Alertes par email</div>
+              <div className="text-xs text-stone-500">Recevoir un email à chaque nouvelle offre correspondante</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEmailAlerts(!emailAlerts)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                emailAlerts ? 'bg-purple-600' : 'bg-stone-300'
+              }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                emailAlerts ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
 
           {/* States */}
           <div className="mb-6">

@@ -19,6 +19,7 @@ export async function GET(req: Request) {
         email: true,
         preferredStates: true,
         preferredCategories: true,
+        emailAlerts: true,
       },
     })
 
@@ -31,6 +32,7 @@ export async function GET(req: Request) {
       email: user.email,
       preferredStates: user.preferredStates ? user.preferredStates.split(',') : [],
       preferredCategories: user.preferredCategories ? user.preferredCategories.split(',') : [],
+      emailAlerts: user.emailAlerts,
     })
   } catch (e) {
     console.error('GET /api/user/settings failed', e)
@@ -55,6 +57,7 @@ export async function PATCH(req: Request) {
       newPassword,
       preferredStates,
       preferredCategories,
+      emailAlerts,
     } = body
 
     // Get current user from DB
@@ -131,6 +134,11 @@ export async function PATCH(req: Request) {
       }
     }
 
+    // Handle emailAlerts toggle
+    if (emailAlerts !== undefined) {
+      updateData.emailAlerts = Boolean(emailAlerts)
+    }
+
     // Update user
     const updatedUser = await prisma.user.update({
       where: { id: userId },
@@ -141,6 +149,7 @@ export async function PATCH(req: Request) {
         email: true,
         preferredStates: true,
         preferredCategories: true,
+        emailAlerts: true,
       },
     })
 
@@ -153,6 +162,7 @@ export async function PATCH(req: Request) {
       preferredCategories: updatedUser.preferredCategories
         ? updatedUser.preferredCategories.split(',')
         : [],
+      emailAlerts: updatedUser.emailAlerts,
     })
   } catch (e) {
     console.error('PATCH /api/user/settings failed', e)
