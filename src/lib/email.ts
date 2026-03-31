@@ -114,7 +114,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
       <p>Ton compte a été créé avec succès. Tu peux maintenant accéder à des dizaines d'offres d'emploi exclusives en Australie.</p>
       <p>Explore les jobs qui te correspondent et commence ton aventure dès maintenant !</p>
       <div style="text-align: center;">
-        <a href="${process.env.NEXTAUTH_URL || 'https://jobclub.fr'}/feed" class="button">Voir les offres d'emploi</a>
+        <a href="${process.env.NEXTAUTH_URL || 'https://jobclub.mlfrance.dev'}/feed" class="button">Voir les offres d'emploi</a>
       </div>
       <p style="margin-top: 20px; font-size: 13px;">Si tu as des questions, n'hésite pas à nous contacter.</p>
     </div>
@@ -181,7 +181,7 @@ export async function sendJobAlertEmail(
   job: { title: string; company: string; state: string; category: string }
 ) {
   const resend = getResend()
-  const baseUrl = process.env.NEXTAUTH_URL || 'https://jobclub.fr'
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://jobclub.mlfrance.dev'
 
   const categoryLabels: Record<string, string> = {
     farm: 'Agriculture',

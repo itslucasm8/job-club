@@ -120,7 +120,7 @@ function FeedContent() {
       <div className="mx-4 sm:mx-5 lg:mx-7 mt-4 rounded-xl bg-gradient-to-br from-purple-900 via-purple-800 to-purple-600 p-5 sm:p-6 text-white flex items-center gap-4 overflow-hidden relative">
         <div className="absolute -right-8 -bottom-8 w-36 h-36 bg-white/5 rounded-full" />
         <div><h2 className="text-lg sm:text-xl font-extrabold mb-1">Bienvenue sur Job Club</h2><p className="text-xs sm:text-sm opacity-80">Les dernières offres d&apos;emploi pour backpackers en Australie</p></div>
-        <span className="text-4xl sm:text-5xl flex-shrink-0">&#127471;&#127462;</span>
+        <span className="text-4xl sm:text-5xl flex-shrink-0">&#127462;&#127482;</span>
       </div>
 
       {/* Job Grid */}
