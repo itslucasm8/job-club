@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { STATES, CATEGORIES } from '@/lib/utils'
+import { useToast } from '@/components/Toast'
 import JobCard from '@/components/JobCard'
 import JobModal from '@/components/JobModal'
 
@@ -16,6 +17,7 @@ export default function FeedPage() {
 function FeedContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { toast } = useToast()
   const [jobs, setJobs] = useState<any[]>([])
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const [selectedJob, setSelectedJob] = useState<any>(null)
@@ -54,14 +56,20 @@ function FeedContent() {
   async function toggleSave(jobId: string) {
     try {
       const res = await fetch(`/api/jobs/${jobId}/save`, { method: 'POST' })
-      if (!res.ok) return
+      if (!res.ok) {
+        toast('error', 'Erreur lors de la sauvegarde')
+        return
+      }
       const data = await res.json()
       setSavedIds(prev => {
         const next = new Set(prev)
         if (data.saved) next.add(jobId); else next.delete(jobId)
         return next
       })
-    } catch {}
+      toast('success', data.saved ? 'Offre sauvegardée' : 'Offre retirée')
+    } catch {
+      toast('error', 'Erreur réseau')
+    }
   }
 
   // Debounced search

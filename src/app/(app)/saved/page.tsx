@@ -1,9 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useToast } from '@/components/Toast'
 import JobCard from '@/components/JobCard'
 import JobModal from '@/components/JobModal'
 
 export default function SavedPage() {
+  const { toast } = useToast()
   const [jobs, setJobs] = useState<any[]>([])
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const [selectedJob, setSelectedJob] = useState<any>(null)
@@ -30,7 +32,10 @@ export default function SavedPage() {
   async function toggleSave(jobId: string) {
     try {
       const res = await fetch(`/api/jobs/${jobId}/save`, { method: 'POST' })
-      if (!res.ok) return
+      if (!res.ok) {
+        toast('error', 'Erreur lors de la sauvegarde')
+        return
+      }
       const data = await res.json()
       setSavedIds(prev => {
         const next = new Set(prev)
@@ -40,7 +45,10 @@ export default function SavedPage() {
       if (!data.saved) {
         setJobs(prev => prev.filter(j => j.id !== jobId))
       }
-    } catch {}
+      toast('success', data.saved ? 'Offre sauvegardée' : 'Offre retirée')
+    } catch {
+      toast('error', 'Erreur réseau')
+    }
   }
 
   return (
