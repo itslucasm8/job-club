@@ -18,6 +18,7 @@ model User {
   subscriptionId       String?
   preferredStates      String?   // Comma-separated state codes e.g. "QLD,NSW"
   preferredCategories  String?   // Comma-separated categories e.g. "Agriculture,Construction"
+  emailAlerts          Boolean   @default(true)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   savedJobs            SavedJob[]
