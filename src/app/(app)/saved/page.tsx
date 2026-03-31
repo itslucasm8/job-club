@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useToast } from '@/components/Toast'
 import JobCard from '@/components/JobCard'
 import JobModal from '@/components/JobModal'
+import JobCardSkeleton from '@/components/JobCardSkeleton'
 
 export default function SavedPage() {
   const { toast } = useToast()
@@ -62,7 +63,7 @@ export default function SavedPage() {
       <div className="px-4 sm:px-5 lg:px-7 py-4 pb-24 lg:pb-10 grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="bg-white rounded-xl border border-stone-200 h-52 animate-pulse" />
+            <JobCardSkeleton key={i} />
           ))
         ) : jobs.length === 0 ? (
           <div className="col-span-full text-center py-16">

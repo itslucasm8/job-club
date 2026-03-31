@@ -22,6 +22,9 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loadingPassword, setLoadingPassword] = useState(false)
   const [toastPassword, setToastPassword] = useState<Toast>(null)
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   // Preferences state
   const [preferredStates, setPreferredStates] = useState<string[]>([])
@@ -249,33 +252,96 @@ export default function SettingsPage() {
         <div className="space-y-4 bg-white p-5 rounded-lg border border-stone-200">
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-2">Mot de passe actuel</label>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-stone-300 text-stone-900 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Votre mot de passe actuel"
-            />
+            <div className="relative">
+              <input
+                type={showCurrentPassword ? 'text' : 'password'}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-4 py-2.5 pr-10 rounded-lg border border-stone-300 text-stone-900 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="Votre mot de passe actuel"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition"
+              >
+                {showCurrentPassword ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+                    <path d="M14.12 14.12a3 3 0 11-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-2">Nouveau mot de passe</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-stone-300 text-stone-900 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Nouveau mot de passe"
-            />
+            <div className="relative">
+              <input
+                type={showNewPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-4 py-2.5 pr-10 rounded-lg border border-stone-300 text-stone-900 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="Nouveau mot de passe"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition"
+              >
+                {showNewPassword ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+                    <path d="M14.12 14.12a3 3 0 11-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-2">Confirmer le nouveau mot de passe</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-stone-300 text-stone-900 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Confirmer le nouveau mot de passe"
-            />
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-2.5 pr-10 rounded-lg border border-stone-300 text-stone-900 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="Confirmer le nouveau mot de passe"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition"
+              >
+                {showConfirmPassword ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+                    <path d="M14.12 14.12a3 3 0 11-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
           <button
             onClick={handleSavePassword}
