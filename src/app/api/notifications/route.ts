@@ -19,15 +19,19 @@ export async function GET(req: Request) {
 
     const userId = (session.user as any).id
 
-    const notifications = await prisma.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-      include: {
-        // We'll manually fetch job titles since Notification model may not have explicit relation
-        // but we can query it separately if jobId exists
-      },
-    })
+    const { searchParams } = new URL(req.url)
+    const take = Math.min(parseInt(searchParams.get('take') || '20'), 50)
+    const skip = parseInt(searchParams.get('skip') || '0')
+
+    const [notifications, total] = await Promise.all([
+      prisma.notification.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      prisma.notification.count({ where: { userId } }),
+    ])
 
     // Fetch job titles for notifications that have jobId
     const notificationsWithJobs = await Promise.all(
@@ -47,7 +51,7 @@ export async function GET(req: Request) {
       })
     )
 
-    return NextResponse.json(notificationsWithJobs)
+    return NextResponse.json({ notifications: notificationsWithJobs, total })
   } catch (e) {
     logger.error('GET /api/notifications failed', {
       route: '/api/notifications',

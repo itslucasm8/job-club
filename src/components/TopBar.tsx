@@ -42,10 +42,10 @@ export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) =>
 
   async function fetchNotifications() {
     try {
-      const res = await fetch('/api/notifications')
+      const res = await fetch('/api/notifications?take=20')
       if (res.ok) {
         const data = await res.json()
-        setNotifications(data)
+        setNotifications(data.notifications || data)
       }
     } catch {}
   }
@@ -150,6 +150,14 @@ export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) =>
                       </div>
                     </button>
                   ))
+                )}
+                {notifications.length > 0 && (
+                  <button
+                    onClick={() => { setShowDropdown(false); router.push('/notifications') }}
+                    className="w-full text-center py-2.5 text-xs font-medium text-purple-600 hover:bg-stone-50 transition border-t border-stone-100"
+                  >
+                    Voir tout
+                  </button>
                 )}
               </div>
             </div>
