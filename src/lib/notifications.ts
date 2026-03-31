@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { logger } from './logger'
+import { sendJobAlertEmail } from './email'
 
 export interface JobData {
   id: string
@@ -18,12 +19,16 @@ export async function createJobNotifications(job: JobData): Promise<void> {
       },
       select: {
         id: true,
+        name: true,
+        email: true,
+        emailAlerts: true,
         preferredStates: true,
         preferredCategories: true,
       },
     })
 
     const notificationsToCreate = []
+    const emailsToSend: { to: string; name: string }[] = []
 
     for (const user of users) {
       // Parse preferences
@@ -41,16 +46,12 @@ export async function createJobNotifications(job: JobData): Promise<void> {
       let shouldNotify = false
 
       if (!hasStatePreference && !hasCategoryPreference) {
-        // No preferences set = wants everything
         shouldNotify = true
       } else if (hasStatePreference && !hasCategoryPreference) {
-        // Only state preference
         shouldNotify = preferredStates.includes(job.state)
       } else if (!hasStatePreference && hasCategoryPreference) {
-        // Only category preference
         shouldNotify = preferredCategories.includes(job.category)
       } else {
-        // Both preferences set = must match at least one state AND at least one category
         const stateMatches = preferredStates.includes(job.state)
         const categoryMatches = preferredCategories.includes(job.category)
         shouldNotify = stateMatches && categoryMatches
@@ -64,10 +65,15 @@ export async function createJobNotifications(job: JobData): Promise<void> {
           message: `${job.company} — ${job.state}`,
           jobId: job.id,
         })
+
+        // Queue email if user has email alerts enabled
+        if (user.emailAlerts) {
+          emailsToSend.push({ to: user.email, name: user.name || '' })
+        }
       }
     }
 
-    // Bulk create notifications
+    // Bulk create in-app notifications
     if (notificationsToCreate.length > 0) {
       await prisma.notification.createMany({
         data: notificationsToCreate,
@@ -77,11 +83,28 @@ export async function createJobNotifications(job: JobData): Promise<void> {
         count: notificationsToCreate.length,
       })
     }
+
+    // Send emails (fire-and-forget each one)
+    if (emailsToSend.length > 0) {
+      const emailPromises = emailsToSend.map(({ to, name }) =>
+        sendJobAlertEmail(to, name, job).catch((err) => {
+          logger.error('Failed to send job alert email', {
+            jobId: job.id,
+            to,
+            error: String(err),
+          })
+        })
+      )
+      await Promise.allSettled(emailPromises)
+      logger.info('Job alert emails sent', {
+        jobId: job.id,
+        attempted: emailsToSend.length,
+      })
+    }
   } catch (error) {
     logger.error('Failed to create job notifications', {
       jobId: job.id,
       error: String(error),
     })
-    // Fire-and-forget: don't rethrow, just log
   }
 }
