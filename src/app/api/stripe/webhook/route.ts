@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
-import { sendSubscriptionConfirmation } from '@/lib/email'
+import { sendSubscriptionConfirmation, sendPaymentFailedEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
 
 export async function POST(req: Request) {
@@ -51,6 +51,35 @@ export async function POST(req: Request) {
         await prisma.user.updateMany({ where: { subscriptionId: sub.id }, data: { subscriptionStatus: 'canceled', subscriptionId: null } })
       } catch (e) {
         logger.error('customer.subscription.deleted event failed', { route: '/api/stripe/webhook', error: String(e) })
+      }
+      break
+    }
+    case 'invoice.payment_failed': {
+      try {
+        const invoice = event.data.object as any
+        const user = await prisma.user.findFirst({ where: { stripeCustomerId: invoice.customer as string } })
+        if (user) {
+          sendPaymentFailedEmail(user.email, user.name).catch(console.error)
+          logger.error('Payment failed for user', { route: '/api/stripe/webhook', email: user.email, invoiceId: invoice.id })
+        }
+      } catch (e) {
+        logger.error('invoice.payment_failed event failed', { route: '/api/stripe/webhook', error: String(e) })
+      }
+      break
+    }
+    case 'invoice.paid': {
+      try {
+        const invoice = event.data.object as any
+        // Ensure subscription stays active on successful renewal payments
+        if (invoice.subscription) {
+          await prisma.user.updateMany({
+            where: { stripeCustomerId: invoice.customer as string },
+            data: { subscriptionStatus: 'active' },
+          })
+        }
+        logger.error('Invoice paid successfully', { route: '/api/stripe/webhook', invoiceId: invoice.id, amount: invoice.amount_paid })
+      } catch (e) {
+        logger.error('invoice.paid event failed', { route: '/api/stripe/webhook', error: String(e) })
       }
       break
     }

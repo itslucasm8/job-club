@@ -1,16 +1,25 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendPasswordResetEmail } from '@/lib/email'
+import { passwordResetLimiter, getClientIP } from '@/lib/rate-limit'
 import crypto from 'crypto'
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIP(req)
+    if (!passwordResetLimiter.check(ip)) {
+      return NextResponse.json(
+        { error: 'Trop de tentatives. Réessaie dans quelques minutes.' },
+        { status: 429 }
+      )
+    }
+
     const body = await req.json()
     const { email } = body
 
-    if (!email || typeof email !== 'string') {
+    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
-        { error: 'Email requis' },
+        { error: 'Email valide requis' },
         { status: 400 }
       )
     }

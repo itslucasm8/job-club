@@ -4,9 +4,16 @@ import { prisma } from '@/lib/prisma'
 import { registerSchema, getFirstValidationError } from '@/lib/validation'
 import { sendWelcomeEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
+import { registerLimiter, getClientIP } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIP(req)
+    if (!registerLimiter.check(ip)) {
+      logger.warn('Rate limit exceeded on register', { route: '/api/register', ip })
+      return NextResponse.json({ error: 'Trop de tentatives. Réessaie dans quelques minutes.' }, { status: 429 })
+    }
+
     const body = await req.json()
 
     // Validate with Zod

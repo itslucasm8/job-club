@@ -14,6 +14,13 @@ export async function POST(req: Request) {
       )
     }
 
+    if (typeof password !== 'string' || password.length < 8) {
+      return NextResponse.json(
+        { error: 'Le mot de passe doit contenir au moins 8 caractères' },
+        { status: 400 }
+      )
+    }
+
     // Find reset token
     const resetRecord = await prisma.passwordReset.findUnique({
       where: { token },

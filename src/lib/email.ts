@@ -11,7 +11,7 @@ function getResend(): Resend {
   return _resend
 }
 
-const FROM = process.env.EMAIL_FROM || 'Job Club <noreply@mlfrance.dev>'
+const FROM = process.env.EMAIL_FROM || 'Job Club <noreply@jobclub.mlfrance.dev>'
 
 function getEmailTemplate(subject: string, content: string): string {
   return `
@@ -172,6 +172,29 @@ export async function sendSubscriptionConfirmation(to: string, name: string) {
     to,
     subject: 'Ton abonnement Job Club est actif',
     html: getEmailTemplate('Abonnement confirmé', content),
+  })
+}
+
+export async function sendPaymentFailedEmail(to: string, name: string) {
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://jobclub.mlfrance.dev'
+  const content = `
+    <div class="content">
+      <p>Salut ${name || 'ami'},</p>
+      <p>Nous n'avons pas pu traiter ton dernier paiement pour ton abonnement Job Club.</p>
+      <p>Pour continuer à accéder aux offres d'emploi, merci de mettre à jour tes informations de paiement.</p>
+      <div style="text-align: center;">
+        <a href="${baseUrl}/profile" class="button">Mettre à jour mon paiement</a>
+      </div>
+      <p style="font-size: 13px; color: #6b7280;">Si tu penses qu'il s'agit d'une erreur, n'hésite pas à nous contacter.</p>
+    </div>
+  `
+
+  return resend.emails.send({
+    from: FROM,
+    to,
+    subject: 'Problème de paiement — Job Club',
+    html: getEmailTemplate('Paiement échoué', content),
   })
 }
 

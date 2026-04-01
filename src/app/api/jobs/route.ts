@@ -20,17 +20,24 @@ export async function GET(req: Request) {
     const { state, category, q, page } = result.data
     const limit = 20
 
-    const where: any = { active: true }
-    if (state !== 'all') where.state = state
-    if (category !== 'all') where.category = category
+    const conditions: any[] = [
+      { active: true },
+      // Expiry filter: show jobs with no expiry or not yet expired
+      { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+    ]
+    if (state !== 'all') conditions.push({ state })
+    if (category !== 'all') conditions.push({ category })
     if (q) {
-      where.OR = [
-        { title: { contains: q } },
-        { company: { contains: q } },
-        { description: { contains: q } },
-        { location: { contains: q } },
-      ]
+      conditions.push({
+        OR: [
+          { title: { contains: q, mode: 'insensitive' } },
+          { company: { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+          { location: { contains: q, mode: 'insensitive' } },
+        ],
+      })
     }
+    const where = { AND: conditions }
 
     const [jobs, total] = await Promise.all([
       prisma.job.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit }),
@@ -60,6 +67,9 @@ export async function POST(req: Request) {
 
     const { title, company, state, location, category, type, pay, description, applyUrl, sourceUrl } = result.data
 
+    // Default expiry: 30 days from now
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
     const job = await prisma.job.create({
       data: {
         title,
@@ -72,6 +82,7 @@ export async function POST(req: Request) {
         description,
         applyUrl: applyUrl || null,
         sourceUrl: sourceUrl || null,
+        expiresAt,
       },
     })
 

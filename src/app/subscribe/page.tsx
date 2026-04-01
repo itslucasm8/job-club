@@ -13,6 +13,7 @@ export default function SubscribePage() {
 
 function SubscribeContent() {
   const [loading, setLoading] = useState(false)
+  const [plan, setPlan] = useState<'monthly' | 'yearly'>('monthly')
   const router = useRouter()
   const searchParams = useSearchParams()
   const [message, setMessage] = useState<{ type: 'success' | 'info'; text: string } | null>(null)
@@ -40,7 +41,11 @@ function SubscribeContent() {
 
   async function handleSubscribe() {
     setLoading(true)
-    const res = await fetch('/api/stripe/checkout', { method: 'POST' })
+    const res = await fetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    })
     const data = await res.json()
     if (data.url) {
       window.location.href = data.url
@@ -88,9 +93,49 @@ function SubscribeContent() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+          {/* Plan toggle */}
+          <div className="flex items-center justify-center gap-1 mb-6 bg-stone-100 rounded-xl p-1">
+            <button
+              onClick={() => setPlan('monthly')}
+              className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-bold transition ${
+                plan === 'monthly'
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-400 hover:text-stone-600'
+              }`}
+            >
+              Mensuel
+            </button>
+            <button
+              onClick={() => setPlan('yearly')}
+              className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-bold transition relative ${
+                plan === 'yearly'
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-400 hover:text-stone-600'
+              }`}
+            >
+              Annuel
+              <span className="absolute -top-2 -right-2 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                -17%
+              </span>
+            </button>
+          </div>
+
+          {/* Price display */}
           <div className="mb-6">
-            <span className="text-5xl font-extrabold text-stone-900">$39.99</span>
-            <span className="text-stone-500"> / mois</span>
+            {plan === 'monthly' ? (
+              <>
+                <span className="text-5xl font-extrabold text-stone-900">$39.99</span>
+                <span className="text-stone-500"> / mois</span>
+              </>
+            ) : (
+              <>
+                <span className="text-5xl font-extrabold text-stone-900">$400</span>
+                <span className="text-stone-500"> / an</span>
+                <p className="text-sm text-green-600 font-semibold mt-1">
+                  ~$33.33/mois — tu économises $79.88/an
+                </p>
+              </>
+            )}
           </div>
 
           <ul className="text-left space-y-3 mb-8">
