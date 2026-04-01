@@ -5,7 +5,7 @@ import { catLabel, typeLabel, timeAgo } from '@/lib/utils'
 interface Job {
   id: string; title: string; company: string; state: string; location: string;
   category: string; type: string; pay: string | null; description: string;
-  createdAt: string;
+  applyUrl?: string | null; createdAt: string;
 }
 
 const tagColor: Record<string, string> = {
@@ -86,10 +86,25 @@ export default function JobModal({ job, saved, onSave, onClose }: { job: Job | n
           {/* Description */}
           <div className="mt-4 lg:mt-5 text-sm lg:text-[15px] text-stone-700 leading-relaxed whitespace-pre-wrap">{job.description}</div>
 
-          {/* Action button */}
+          {/* Action buttons */}
           <div className="flex gap-3 mt-6">
+            {job.applyUrl && (
+              <a
+                href={job.applyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-4 lg:py-3.5 rounded-xl bg-purple-700 hover:bg-purple-600 text-white flex items-center justify-center transition font-bold text-base"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 mr-2">
+                  <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/>
+                  <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+                Postuler
+              </a>
+            )}
             <button onClick={onSave}
-              className={`flex-1 py-4 lg:py-3.5 rounded-xl border-2 flex items-center justify-center transition font-bold text-base ${saved ? 'border-red-300 bg-red-50 text-red-600' : 'border-stone-200 hover:border-purple-300 hover:bg-purple-50 text-stone-600'}`}>
+              className={`${job.applyUrl ? '' : 'flex-1 '}py-4 lg:py-3.5 rounded-xl border-2 flex items-center justify-center transition font-bold text-base ${job.applyUrl ? 'px-5' : ''} ${saved ? 'border-red-300 bg-red-50 text-red-600' : 'border-stone-200 hover:border-purple-300 hover:bg-purple-50 text-stone-600'}`}>
               <svg viewBox="0 0 24 24" fill={saved ? '#dc2626' : 'none'} stroke={saved ? '#dc2626' : '#a8a29e'} strokeWidth="2" className="w-5 h-5 mr-2">
                 <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
               </svg>

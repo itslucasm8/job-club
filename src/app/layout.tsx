@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'Job Club — MLF Jobs Australia',
-  description: 'Trouve ton job en Australie. Des centaines d\'offres pour backpackers chaque semaine.',
+  title: 'Job Club — Jobs for Backpackers in Australia',
+  description: 'Find your next job in Australia. Hundreds of backpacker-friendly job listings updated weekly.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
