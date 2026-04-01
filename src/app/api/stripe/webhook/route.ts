@@ -28,7 +28,7 @@ export async function POST(req: Request) {
         // Send confirmation email
         const user = await prisma.user.findFirst({ where: { stripeCustomerId: s.customer as string } })
         if (user) {
-          sendSubscriptionConfirmation(user.email, user.name).catch(console.error)
+          sendSubscriptionConfirmation(user.email, user.name ?? "").catch(console.error)
         }
       } catch (e) {
         logger.error('checkout.session.completed event failed', { route: '/api/stripe/webhook', error: String(e) })
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
         const invoice = event.data.object as any
         const user = await prisma.user.findFirst({ where: { stripeCustomerId: invoice.customer as string } })
         if (user) {
-          sendPaymentFailedEmail(user.email, user.name).catch(console.error)
+          sendPaymentFailedEmail(user.email, user.name ?? "").catch(console.error)
           logger.error('Payment failed for user', { route: '/api/stripe/webhook', email: user.email, invoiceId: invoice.id })
         }
       } catch (e) {
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
             data: { subscriptionStatus: 'active' },
           })
         }
-        logger.error('Invoice paid successfully', { route: '/api/stripe/webhook', invoiceId: invoice.id, amount: invoice.amount_paid })
+        logger.info('Invoice paid successfully', { route: '/api/stripe/webhook', invoiceId: invoice.id, amount: invoice.amount_paid })
       } catch (e) {
         logger.error('invoice.paid event failed', { route: '/api/stripe/webhook', error: String(e) })
       }
