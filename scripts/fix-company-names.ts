@@ -84,14 +84,14 @@ async function main() {
     } else {
       // Rename the ugly fallback to something cleaner
       if (!dryRun) {
-        await prisma.job.update({ where: { id: job.id }, data: { company: 'Voir description' } })
+        await prisma.job.update({ where: { id: job.id }, data: { company: 'See description' } })
       }
       renamed++
     }
   }
 
   console.log(`Company name extracted: ${fixed}`)
-  console.log(`Renamed to "Voir description": ${renamed}`)
+  console.log(`Renamed to "See description": ${renamed}`)
 
   if (dryRun && fixes.length > 0) {
     console.log(`\nExtracted company names:`)
