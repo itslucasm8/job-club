@@ -14,14 +14,20 @@ export const CATEGORIES = [
   { key: 'farm', label: 'Agriculture' },
   { key: 'hospitality', label: 'Hôtellerie' },
   { key: 'construction', label: 'Construction' },
-  { key: 'trade', label: 'Métiers' },
   { key: 'retail', label: 'Commerce' },
   { key: 'cleaning', label: 'Nettoyage' },
+  { key: 'events', label: 'Événements' },
+  { key: 'animals', label: 'Animaux' },
+  { key: 'transport', label: 'Transport' },
   { key: 'other', label: 'Autre' },
 ] as const
 
 export function catLabel(key: string) {
-  const map: Record<string, string> = { farm: 'Agriculture', hospitality: 'Hôtellerie', construction: 'Construction', trade: 'Métiers', retail: 'Commerce', cleaning: 'Nettoyage', other: 'Autre' }
+  const map: Record<string, string> = {
+    farm: 'Agriculture', hospitality: 'Hôtellerie', construction: 'Construction',
+    retail: 'Commerce', cleaning: 'Nettoyage', events: 'Événements',
+    animals: 'Animaux', transport: 'Transport', other: 'Autre',
+  }
   return map[key] || key
 }
 

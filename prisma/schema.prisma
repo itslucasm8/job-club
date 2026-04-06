@@ -39,11 +39,13 @@ model Job {
   applyUrl    String?
   sourceUrl   String?
   active      Boolean   @default(true)
+  eligible88Days Boolean @default(false)
   expiresAt   DateTime? // Auto-set to 30 days after creation if not specified
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   savedBy     SavedJob[]
   @@index([active, expiresAt])
+  @@index([eligible88Days])
 }
 
 model SavedJob {
