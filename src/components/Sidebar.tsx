@@ -15,7 +15,6 @@ export default function Sidebar() {
     { href: '/admin', label: t.nav.publishJob, icon: 'M12 5v14 M5 12h14', adminOnly: true },
     { href: '/admin/jobs', label: t.nav.manageJobs, icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2', adminOnly: true },
     { href: '/saved', label: t.nav.savedJobs, icon: 'M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z' },
-    { href: '/profile', label: t.nav.myProfile, icon: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2 M12 7m-4 0a4 4 0 108 0 4 4 0 00-8 0' },
   ]
   const pathname = usePathname()
   const router = useRouter()
@@ -81,7 +80,7 @@ export default function Sidebar() {
       )}
 
       {/* Profile */}
-      <div className="mt-auto border-t border-stone-200 p-4 flex items-center gap-3">
+      <button onClick={() => router.push('/profile')} className="mt-auto border-t border-stone-200 p-4 flex items-center gap-3 w-full hover:bg-stone-50 transition text-left">
         <div className="w-9 h-9 rounded-full bg-purple-50 border-2 border-purple-300 flex items-center justify-center text-xs font-bold text-purple-700 flex-shrink-0">
           {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || '?'}
         </div>
@@ -89,7 +88,7 @@ export default function Sidebar() {
           <div className="text-sm font-semibold text-stone-800 truncate">{session?.user?.name || t.common.member}</div>
           <div className="text-[11px] text-stone-400 truncate">{session?.user?.email}</div>
         </div>
-      </div>
+      </button>
     </aside>
   )
 }
