@@ -15,9 +15,19 @@ const LanguageContext = createContext<LanguageContextType>({
   t: translations.fr,
 })
 
+// Safe wrapper: LanguageProvider lives in the root layout but SessionProvider
+// only wraps (app)/ routes, so useSession() would crash on auth/public pages.
+function useSafeSession() {
+  try {
+    return useSession()
+  } catch {
+    return { status: 'unauthenticated' as const }
+  }
+}
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>('fr')
-  const { status } = useSession()
+  const { status } = useSafeSession()
 
   // On mount: load from localStorage immediately (fast), then sync from DB when authenticated
   useEffect(() => {
