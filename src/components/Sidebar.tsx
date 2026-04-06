@@ -18,7 +18,7 @@ export default function Sidebar() {
   const router = useRouter()
   const { data: session } = useSession()
   const isAdmin = (session?.user as any)?.role === 'admin'
-  const [showStates, setShowStates] = useState(true)
+  const [showStates, setShowStates] = useState(false)
   const [stateCounts, setStateCounts] = useState<Record<string, number>>({})
 
   useEffect(() => {
