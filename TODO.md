@@ -29,7 +29,7 @@
 
 | # | Workstream | Plan | Type | Status |
 |---|-----------|------|------|--------|
-| 7 | **Observability (Sentry)** | [plan](docs/plans/observability-sentry.md) | Feature | Not started |
+| 7 | **Observability (Sentry)** | [plan](docs/plans/observability-sentry.md) | Feature | **Done** |
 | 8 | **Product Analytics** | [plan](docs/plans/product-analytics.md) | Feature | Not started |
 
 ## Already Planned (existing detailed plans)
@@ -50,4 +50,4 @@ These older plans cover work that's partially done. Refer to them for completed 
 
 ---
 
-*Last updated: 2026-04-05*
+*Last updated: 2026-04-06*

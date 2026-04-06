@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:16-alpine
@@ -10,8 +8,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - pg-data:/var/lib/postgresql/data
-    ports:
-      - '5432:5432'
+    # No ports exposed — app connects via Docker internal network (db:5432)
+    # For local dev, uncomment the next line to access Prisma Studio etc:
+    # ports:
+    #   - '5432:5432'
 
   app:
     build: .
