@@ -20,6 +20,7 @@
     "bcryptjs": "^3.0.3",
     "next": "^14.2.35",
     "next-auth": "^4.24.13",
+    "posthog-js": "^1.364.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "resend": "^6.9.4",

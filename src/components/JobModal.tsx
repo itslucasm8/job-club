@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import { usePostHog } from 'posthog-js/react'
 import { catLabel, typeLabel, timeAgo } from '@/lib/utils'
 
 interface Job {
@@ -20,12 +21,19 @@ const tagColor: Record<string, string> = {
 
 export default function JobModal({ job, saved, onSave, onClose }: { job: Job | null; saved: boolean; onSave: () => void; onClose: () => void }) {
   const startY = useRef(0)
+  const posthog = usePostHog()
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     if (job) { document.addEventListener('keydown', handleKey); document.body.style.overflow = 'hidden' }
     return () => { document.removeEventListener('keydown', handleKey); document.body.style.overflow = '' }
   }, [job, onClose])
+
+  useEffect(() => {
+    if (job && posthog) {
+      posthog.capture('job_viewed', { category: job.category, state: job.state, company: job.company })
+    }
+  }, [job, posthog])
 
   if (!job) return null
 
@@ -103,7 +111,7 @@ export default function JobModal({ job, saved, onSave, onClose }: { job: Job | n
                 Postuler
               </a>
             )}
-            <button onClick={onSave}
+            <button onClick={() => { if (!saved && posthog) posthog.capture('job_saved', { category: job.category, state: job.state }); onSave() }}
               className={`${job.applyUrl ? '' : 'flex-1 '}py-4 lg:py-3.5 rounded-xl border-2 flex items-center justify-center transition font-bold text-base ${job.applyUrl ? 'px-5' : ''} ${saved ? 'border-red-300 bg-red-50 text-red-600' : 'border-stone-200 hover:border-purple-300 hover:bg-purple-50 text-stone-600'}`}>
               <svg viewBox="0 0 24 24" fill={saved ? '#dc2626' : 'none'} stroke={saved ? '#dc2626' : '#a8a29e'} strokeWidth="2" className="w-5 h-5 mr-2">
                 <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
