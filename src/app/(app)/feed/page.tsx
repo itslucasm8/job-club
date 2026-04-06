@@ -34,6 +34,7 @@ function FeedContent() {
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState(searchParams.get('q') || '')
   const [stats, setStats] = useState<FeedStats | null>(null)
+  const [only88Days, setOnly88Days] = useState(false)
 
   const state = searchParams.get('state') || 'all'
   const category = searchParams.get('category') || 'all'
@@ -58,6 +59,7 @@ function FeedContent() {
       if (state !== 'all') params.set('state', state)
       if (category !== 'all') params.set('category', category)
       if (query) params.set('q', query)
+      if (only88Days) params.set('eligible88Days', 'true')
       const res = await fetch(`/api/jobs?${params}`)
       if (!res.ok) throw new Error('Fetch failed')
       const data = await res.json()
@@ -66,7 +68,7 @@ function FeedContent() {
       setJobs([])
     }
     setLoading(false)
-  }, [state, category, query])
+  }, [state, category, query, only88Days])
 
   useEffect(() => { fetchJobs() }, [fetchJobs])
 
@@ -171,6 +173,12 @@ function FeedContent() {
                 {c.label}
               </button>
             ))}
+            <button
+              onClick={() => setOnly88Days(!only88Days)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-[10px] text-[12px] font-semibold border transition whitespace-nowrap ${only88Days ? 'bg-yellow-400 text-stone-900 border-yellow-400' : 'bg-white text-stone-500 border-stone-200 hover:border-yellow-300'}`}
+            >
+              88 jours
+            </button>
           </div>
           <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-warm-bg to-transparent pointer-events-none" />
         </div>

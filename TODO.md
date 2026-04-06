@@ -23,7 +23,7 @@
 | 3 | **Production Database Hardening** | [plan](docs/plans/production-database.md) | Ops | **Done** |
 | 4 | **DNS & Domain** | [plan](docs/plans/dns-domain.md) | Ops | Not started |
 | 5 | **Podia User Migration** | [plan](docs/plans/podia-user-migration.md) | Script + Ops | Not started |
-| 6 | **Seed Real Jobs** | [plan](docs/plans/seed-real-jobs.md) | Script + Ops | Not started |
+| 6 | **Seed Real Jobs** | [plan](docs/plans/seed-real-jobs.md) | Script + Ops | **Partially done** — 889 jobs scraped from Podia & imported locally. Need to import on production. |
 
 ## Important (should complete before or shortly after go-live)
 
@@ -31,6 +31,7 @@
 |---|-----------|------|------|--------|
 | 7 | **Observability (Sentry)** | [plan](docs/plans/observability-sentry.md) | Feature | **Done** |
 | 8 | **Product Analytics** | [plan](docs/plans/product-analytics.md) | Feature | **Done** |
+| 9 | **Category Redesign + 88 Days Flag** | [spec](docs/superpowers/specs/2026-04-07-categories-88days-design.md) | Feature | **Done** — PR #1 ready to merge. 9 categories, 88-day badge + filter. |
 
 ## Already Planned (existing detailed plans)
 
@@ -50,4 +51,4 @@ These older plans cover work that's partially done. Refer to them for completed 
 
 ---
 
-*Last updated: 2026-04-06*
+*Last updated: 2026-04-07*

@@ -1,7 +1,7 @@
 import { z, ZodError } from 'zod'
 
 const VALID_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
-const VALID_CATEGORIES = ['farm', 'hospitality', 'construction', 'trade', 'retail', 'cleaning', 'other'] as const
+const VALID_CATEGORIES = ['farm', 'hospitality', 'construction', 'retail', 'cleaning', 'events', 'animals', 'transport', 'other'] as const
 const VALID_TYPES = ['casual', 'full_time', 'part_time', 'contract'] as const
 
 /**
@@ -33,6 +33,7 @@ export const createJobSchema = z.object({
   description: z.string().min(1, 'Description requise').max(10000),
   applyUrl: z.string().url().optional().or(z.literal('')),
   sourceUrl: z.string().url().optional().or(z.literal('')),
+  eligible88Days: z.boolean().default(false),
 })
 
 export const extractSchema = z.object({
@@ -41,7 +42,7 @@ export const extractSchema = z.object({
 
 // Define jobQuerySchema with full state/category enums to avoid TypeScript spread issues
 const QUERY_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT', 'all'] as const
-const QUERY_CATEGORIES = ['farm', 'hospitality', 'construction', 'trade', 'retail', 'cleaning', 'other', 'all'] as const
+const QUERY_CATEGORIES = ['farm', 'hospitality', 'construction', 'retail', 'cleaning', 'events', 'animals', 'transport', 'other', 'all'] as const
 
 export const jobQuerySchema = z.object({
   state: z.enum(QUERY_STATES).default('all'),

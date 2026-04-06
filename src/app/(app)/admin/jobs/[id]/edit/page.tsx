@@ -14,6 +14,7 @@ type JobForm = {
   description: string
   applyUrl?: string
   sourceUrl?: string
+  eligible88Days: boolean
 }
 
 export default function EditJobPage() {
@@ -33,6 +34,7 @@ export default function EditJobPage() {
     description: '',
     applyUrl: '',
     sourceUrl: '',
+    eligible88Days: false,
   })
 
   const [loading, setLoading] = useState(true)
@@ -59,6 +61,7 @@ export default function EditJobPage() {
           description: job.description,
           applyUrl: job.applyUrl || '',
           sourceUrl: job.sourceUrl || '',
+          eligible88Days: job.eligible88Days ?? false,
         })
       } else {
         setError('Offre introuvable')
@@ -169,9 +172,11 @@ export default function EditJobPage() {
             <option value="farm">Agriculture / Ferme</option>
             <option value="hospitality">Hôtellerie / Restauration</option>
             <option value="construction">Construction / BTP</option>
-            <option value="trade">Métiers / Trade</option>
             <option value="retail">Commerce / Vente</option>
             <option value="cleaning">Nettoyage / Entretien</option>
+            <option value="events">Événements / Festivals</option>
+            <option value="animals">Animaux / Animalier</option>
+            <option value="transport">Transport / Livraison</option>
             <option value="other">Autre</option>
           </select>
         </div>
@@ -193,6 +198,15 @@ export default function EditJobPage() {
         <label className="block text-[13px] font-semibold text-stone-600 mb-1">Description *</label>
         <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={5} placeholder="Décris le poste, les conditions, comment postuler..."
           className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400 resize-y" />
+        <label className="flex items-center gap-2 cursor-pointer mt-3">
+          <input
+            type="checkbox"
+            checked={form.eligible88Days}
+            onChange={e => setForm({ ...form, eligible88Days: e.target.checked })}
+            className="w-4 h-4 rounded border-stone-300 text-yellow-500 focus:ring-yellow-400"
+          />
+          <span className="text-sm font-medium text-stone-700">Éligible 88 jours</span>
+        </label>
       </div>
 
       {/* Buttons */}
