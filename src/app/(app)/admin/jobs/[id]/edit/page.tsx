@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { useTranslation } from '@/components/LanguageContext'
 
 type JobForm = {
   title: string
@@ -21,6 +22,7 @@ export default function EditJobPage() {
   const router = useRouter()
   const params = useParams()
   const { data: session } = useSession()
+  const { t } = useTranslation()
   const jobId = params.id as string
 
   const [form, setForm] = useState<JobForm>({
@@ -64,11 +66,11 @@ export default function EditJobPage() {
           eligible88Days: job.eligible88Days ?? false,
         })
       } else {
-        setError('Offre introuvable')
+        setError(t.editJob.jobNotFound)
       }
     } catch (err) {
-      console.error('Erreur:', err)
-      setError('Erreur lors du chargement de l\'offre')
+      console.error('Error:', err)
+      setError(t.editJob.loadError)
     } finally {
       setLoading(false)
     }
@@ -80,7 +82,7 @@ export default function EditJobPage() {
 
   async function handleSave() {
     if (!form.title || !form.company || !form.state || !form.category || !form.description) {
-      setError('Remplis tous les champs obligatoires *')
+      setError(t.admin.fillRequired)
       return
     }
 
@@ -98,11 +100,11 @@ export default function EditJobPage() {
         router.push('/admin/jobs')
       } else {
         const data = await res.json()
-        setError(data.error || 'Erreur lors de la sauvegarde')
+        setError(data.error || t.editJob.saveError)
       }
     } catch (err) {
-      console.error('Erreur:', err)
-      setError('Erreur lors de la sauvegarde')
+      console.error('Error:', err)
+      setError(t.editJob.saveError)
     } finally {
       setSaving(false)
     }
@@ -111,7 +113,7 @@ export default function EditJobPage() {
   if (!session || (session.user as any)?.role !== 'admin') {
     return (
       <div className="px-4 sm:px-5 lg:px-7 py-5 max-w-3xl">
-        <p className="text-stone-500">Accès non autorisé</p>
+        <p className="text-stone-500">{t.common.unauthorized}</p>
       </div>
     )
   }
@@ -119,7 +121,7 @@ export default function EditJobPage() {
   if (loading) {
     return (
       <div className="px-4 sm:px-5 lg:px-7 py-5 max-w-3xl">
-        <p className="text-stone-500">Chargement de l'offre...</p>
+        <p className="text-stone-500">{t.editJob.jobLoading}</p>
       </div>
     )
   }
@@ -134,8 +136,8 @@ export default function EditJobPage() {
 
   return (
     <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-3xl">
-      <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">Modifier l'offre</h1>
-      <p className="text-sm text-stone-500 mb-6">Mets à jour les détails du poste</p>
+      <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">{t.editJob.title}</h1>
+      <p className="text-sm text-stone-500 mb-6">{t.editJob.subtitle}</p>
 
       {error && !loading && (
         <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
@@ -144,15 +146,15 @@ export default function EditJobPage() {
       )}
 
       {/* Form */}
-      <h2 className="text-base font-bold text-stone-800 mb-4">Détails du poste</h2>
+      <h2 className="text-base font-bold text-stone-800 mb-4">{t.admin.jobDetails}</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <Field label="Titre du poste *" value={form.title} onChange={v => set('title', v)} placeholder="ex: Fruit Picker - Bundaberg" />
-        <Field label="Entreprise *" value={form.company} onChange={v => set('company', v)} placeholder="ex: Sunny Farms QLD" />
+        <Field label={t.admin.jobTitle} value={form.title} onChange={v => set('title', v)} placeholder={t.admin.titlePlaceholder} />
+        <Field label={t.admin.company} value={form.company} onChange={v => set('company', v)} placeholder={t.admin.companyPlaceholder} />
         <div>
-          <label className="block text-[13px] font-semibold text-stone-600 mb-1">State *</label>
+          <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.state}</label>
           <select value={form.state} onChange={e => set('state', e.target.value)}
             className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400 bg-white appearance-none">
-            <option value="">Sélectionner...</option>
+            <option value="">{t.common.select}</option>
             <option value="QLD">Queensland (QLD)</option>
             <option value="NSW">New South Wales (NSW)</option>
             <option value="VIC">Victoria (VIC)</option>
@@ -163,40 +165,40 @@ export default function EditJobPage() {
             <option value="ACT">ACT</option>
           </select>
         </div>
-        <Field label="Ville / Région" value={form.location} onChange={v => set('location', v)} placeholder="ex: Bundaberg" />
+        <Field label={t.admin.location} value={form.location} onChange={v => set('location', v)} placeholder={t.admin.locationPlaceholder} />
         <div>
-          <label className="block text-[13px] font-semibold text-stone-600 mb-1">Catégorie *</label>
+          <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.category}</label>
           <select value={form.category} onChange={e => set('category', e.target.value)}
             className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400 bg-white appearance-none">
-            <option value="">Sélectionner...</option>
-            <option value="farm">Agriculture / Ferme</option>
-            <option value="hospitality">Hôtellerie / Restauration</option>
-            <option value="construction">Construction / BTP</option>
-            <option value="retail">Commerce / Vente</option>
-            <option value="cleaning">Nettoyage / Entretien</option>
-            <option value="events">Événements / Festivals</option>
-            <option value="animals">Animaux / Animalier</option>
-            <option value="transport">Transport / Livraison</option>
-            <option value="other">Autre</option>
+            <option value="">{t.common.select}</option>
+            <option value="farm">{t.categoryLabels.farm}</option>
+            <option value="hospitality">{t.categoryLabels.hospitality}</option>
+            <option value="construction">{t.categoryLabels.construction}</option>
+            <option value="retail">{t.categoryLabels.retail}</option>
+            <option value="cleaning">{t.categoryLabels.cleaning}</option>
+            <option value="events">{t.categoryLabels.events}</option>
+            <option value="animals">{t.categoryLabels.animals}</option>
+            <option value="transport">{t.categoryLabels.transport}</option>
+            <option value="other">{t.categoryLabels.other}</option>
           </select>
         </div>
         <div>
-          <label className="block text-[13px] font-semibold text-stone-600 mb-1">Type de contrat</label>
+          <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.contractType}</label>
           <select value={form.type} onChange={e => set('type', e.target.value)}
             className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400 bg-white appearance-none">
-            <option value="casual">Casual</option>
-            <option value="full_time">Temps plein</option>
-            <option value="part_time">Temps partiel</option>
-            <option value="contract">Contrat</option>
+            <option value="casual">{t.types.casual}</option>
+            <option value="full_time">{t.types.full_time}</option>
+            <option value="part_time">{t.types.part_time}</option>
+            <option value="contract">{t.types.contract}</option>
           </select>
         </div>
       </div>
       <div className="mb-4">
-        <Field label="Salaire (optionnel)" value={form.pay} onChange={v => set('pay', v)} placeholder="ex: $28-32/h ou Piece rate" />
+        <Field label={t.admin.salary} value={form.pay} onChange={v => set('pay', v)} placeholder={t.admin.salaryPlaceholder} />
       </div>
       <div className="mb-6">
-        <label className="block text-[13px] font-semibold text-stone-600 mb-1">Description *</label>
-        <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={5} placeholder="Décris le poste, les conditions, comment postuler..."
+        <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.description}</label>
+        <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={5} placeholder={t.admin.descriptionPlaceholder}
           className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400 resize-y" />
         <label className="flex items-center gap-2 cursor-pointer mt-3">
           <input
@@ -205,7 +207,7 @@ export default function EditJobPage() {
             onChange={e => setForm({ ...form, eligible88Days: e.target.checked })}
             className="w-4 h-4 rounded border-stone-300 text-yellow-500 focus:ring-yellow-400"
           />
-          <span className="text-sm font-medium text-stone-700">Éligible 88 jours</span>
+          <span className="text-sm font-medium text-stone-700">{t.admin.eligible88Days}</span>
         </label>
       </div>
 
@@ -216,13 +218,13 @@ export default function EditJobPage() {
           disabled={saving}
           className="flex-1 py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[15px] transition disabled:opacity-50"
         >
-          {saving ? 'Enregistrement...' : 'Enregistrer'}
+          {saving ? t.common.saving : t.common.save}
         </button>
         <button
           onClick={() => router.push('/admin/jobs')}
           className="px-6 py-3.5 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-900 font-bold text-[15px] transition"
         >
-          Annuler
+          {t.common.cancel}
         </button>
       </div>
     </div>

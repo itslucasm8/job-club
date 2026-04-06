@@ -24,11 +24,12 @@ export async function createJobNotifications(job: JobData): Promise<void> {
         emailAlerts: true,
         preferredStates: true,
         preferredCategories: true,
+        preferredLanguage: true,
       },
     })
 
     const notificationsToCreate = []
-    const emailsToSend: { to: string; name: string }[] = []
+    const emailsToSend: { to: string; name: string; lang: 'fr' | 'en' }[] = []
 
     for (const user of users) {
       // Parse preferences
@@ -68,7 +69,8 @@ export async function createJobNotifications(job: JobData): Promise<void> {
 
         // Queue email if user has email alerts enabled
         if (user.emailAlerts) {
-          emailsToSend.push({ to: user.email, name: user.name || '' })
+          const lang = (user.preferredLanguage === 'en' ? 'en' : 'fr') as 'fr' | 'en'
+          emailsToSend.push({ to: user.email, name: user.name || '', lang })
         }
       }
     }
@@ -86,8 +88,8 @@ export async function createJobNotifications(job: JobData): Promise<void> {
 
     // Send emails (fire-and-forget each one)
     if (emailsToSend.length > 0) {
-      const emailPromises = emailsToSend.map(({ to, name }) =>
-        sendJobAlertEmail(to, name, job).catch((err) => {
+      const emailPromises = emailsToSend.map(({ to, name, lang }) =>
+        sendJobAlertEmail(to, name, job, lang).catch((err) => {
           logger.error('Failed to send job alert email', {
             jobId: job.id,
             to,

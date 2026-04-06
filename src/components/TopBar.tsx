@@ -2,6 +2,8 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
+import { useAdminView } from '@/components/AdminViewContext'
+import { useTranslation } from '@/components/LanguageContext'
 
 interface Notification {
   id: string
@@ -16,6 +18,8 @@ interface Notification {
 export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) => void }) {
   const { data: session } = useSession()
   const router = useRouter()
+  const { viewAsUser } = useAdminView()
+  const { t, language, setLanguage } = useTranslation()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -91,7 +95,7 @@ export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) =>
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-stone-200 flex items-center justify-between px-4 sm:px-5 h-[60px]">
+    <header className={`sticky z-40 bg-white border-b border-stone-200 flex items-center justify-between px-4 sm:px-5 h-[60px] ${viewAsUser ? 'top-[34px]' : 'top-0'}`}>
       <div className="flex items-center gap-2 lg:invisible">
         <svg viewBox="0 0 40 40" fill="none" className="w-8 h-8">
           <path d="M10 32L18 8 22 20 32 4" stroke="#f59e0b" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -100,11 +104,19 @@ export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) =>
         <span className="text-lg font-extrabold text-purple-800">Job Club</span>
       </div>
       <div className="flex items-center gap-3">
+        {/* Language toggle */}
+        <button
+          onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
+          className="px-2 py-1 rounded-lg text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-600 transition"
+        >
+          {t.language.label}
+        </button>
+
         {/* Notification bell */}
         <div className="relative" ref={dropdownRef}>
           <button
             className="relative p-1.5"
-            title="Notifications"
+            title={t.notifications.title}
             onClick={() => setShowDropdown(!showDropdown)}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-[22px] h-[22px] text-stone-500">
@@ -121,17 +133,17 @@ export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) =>
           {showDropdown && (
             <div className="absolute right-0 top-full mt-2 w-80 max-sm:fixed max-sm:left-2 max-sm:right-2 max-sm:w-auto bg-white rounded-xl shadow-xl border border-stone-200 overflow-hidden z-50 animate-dropdown-enter">
               <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100">
-                <span className="text-sm font-bold text-stone-800">Notifications</span>
+                <span className="text-sm font-bold text-stone-800">{t.notifications.title}</span>
                 {unreadCount > 0 && (
                   <button onClick={markAllRead} className="text-xs text-purple-600 font-medium hover:text-purple-800">
-                    Tout marquer lu
+                    {t.notifications.markAllRead}
                   </button>
                 )}
               </div>
               <div className="max-h-80 overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-stone-400">
-                    Aucune notification
+                    {t.notifications.noNotifications}
                   </div>
                 ) : (
                   notifications.map(notif => (
@@ -156,7 +168,7 @@ export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) =>
                     onClick={() => { setShowDropdown(false); router.push('/notifications') }}
                     className="w-full text-center py-2.5 text-xs font-medium text-purple-600 hover:bg-stone-50 transition border-t border-stone-100"
                   >
-                    Voir tout
+                    {t.notifications.viewAll}
                   </button>
                 )}
               </div>

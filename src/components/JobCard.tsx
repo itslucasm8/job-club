@@ -1,5 +1,6 @@
 'use client'
 import { catLabel, typeLabel, timeAgo } from '@/lib/utils'
+import { useTranslation } from '@/components/LanguageContext'
 
 interface Job {
   id: string; title: string; company: string; state: string; location: string;
@@ -24,6 +25,8 @@ function isNewJob(createdAt: string): boolean {
 }
 
 export default function JobCard({ job, saved, onSave, onClick }: { job: Job; saved: boolean; onSave: () => void; onClick: () => void }) {
+  const { t, language } = useTranslation()
+
   return (
     <div onClick={onClick}
       className="relative bg-warm-card rounded-[14px] shadow-[0_1px_3px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)] hover:-translate-y-0.5 transition-all cursor-pointer p-5"
@@ -32,7 +35,7 @@ export default function JobCard({ job, saved, onSave, onClick }: { job: Job; sav
       <button
         onClick={e => { e.stopPropagation(); onSave() }}
         className={`absolute top-4 right-4 p-1.5 rounded-full transition-colors ${saved ? 'text-red-500 bg-red-50' : 'text-stone-300 hover:text-purple-500 hover:bg-purple-50'}`}
-        aria-label={saved ? 'Retirer des favoris' : 'Sauvegarder'}
+        aria-label={saved ? t.jobCard.removeFavorite : t.jobCard.addFavorite}
       >
         <svg viewBox="0 0 24 24" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" className="w-5 h-5">
           <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
@@ -47,7 +50,7 @@ export default function JobCard({ job, saved, onSave, onClick }: { job: Job; sav
         <div className="min-w-0">
           <div className="text-[13px] font-bold text-stone-800 truncate">{job.company}</div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-stone-400">Il y a {timeAgo(new Date(job.createdAt))}</span>
+            <span className="text-[11px] text-stone-400">{language === 'fr' ? `Il y a ${timeAgo(new Date(job.createdAt), language)}` : `${timeAgo(new Date(job.createdAt), language)} ago`}</span>
             {isNewJob(job.createdAt) && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-400 text-white uppercase tracking-wide leading-none">
                 NEW
@@ -74,10 +77,10 @@ export default function JobCard({ job, saved, onSave, onClick }: { job: Job; sav
 
       {/* Tags row: category + state + type + pay */}
       <div className="flex flex-wrap gap-1.5 mt-3">
-        {job.eligible88Days && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">88 jours</span>}
-        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${tagColor[job.category] || tagColor.other}`}>{catLabel(job.category)}</span>
+        {job.eligible88Days && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">{t.jobCard.days88}</span>}
+        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${tagColor[job.category] || tagColor.other}`}>{catLabel(job.category, language)}</span>
         <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">{job.state}</span>
-        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{typeLabel(job.type)}</span>
+        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{typeLabel(job.type, language)}</span>
         {job.pay && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{job.pay}</span>}
       </div>
     </div>

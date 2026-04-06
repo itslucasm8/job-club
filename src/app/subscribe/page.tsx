@@ -2,10 +2,11 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslation } from '@/components/LanguageContext'
 
 export default function SubscribePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-600 flex items-center justify-center"><div className="text-white/60">Chargement...</div></div>}>
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-600 flex items-center justify-center"><div className="text-white/60">...</div></div>}>
       <SubscribeContent />
     </Suspense>
   )
@@ -17,6 +18,7 @@ function SubscribeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [message, setMessage] = useState<{ type: 'success' | 'info'; text: string } | null>(null)
+  const { t, language, setLanguage } = useTranslation()
 
   useEffect(() => {
     const subscribed = searchParams.get('subscribed')
@@ -25,7 +27,7 @@ function SubscribeContent() {
     if (subscribed === 'true') {
       setMessage({
         type: 'success',
-        text: 'Ton abonnement est actif ! Redirection...',
+        text: t.subscribe.successMessage,
       })
       const timer = setTimeout(() => {
         router.push('/feed')
@@ -34,7 +36,7 @@ function SubscribeContent() {
     } else if (canceled === 'true') {
       setMessage({
         type: 'info',
-        text: 'Paiement annulé. Tu peux réessayer quand tu veux.',
+        text: t.subscribe.canceledMessage,
       })
     }
   }, [searchParams, router])
@@ -51,13 +53,21 @@ function SubscribeContent() {
       window.location.href = data.url
     } else {
       setLoading(false)
-      alert('Erreur lors de la redirection vers le paiement')
+      alert(t.subscribe.checkoutError)
     }
   }
 
   if (message) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-600 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-600 flex items-center justify-center px-4 relative">
+        <div className="absolute top-4 right-4">
+          <button
+            onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
+            className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white/20 hover:bg-white/30 text-white transition"
+          >
+            {t.language.label}
+          </button>
+        </div>
         <div className="max-w-md w-full">
           <div className={`rounded-2xl p-8 text-center ${
             message.type === 'success'
@@ -81,15 +91,23 @@ function SubscribeContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-600 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-600 flex items-center justify-center px-4 relative">
+      <div className="absolute top-4 right-4">
+        <button
+          onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
+          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white/20 hover:bg-white/30 text-white transition"
+        >
+          {t.language.label}
+        </button>
+      </div>
       <div className="max-w-md w-full">
         <div className="text-center text-white mb-8">
           <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10 mx-auto mb-3">
             <path d="M10 32L18 8 22 20 32 4" stroke="#f59e0b" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M29 8L32 4 31 12" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          <h1 className="text-2xl font-extrabold">Active ton abonnement</h1>
-          <p className="text-sm opacity-80 mt-2">Accède à toutes les offres d&apos;emploi en Australie</p>
+          <h1 className="text-2xl font-extrabold">{t.subscribe.title}</h1>
+          <p className="text-sm opacity-80 mt-2">{t.subscribe.subtitle}</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
@@ -103,7 +121,7 @@ function SubscribeContent() {
                   : 'text-stone-400 hover:text-stone-600'
               }`}
             >
-              Mensuel
+              {t.subscribe.monthly}
             </button>
             <button
               onClick={() => setPlan('yearly')}
@@ -113,7 +131,7 @@ function SubscribeContent() {
                   : 'text-stone-400 hover:text-stone-600'
               }`}
             >
-              Annuel
+              {t.subscribe.yearly}
               <span className="absolute -top-2 -right-2 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                 -17%
               </span>
@@ -125,14 +143,14 @@ function SubscribeContent() {
             {plan === 'monthly' ? (
               <>
                 <span className="text-5xl font-extrabold text-stone-900">$39.99</span>
-                <span className="text-stone-500"> / mois</span>
+                <span className="text-stone-500"> {t.common.perMonth}</span>
               </>
             ) : (
               <>
                 <span className="text-5xl font-extrabold text-stone-900">$400</span>
-                <span className="text-stone-500"> / an</span>
+                <span className="text-stone-500"> {t.common.perYear}</span>
                 <p className="text-sm text-green-600 font-semibold mt-1">
-                  ~$33.33/mois — tu économises $79.88/an
+                  ~$33.33{t.common.perMonth} — {t.subscribe.yearSavings}
                 </p>
               </>
             )}
@@ -140,11 +158,11 @@ function SubscribeContent() {
 
           <ul className="text-left space-y-3 mb-8">
             {[
-              '20-30 nouvelles offres par jour',
-              'Filtres par state et catégorie',
-              'Recherche par mots-clés',
-              'Sauvegarde tes favoris',
-              'Annulation à tout moment',
+              t.subscribe.feature1,
+              t.subscribe.feature2,
+              t.subscribe.feature3,
+              t.subscribe.feature4,
+              t.subscribe.feature5,
             ].map((f, i) => (
               <li key={i} className="flex items-center gap-3 text-sm text-stone-600">
                 <span className="text-amber-500 text-lg">✓</span>{f}
@@ -154,10 +172,10 @@ function SubscribeContent() {
 
           <button onClick={handleSubscribe} disabled={loading}
             className="w-full py-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-900 font-bold text-lg transition disabled:opacity-50 shadow-lg shadow-amber-400/30">
-            {loading ? 'Redirection...' : "S'abonner maintenant"}
+            {loading ? t.subscribe.redirecting : t.subscribe.subscribeNow}
           </button>
 
-          <p className="mt-4 text-xs text-stone-400">Paiement sécurisé via Stripe</p>
+          <p className="mt-4 text-xs text-stone-400">{t.subscribe.securePayment}</p>
         </div>
       </div>
     </div>

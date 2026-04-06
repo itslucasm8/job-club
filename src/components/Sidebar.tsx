@@ -3,21 +3,25 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 import { STATES } from '@/lib/utils'
-
-const navItems = [
-  { href: '/feed', label: 'Accueil', icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
-  { href: '/states', label: 'Tous les States', icon: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10m-3 0a3 3 0 106 0 3 3 0 00-6 0' },
-  { href: '/admin', label: 'Publier une offre', icon: 'M12 5v14 M5 12h14', adminOnly: true },
-  { href: '/admin/jobs', label: 'Gérer les offres', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2', adminOnly: true },
-  { href: '/saved', label: 'Mes sauvegardes', icon: 'M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z' },
-  { href: '/profile', label: 'Mon Profil', icon: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2 M12 7m-4 0a4 4 0 108 0 4 4 0 00-8 0' },
-]
+import { useAdminView } from '@/components/AdminViewContext'
+import { useTranslation } from '@/components/LanguageContext'
 
 export default function Sidebar() {
+  const { t } = useTranslation()
+
+  const navItems = [
+    { href: '/feed', label: t.nav.home, icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
+    { href: '/states', label: t.nav.allStates, icon: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10m-3 0a3 3 0 106 0 3 3 0 00-6 0' },
+    { href: '/admin', label: t.nav.publishJob, icon: 'M12 5v14 M5 12h14', adminOnly: true },
+    { href: '/admin/jobs', label: t.nav.manageJobs, icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2', adminOnly: true },
+    { href: '/saved', label: t.nav.savedJobs, icon: 'M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z' },
+    { href: '/profile', label: t.nav.myProfile, icon: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2 M12 7m-4 0a4 4 0 108 0 4 4 0 00-8 0' },
+  ]
   const pathname = usePathname()
   const router = useRouter()
   const { data: session } = useSession()
-  const isAdmin = (session?.user as any)?.role === 'admin'
+  const { viewAsUser } = useAdminView()
+  const isAdmin = (session?.user as any)?.role === 'admin' && !viewAsUser
   const [showStates, setShowStates] = useState(false)
   const [stateCounts, setStateCounts] = useState<Record<string, number>>({})
 
@@ -59,7 +63,7 @@ export default function Sidebar() {
 
       {/* States section */}
       <button onClick={() => setShowStates(!showStates)} className="flex items-center justify-between w-full px-5 pt-5 pb-2 text-xs font-bold text-stone-500 uppercase tracking-wider hover:text-stone-700 transition">
-        <span>États</span>
+        <span>{t.nav.states}</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 transition-transform ${showStates ? 'rotate-180' : ''}`}>
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -82,7 +86,7 @@ export default function Sidebar() {
           {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || '?'}
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-stone-800 truncate">{session?.user?.name || 'Membre'}</div>
+          <div className="text-sm font-semibold text-stone-800 truncate">{session?.user?.name || t.common.member}</div>
           <div className="text-[11px] text-stone-400 truncate">{session?.user?.email}</div>
         </div>
       </div>

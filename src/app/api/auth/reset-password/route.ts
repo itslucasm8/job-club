@@ -37,9 +37,16 @@ export async function POST(req: Request) {
       },
     })
 
+    // Look up user's language preference (default to 'fr' if not found)
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { preferredLanguage: true },
+    })
+    const lang = (user?.preferredLanguage === 'en' ? 'en' : 'fr') as 'fr' | 'en'
+
     // Send email
     const resetUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/reset-password?token=${token}`
-    sendPasswordResetEmail(email, resetUrl).catch(console.error)
+    sendPasswordResetEmail(email, resetUrl, lang).catch(console.error)
 
     // Always return success to prevent email enumeration
     return NextResponse.json(

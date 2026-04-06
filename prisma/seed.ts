@@ -30,6 +30,21 @@ async function main() {
   });
   console.log(`Admin user created: ${admin.email}`);
 
+  // Create second admin user (MLF info account)
+  const mlfPassword = await hash('Epic2026!MLF', 12);
+  const mlfAdmin = await prisma.user.upsert({
+    where: { email: 'info@mylittlefrance.com.au' },
+    update: {},
+    create: {
+      email: 'info@mylittlefrance.com.au',
+      name: 'MLF Admin',
+      passwordHash: mlfPassword,
+      role: 'admin',
+      subscriptionStatus: 'active',
+    },
+  });
+  console.log(`Admin user created: ${mlfAdmin.email}`);
+
   // In development only: create demo subscriber
   if (!isProduction) {
     const demoPassword = await hash('demo123', 12);

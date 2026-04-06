@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react'
 import { usePostHog } from 'posthog-js/react'
 import { catLabel, typeLabel, timeAgo } from '@/lib/utils'
+import { useTranslation } from '@/components/LanguageContext'
 
 interface Job {
   id: string; title: string; company: string; state: string; location: string;
@@ -24,6 +25,7 @@ const tagColor: Record<string, string> = {
 export default function JobModal({ job, saved, onSave, onClose }: { job: Job | null; saved: boolean; onSave: () => void; onClose: () => void }) {
   const startY = useRef(0)
   const posthog = usePostHog()
+  const { t, language } = useTranslation()
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -69,29 +71,29 @@ export default function JobModal({ job, saved, onSave, onClose }: { job: Job | n
           </div>
 
           <div className="flex flex-wrap gap-2 mb-5">
-            {job.eligible88Days && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">88 jours</span>}
-            <span className={`text-[11px] lg:text-xs font-semibold px-2.5 py-1 rounded-full ${tagColor[job.category] || tagColor.other}`}>{catLabel(job.category)}</span>
-            <span className="text-[11px] lg:text-xs font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{typeLabel(job.type)}</span>
+            {job.eligible88Days && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">{t.jobModal.days88}</span>}
+            <span className={`text-[11px] lg:text-xs font-semibold px-2.5 py-1 rounded-full ${tagColor[job.category] || tagColor.other}`}>{catLabel(job.category, language)}</span>
+            <span className="text-[11px] lg:text-xs font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{typeLabel(job.type, language)}</span>
             <span className="text-[11px] lg:text-xs font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">{job.state}</span>
           </div>
 
           {/* Details grid — stacked on mobile, 2x2 grid on desktop */}
           <div className="lg:hidden space-y-0 divide-y divide-stone-100">
-            <Detail icon="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10m-3 0a3 3 0 106 0 3 3 0 00-6 0" label="Lieu" value={job.location} />
-            {job.pay && <Detail icon="M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" label="Salaire" value={job.pay} />}
-            <Detail icon="M2 7h20v14a2 2 0 01-2 2H4a2 2 0 01-2-2V7z M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" label="Type" value={typeLabel(job.type)} />
-            <Detail icon="M12 12m-10 0a10 10 0 1020 0 10 10 0 00-20 0 M12 6v6l4 2" label="Publié" value={`Il y a ${timeAgo(new Date(job.createdAt))}`} />
+            <Detail icon="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10m-3 0a3 3 0 106 0 3 3 0 00-6 0" label={t.jobModal.location} value={job.location} />
+            {job.pay && <Detail icon="M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" label={t.jobModal.salary} value={job.pay} />}
+            <Detail icon="M2 7h20v14a2 2 0 01-2 2H4a2 2 0 01-2-2V7z M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" label={t.jobModal.type} value={typeLabel(job.type, language)} />
+            <Detail icon="M12 12m-10 0a10 10 0 1020 0 10 10 0 00-20 0 M12 6v6l4 2" label={t.jobModal.published} value={language === 'fr' ? `Il y a ${timeAgo(new Date(job.createdAt), language)}` : `${timeAgo(new Date(job.createdAt), language)} ago`} />
           </div>
 
           <div className="hidden lg:grid grid-cols-2 gap-x-6 gap-y-1 rounded-xl bg-stone-50 p-4 mb-1">
-            <Detail icon="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10m-3 0a3 3 0 106 0 3 3 0 00-6 0" label="Lieu" value={job.location} />
+            <Detail icon="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10m-3 0a3 3 0 106 0 3 3 0 00-6 0" label={t.jobModal.location} value={job.location} />
             {job.pay ? (
-              <Detail icon="M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" label="Salaire" value={job.pay} />
+              <Detail icon="M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" label={t.jobModal.salary} value={job.pay} />
             ) : (
               <div />
             )}
-            <Detail icon="M2 7h20v14a2 2 0 01-2 2H4a2 2 0 01-2-2V7z M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" label="Type" value={typeLabel(job.type)} />
-            <Detail icon="M12 12m-10 0a10 10 0 1020 0 10 10 0 00-20 0 M12 6v6l4 2" label="Publié" value={`Il y a ${timeAgo(new Date(job.createdAt))}`} />
+            <Detail icon="M2 7h20v14a2 2 0 01-2 2H4a2 2 0 01-2-2V7z M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" label={t.jobModal.type} value={typeLabel(job.type, language)} />
+            <Detail icon="M12 12m-10 0a10 10 0 1020 0 10 10 0 00-20 0 M12 6v6l4 2" label={t.jobModal.published} value={language === 'fr' ? `Il y a ${timeAgo(new Date(job.createdAt), language)}` : `${timeAgo(new Date(job.createdAt), language)} ago`} />
           </div>
 
           {/* Description */}
@@ -111,7 +113,7 @@ export default function JobModal({ job, saved, onSave, onClose }: { job: Job | n
                   <polyline points="15 3 21 3 21 9"/>
                   <line x1="10" y1="14" x2="21" y2="3"/>
                 </svg>
-                Postuler
+                {t.jobModal.apply}
               </a>
             )}
             <button onClick={() => { if (!saved && posthog) posthog.capture('job_saved', { category: job.category, state: job.state }); onSave() }}
@@ -119,7 +121,7 @@ export default function JobModal({ job, saved, onSave, onClose }: { job: Job | n
               <svg viewBox="0 0 24 24" fill={saved ? '#dc2626' : 'none'} stroke={saved ? '#dc2626' : '#a8a29e'} strokeWidth="2" className="w-5 h-5 mr-2">
                 <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
               </svg>
-              {saved ? 'Sauvegardé' : 'Sauvegarder'}
+              {saved ? t.jobModal.saved : t.jobModal.addSave}
             </button>
           </div>
         </div>
