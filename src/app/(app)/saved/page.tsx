@@ -1,11 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useTranslation } from '@/components/LanguageContext'
 import { useToast } from '@/components/Toast'
 import JobCard from '@/components/JobCard'
 import JobModal from '@/components/JobModal'
 import JobCardSkeleton from '@/components/JobCardSkeleton'
 
 export default function SavedPage() {
+  const { t } = useTranslation()
   const { toast } = useToast()
   const [jobs, setJobs] = useState<any[]>([])
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
@@ -34,7 +36,7 @@ export default function SavedPage() {
     try {
       const res = await fetch(`/api/jobs/${jobId}/save`, { method: 'POST' })
       if (!res.ok) {
-        toast('error', 'Erreur lors de la sauvegarde')
+        toast('error', t.feed.saveError)
         return
       }
       const data = await res.json()
@@ -46,9 +48,9 @@ export default function SavedPage() {
       if (!data.saved) {
         setJobs(prev => prev.filter(j => j.id !== jobId))
       }
-      toast('success', data.saved ? 'Offre sauvegardée' : 'Offre retirée')
+      toast('success', data.saved ? t.feed.jobSaved : t.feed.jobRemoved)
     } catch {
-      toast('error', 'Erreur réseau')
+      toast('error', t.common.networkError)
     }
   }
 
@@ -56,7 +58,7 @@ export default function SavedPage() {
     <>
       {/* Header */}
       <div className="bg-white border-b border-stone-200 px-4 sm:px-5 lg:px-7 py-4">
-        <h1 className="text-2xl font-extrabold text-stone-900">Mes offres sauvegardées</h1>
+        <h1 className="text-2xl font-extrabold text-stone-900">{t.saved.title}</h1>
       </div>
 
       {/* Job Grid */}
@@ -68,7 +70,7 @@ export default function SavedPage() {
         ) : jobs.length === 0 ? (
           <div className="col-span-full text-center py-16">
             <div className="text-4xl mb-3">💔</div>
-            <p className="text-stone-400">Tu n'as pas encore sauvegardé d'offres</p>
+            <p className="text-stone-400">{t.saved.empty}</p>
           </div>
         ) : (
           jobs.map(job => (

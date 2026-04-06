@@ -20,6 +20,7 @@ export async function GET(req: Request) {
         preferredStates: true,
         preferredCategories: true,
         emailAlerts: true,
+        preferredLanguage: true,
       },
     })
 
@@ -33,6 +34,7 @@ export async function GET(req: Request) {
       preferredStates: user.preferredStates ? user.preferredStates.split(',') : [],
       preferredCategories: user.preferredCategories ? user.preferredCategories.split(',') : [],
       emailAlerts: user.emailAlerts,
+      preferredLanguage: user.preferredLanguage,
     })
   } catch (e) {
     console.error('GET /api/user/settings failed', e)
@@ -139,6 +141,13 @@ export async function PATCH(req: Request) {
       updateData.emailAlerts = Boolean(emailAlerts)
     }
 
+    // Handle language preference
+    if (body.preferredLanguage !== undefined) {
+      if (body.preferredLanguage === 'fr' || body.preferredLanguage === 'en') {
+        updateData.preferredLanguage = body.preferredLanguage
+      }
+    }
+
     // Update user
     const updatedUser = await prisma.user.update({
       where: { id: userId },
@@ -150,6 +159,7 @@ export async function PATCH(req: Request) {
         preferredStates: true,
         preferredCategories: true,
         emailAlerts: true,
+        preferredLanguage: true,
       },
     })
 
@@ -163,6 +173,7 @@ export async function PATCH(req: Request) {
         ? updatedUser.preferredCategories.split(',')
         : [],
       emailAlerts: updatedUser.emailAlerts,
+      preferredLanguage: updatedUser.preferredLanguage,
     })
   } catch (e) {
     console.error('PATCH /api/user/settings failed', e)

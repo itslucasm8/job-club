@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { useAdminView } from '@/components/AdminViewContext'
+import { useTranslation } from '@/components/LanguageContext'
 
 type User = {
   id: string
@@ -14,6 +16,8 @@ type User = {
 export default function AdminPage() {
   const router = useRouter()
   const { data: session } = useSession()
+  const { viewAsUser, toggleViewAsUser } = useAdminView()
+  const { t, language } = useTranslation()
   const [extracting, setExtracting] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [url, setUrl] = useState('')
@@ -39,7 +43,7 @@ export default function AdminPage() {
         setUsers(data)
       }
     } catch (err) {
-      console.error('Erreur lors du chargement des utilisateurs:', err)
+      console.error('Error loading users:', err)
     } finally {
       setUsersLoading(false)
     }
@@ -48,7 +52,7 @@ export default function AdminPage() {
   async function toggleUserRole(userId: string, currentRole: string) {
     // Prevent self-demotion
     if (userId === (session?.user as any)?.id && currentRole === 'admin') {
-      alert('Tu ne peux pas te rétrograder toi-même')
+      alert(t.admin.cannotDemoteSelf)
       return
     }
 
@@ -66,11 +70,11 @@ export default function AdminPage() {
         const updated = await res.json()
         setUsers(users.map(u => u.id === userId ? { ...u, role: updated.role } : u))
       } else {
-        alert('Erreur lors de la mise à jour du rôle')
+        alert(t.admin.roleUpdateError)
       }
     } catch (err) {
-      console.error('Erreur:', err)
-      alert('Erreur lors de la mise à jour du rôle')
+      console.error('Error:', err)
+      alert(t.admin.roleUpdateError)
     } finally {
       setTogglingUser(null)
     }
@@ -78,7 +82,7 @@ export default function AdminPage() {
 
   function formatDate(dateString: string) {
     const date = new Date(dateString)
-    return date.toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' })
+    return date.toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-AU', { year: 'numeric', month: 'short', day: 'numeric' })
   }
 
   function set(key: string, val: string) { setForm(prev => ({ ...prev, [key]: val })) }
@@ -139,7 +143,7 @@ export default function AdminPage() {
 
   async function handlePublish() {
     if (!form.title || !form.company || !form.state || !form.category || !form.description) {
-      alert('Remplis tous les champs obligatoires *')
+      alert(t.admin.fillRequired)
       return
     }
     setPublishing(true)
@@ -147,77 +151,96 @@ export default function AdminPage() {
     if (res.ok) {
       router.push('/feed')
     } else {
-      alert('Erreur lors de la publication')
+      alert(t.admin.publishError)
     }
     setPublishing(false)
   }
 
   return (
     <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-3xl">
-      <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">Publier une offre</h1>
-      <p className="text-sm text-stone-500 mb-6">Ajoute un nouveau job pour la communauté</p>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900">{t.admin.publishTitle}</h1>
+        <button
+          onClick={toggleViewAsUser}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+            viewAsUser
+              ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+          }`}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            {viewAsUser ? (
+              <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></>
+            ) : (
+              <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>
+            )}
+          </svg>
+          {viewAsUser ? t.admin.viewAsUserActive : t.admin.viewAsUser}
+        </button>
+      </div>
+      <p className="text-sm text-stone-500 mb-6">{t.admin.publishSubtitle}</p>
 
       {/* URL Extract */}
       <div className="mb-8">
-        <h2 className="text-base font-bold text-stone-800 mb-2">&#9889; Extraction automatique</h2>
-        <p className="text-[13px] text-stone-500 mb-3">Colle un lien Gumtree, Seek ou Facebook et on pré-remplit le formulaire.</p>
+        <h2 className="text-base font-bold text-stone-800 mb-2">{t.admin.autoExtract}</h2>
+        <p className="text-[13px] text-stone-500 mb-3">{t.admin.autoExtractHelp}</p>
         <div className="flex gap-2">
           <input type="text" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://www.gumtree.com.au/..."
             className="flex-1 px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400" />
           <button onClick={handleExtract} disabled={extracting}
             className={`flex-shrink-0 px-4 py-2.5 rounded-lg text-sm font-bold bg-amber-400 hover:bg-amber-300 text-stone-900 transition ${extracting ? 'animate-pulse' : ''}`}>
-            {extracting ? 'Extraction...' : 'Extraire'}
+            {extracting ? t.admin.extracting : t.admin.extract}
           </button>
         </div>
       </div>
 
       {/* Form */}
-      <h2 className="text-base font-bold text-stone-800 mb-4">Détails du poste</h2>
+      <h2 className="text-base font-bold text-stone-800 mb-4">{t.admin.jobDetails}</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <Field label="Titre du poste *" value={form.title} onChange={v => set('title', v)} placeholder="ex: Fruit Picker - Bundaberg" highlighted={highlightedFields.has('title')} />
-        <Field label="Entreprise *" value={form.company} onChange={v => set('company', v)} placeholder="ex: Sunny Farms QLD" highlighted={highlightedFields.has('company')} />
+        <Field label={t.admin.jobTitle} value={form.title} onChange={v => set('title', v)} placeholder={t.admin.titlePlaceholder} highlighted={highlightedFields.has('title')} />
+        <Field label={t.admin.company} value={form.company} onChange={v => set('company', v)} placeholder={t.admin.companyPlaceholder} highlighted={highlightedFields.has('company')} />
         <div>
-          <label className="block text-[13px] font-semibold text-stone-600 mb-1">State *</label>
+          <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.state}</label>
           <select value={form.state} onChange={e => set('state', e.target.value)}
             className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none bg-white appearance-none transition-all ${
               highlightedFields.has('state')
                 ? 'border-green-400 bg-green-50 focus:border-green-500'
                 : 'border-stone-200 focus:border-purple-400'
             }`}>
-            <option value="">Sélectionner...</option>
+            <option value="">{t.common.select}</option>
             <option value="QLD">Queensland (QLD)</option><option value="NSW">New South Wales (NSW)</option>
             <option value="VIC">Victoria (VIC)</option><option value="SA">South Australia (SA)</option>
             <option value="WA">Western Australia (WA)</option><option value="TAS">Tasmania (TAS)</option>
             <option value="NT">Northern Territory (NT)</option><option value="ACT">ACT</option>
           </select>
         </div>
-        <Field label="Ville / Région" value={form.location} onChange={v => set('location', v)} placeholder="ex: Bundaberg" highlighted={highlightedFields.has('location')} />
+        <Field label={t.admin.location} value={form.location} onChange={v => set('location', v)} placeholder={t.admin.locationPlaceholder} highlighted={highlightedFields.has('location')} />
         <div>
-          <label className="block text-[13px] font-semibold text-stone-600 mb-1">Catégorie *</label>
+          <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.category}</label>
           <select value={form.category} onChange={e => set('category', e.target.value)}
             className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none bg-white appearance-none transition-all ${
               highlightedFields.has('category')
                 ? 'border-green-400 bg-green-50 focus:border-green-500'
                 : 'border-stone-200 focus:border-purple-400'
             }`}>
-            <option value="">Sélectionner...</option>
-            <option value="farm">Agriculture / Ferme</option>
-            <option value="hospitality">Hôtellerie / Restauration</option>
-            <option value="construction">Construction / BTP</option>
-            <option value="retail">Commerce / Vente</option>
-            <option value="cleaning">Nettoyage / Entretien</option>
-            <option value="events">Événements / Festivals</option>
-            <option value="animals">Animaux / Animalier</option>
-            <option value="transport">Transport / Livraison</option>
-            <option value="other">Autre</option>
+            <option value="">{t.common.select}</option>
+            <option value="farm">{t.categoryLabels.farm}</option>
+            <option value="hospitality">{t.categoryLabels.hospitality}</option>
+            <option value="construction">{t.categoryLabels.construction}</option>
+            <option value="retail">{t.categoryLabels.retail}</option>
+            <option value="cleaning">{t.categoryLabels.cleaning}</option>
+            <option value="events">{t.categoryLabels.events}</option>
+            <option value="animals">{t.categoryLabels.animals}</option>
+            <option value="transport">{t.categoryLabels.transport}</option>
+            <option value="other">{t.categoryLabels.other}</option>
           </select>
         </div>
         <div>
-          <label className="block text-[13px] font-semibold text-stone-600 mb-1">Type de contrat</label>
+          <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.contractType}</label>
           <select value={form.type} onChange={e => set('type', e.target.value)}
             className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400 bg-white appearance-none">
-            <option value="casual">Casual</option><option value="full_time">Temps plein</option>
-            <option value="part_time">Temps partiel</option><option value="contract">Contrat</option>
+            <option value="casual">{t.types.casual}</option><option value="full_time">{t.types.full_time}</option>
+            <option value="part_time">{t.types.part_time}</option><option value="contract">{t.types.contract}</option>
           </select>
           <label className="flex items-center gap-2 cursor-pointer mt-3">
             <input
@@ -226,16 +249,16 @@ export default function AdminPage() {
               onChange={e => setForm({ ...form, eligible88Days: e.target.checked })}
               className="w-4 h-4 rounded border-stone-300 text-yellow-500 focus:ring-yellow-400"
             />
-            <span className="text-sm font-medium text-stone-700">Éligible 88 jours</span>
+            <span className="text-sm font-medium text-stone-700">{t.admin.eligible88Days}</span>
           </label>
         </div>
       </div>
       <div className="mb-4">
-        <Field label="Salaire (optionnel)" value={form.pay} onChange={v => set('pay', v)} placeholder="ex: $28-32/h ou Piece rate" highlighted={highlightedFields.has('pay')} />
+        <Field label={t.admin.salary} value={form.pay} onChange={v => set('pay', v)} placeholder={t.admin.salaryPlaceholder} highlighted={highlightedFields.has('pay')} />
       </div>
       <div className="mb-6">
-        <label className="block text-[13px] font-semibold text-stone-600 mb-1">Description *</label>
-        <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={5} placeholder="Décris le poste, les conditions, comment postuler..."
+        <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.description}</label>
+        <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={5} placeholder={t.admin.descriptionPlaceholder}
           className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none resize-y transition-all ${
             highlightedFields.has('description')
               ? 'border-green-400 bg-green-50 focus:border-green-500'
@@ -245,28 +268,28 @@ export default function AdminPage() {
 
       <button onClick={handlePublish} disabled={publishing}
         className="w-full py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[15px] transition disabled:opacity-50">
-        {publishing ? 'Publication...' : '🚀 Publier l\'offre'}
+        {publishing ? t.admin.publishing : t.admin.publish}
       </button>
 
       {/* User Management Section */}
       <div className="mt-12 pt-12 border-t border-stone-200">
-        <h2 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">Gestion des utilisateurs</h2>
-        <p className="text-sm text-stone-500 mb-6">Gérez les rôles des utilisateurs et les permissions d'administrateur</p>
+        <h2 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">{t.admin.userManagement}</h2>
+        <p className="text-sm text-stone-500 mb-6">{t.admin.userManagementSubtitle}</p>
 
         {usersLoading ? (
-          <div className="text-center py-8 text-stone-500">Chargement des utilisateurs...</div>
+          <div className="text-center py-8 text-stone-500">{t.admin.usersLoading}</div>
         ) : users.length === 0 ? (
-          <div className="text-center py-8 text-stone-500">Aucun utilisateur trouvé</div>
+          <div className="text-center py-8 text-stone-500">{t.admin.noUsers}</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b-2 border-stone-200">
-                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">Nom</th>
-                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">Email</th>
-                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">Rôle</th>
-                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">Inscription</th>
-                  <th className="text-center px-4 py-3 font-semibold text-sm text-stone-700">Action</th>
+                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">{t.admin.nameCol}</th>
+                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">{t.admin.emailCol}</th>
+                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">{t.admin.roleCol}</th>
+                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">{t.admin.registeredCol}</th>
+                  <th className="text-center px-4 py-3 font-semibold text-sm text-stone-700">{t.admin.actionCol}</th>
                 </tr>
               </thead>
               <tbody>
@@ -280,7 +303,7 @@ export default function AdminPage() {
                           ? 'bg-purple-100 text-purple-700'
                           : 'bg-stone-100 text-stone-700'
                       }`}>
-                        {user.role === 'admin' ? 'Admin' : 'Utilisateur'}
+                        {user.role === 'admin' ? t.admin.adminRole : t.admin.userRole}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-stone-600">{formatDate(user.createdAt)}</td>
@@ -294,7 +317,7 @@ export default function AdminPage() {
                             : 'bg-purple-100 hover:bg-purple-200 text-purple-900 disabled:opacity-50'
                         }`}
                       >
-                        {togglingUser === user.id ? '...' : (user.role === 'admin' ? 'Rétrograder' : 'Promouvoir')}
+                        {togglingUser === user.id ? '...' : (user.role === 'admin' ? t.admin.demote : t.admin.promote)}
                       </button>
                     </td>
                   </tr>

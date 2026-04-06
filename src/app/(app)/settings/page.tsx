@@ -2,13 +2,16 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { STATES, CATEGORIES } from '@/lib/utils'
+import { STATES, getCategories } from '@/lib/utils'
+import { useTranslation } from '@/components/LanguageContext'
 
 type Toast = { type: 'success' | 'error'; message: string } | null
 
 export default function SettingsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const { t, language } = useTranslation()
+  const categories = getCategories(language)
 
   // Personal info state
   const [name, setName] = useState('')
@@ -89,7 +92,7 @@ export default function SettingsPage() {
   // Handle personal info save
   async function handleSavePersonal() {
     if (!name.trim() || !email.trim()) {
-      setToastPersonal({ type: 'error', message: 'Le nom et l\'email sont obligatoires' })
+      setToastPersonal({ type: 'error', message: t.settings.nameEmailRequired })
       return
     }
 
@@ -104,12 +107,12 @@ export default function SettingsPage() {
       const data = await res.json()
 
       if (res.ok) {
-        setToastPersonal({ type: 'success', message: 'Informations personnelles mises à jour' })
+        setToastPersonal({ type: 'success', message: t.settings.personalUpdated })
       } else {
-        setToastPersonal({ type: 'error', message: data.error || 'Erreur lors de la mise à jour' })
+        setToastPersonal({ type: 'error', message: data.error || t.settings.updateError })
       }
     } catch (error) {
-      setToastPersonal({ type: 'error', message: 'Erreur réseau' })
+      setToastPersonal({ type: 'error', message: t.common.networkError })
     } finally {
       setLoadingPersonal(false)
     }
@@ -118,17 +121,17 @@ export default function SettingsPage() {
   // Handle password save
   async function handleSavePassword() {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      setToastPassword({ type: 'error', message: 'Tous les champs sont obligatoires' })
+      setToastPassword({ type: 'error', message: t.settings.allFieldsRequired })
       return
     }
 
     if (newPassword !== confirmPassword) {
-      setToastPassword({ type: 'error', message: 'Les nouveaux mots de passe ne correspondent pas' })
+      setToastPassword({ type: 'error', message: t.settings.passwordsMismatch })
       return
     }
 
     if (newPassword.length < 6) {
-      setToastPassword({ type: 'error', message: 'Le nouveau mot de passe doit contenir au moins 6 caractères' })
+      setToastPassword({ type: 'error', message: t.settings.passwordTooShort })
       return
     }
 
@@ -143,15 +146,15 @@ export default function SettingsPage() {
       const data = await res.json()
 
       if (res.ok) {
-        setToastPassword({ type: 'success', message: 'Mot de passe mis à jour' })
+        setToastPassword({ type: 'success', message: t.settings.passwordUpdated })
         setCurrentPassword('')
         setNewPassword('')
         setConfirmPassword('')
       } else {
-        setToastPassword({ type: 'error', message: data.error || 'Erreur lors de la mise à jour' })
+        setToastPassword({ type: 'error', message: data.error || t.settings.updateError })
       }
     } catch (error) {
-      setToastPassword({ type: 'error', message: 'Erreur réseau' })
+      setToastPassword({ type: 'error', message: t.common.networkError })
     } finally {
       setLoadingPassword(false)
     }
@@ -170,12 +173,12 @@ export default function SettingsPage() {
       const data = await res.json()
 
       if (res.ok) {
-        setToastPreferences({ type: 'success', message: 'Préférences mises à jour' })
+        setToastPreferences({ type: 'success', message: t.settings.preferencesUpdated })
       } else {
-        setToastPreferences({ type: 'error', message: data.error || 'Erreur lors de la mise à jour' })
+        setToastPreferences({ type: 'error', message: data.error || t.settings.updateError })
       }
     } catch (error) {
-      setToastPreferences({ type: 'error', message: 'Erreur réseau' })
+      setToastPreferences({ type: 'error', message: t.common.networkError })
     } finally {
       setLoadingPreferences(false)
     }
@@ -196,29 +199,29 @@ export default function SettingsPage() {
   }
 
   if (status === 'loading') {
-    return <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 max-w-lg">Chargement...</div>
+    return <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 max-w-lg">{t.common.loading}</div>
   }
 
   return (
     <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold text-stone-900 mb-8">Paramètres du compte</h1>
+      <h1 className="text-2xl font-bold text-stone-900 mb-8">{t.settings.title}</h1>
 
       {/* Personal Information Section */}
       <section className="mb-8">
-        <h2 className="text-lg font-bold text-stone-900 mb-4">Informations personnelles</h2>
+        <h2 className="text-lg font-bold text-stone-900 mb-4">{t.settings.personalInfo}</h2>
         <div className="space-y-4 bg-white p-5 rounded-lg border border-stone-200">
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">Nom</label>
+            <label className="block text-sm font-medium text-stone-700 mb-2">{t.settings.name}</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg border border-stone-300 text-stone-900 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Votre nom"
+              placeholder={t.settings.namePlaceholder}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">Email</label>
+            <label className="block text-sm font-medium text-stone-700 mb-2">{t.settings.email}</label>
             <input
               type="email"
               value={email}
@@ -232,7 +235,7 @@ export default function SettingsPage() {
             disabled={loadingPersonal}
             className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loadingPersonal ? 'Enregistrement...' : 'Enregistrer'}
+            {loadingPersonal ? t.common.saving : t.common.save}
           </button>
         </div>
         {toastPersonal && (
@@ -248,17 +251,17 @@ export default function SettingsPage() {
 
       {/* Password Section */}
       <section className="mb-8">
-        <h2 className="text-lg font-bold text-stone-900 mb-4">Changer le mot de passe</h2>
+        <h2 className="text-lg font-bold text-stone-900 mb-4">{t.settings.changePassword}</h2>
         <div className="space-y-4 bg-white p-5 rounded-lg border border-stone-200">
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">Mot de passe actuel</label>
+            <label className="block text-sm font-medium text-stone-700 mb-2">{t.settings.currentPassword}</label>
             <div className="relative">
               <input
                 type={showCurrentPassword ? 'text' : 'password'}
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 className="w-full px-4 py-2.5 pr-10 rounded-lg border border-stone-300 text-stone-900 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                placeholder="Votre mot de passe actuel"
+                placeholder={t.settings.currentPasswordPlaceholder}
               />
               <button
                 type="button"
@@ -282,14 +285,14 @@ export default function SettingsPage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">Nouveau mot de passe</label>
+            <label className="block text-sm font-medium text-stone-700 mb-2">{t.settings.newPassword}</label>
             <div className="relative">
               <input
                 type={showNewPassword ? 'text' : 'password'}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full px-4 py-2.5 pr-10 rounded-lg border border-stone-300 text-stone-900 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                placeholder="Nouveau mot de passe"
+                placeholder={t.settings.newPasswordPlaceholder}
               />
               <button
                 type="button"
@@ -313,14 +316,14 @@ export default function SettingsPage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-2">Confirmer le nouveau mot de passe</label>
+            <label className="block text-sm font-medium text-stone-700 mb-2">{t.settings.confirmNewPassword}</label>
             <div className="relative">
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full px-4 py-2.5 pr-10 rounded-lg border border-stone-300 text-stone-900 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                placeholder="Confirmer le nouveau mot de passe"
+                placeholder={t.settings.confirmPasswordPlaceholder}
               />
               <button
                 type="button"
@@ -348,7 +351,7 @@ export default function SettingsPage() {
             disabled={loadingPassword}
             className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loadingPassword ? 'Enregistrement...' : 'Enregistrer'}
+            {loadingPassword ? t.common.saving : t.common.save}
           </button>
         </div>
         {toastPassword && (
@@ -364,17 +367,17 @@ export default function SettingsPage() {
 
       {/* Preferences Section */}
       <section className="mb-8">
-        <h2 className="text-lg font-bold text-stone-900 mb-4">Préférences de notification</h2>
+        <h2 className="text-lg font-bold text-stone-900 mb-4">{t.settings.notificationPreferences}</h2>
         <div className="bg-white p-5 rounded-lg border border-stone-200">
           <p className="text-sm text-stone-600 mb-5 italic">
-            Tu recevras des notifications pour les nouvelles offres correspondant à tes préférences. Si aucune sélection, tu recevras toutes les notifications.
+            {t.settings.notificationHelp}
           </p>
 
           {/* Email alerts toggle */}
           <div className="flex items-center justify-between py-3 mb-4 border-b border-stone-100">
             <div>
-              <div className="text-sm font-semibold text-stone-900">Alertes par email</div>
-              <div className="text-xs text-stone-500">Recevoir un email à chaque nouvelle offre correspondante</div>
+              <div className="text-sm font-semibold text-stone-900">{t.settings.emailAlerts}</div>
+              <div className="text-xs text-stone-500">{t.settings.emailAlertsHelp}</div>
             </div>
             <button
               type="button"
@@ -391,7 +394,7 @@ export default function SettingsPage() {
 
           {/* States */}
           <div className="mb-6">
-            <h3 className="text-sm font-bold text-stone-900 mb-3">États</h3>
+            <h3 className="text-sm font-bold text-stone-900 mb-3">{t.settings.statesLabel}</h3>
             <div className="grid grid-cols-2 gap-3">
               {STATES.map((state) => (
                 <label key={state.code} className="flex items-center gap-2 cursor-pointer">
@@ -409,17 +412,17 @@ export default function SettingsPage() {
 
           {/* Categories */}
           <div className="mb-6">
-            <h3 className="text-sm font-bold text-stone-900 mb-3">Catégories</h3>
+            <h3 className="text-sm font-bold text-stone-900 mb-3">{t.settings.categoriesLabel}</h3>
             <div className="grid grid-cols-2 gap-3">
-              {CATEGORIES.filter((c) => c.key !== 'all').map((category) => (
-                <label key={category.key} className="flex items-center gap-2 cursor-pointer">
+              {categories.filter((c) => c.key !== 'all').map((cat) => (
+                <label key={cat.key} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={preferredCategories.includes(category.key)}
-                    onChange={() => toggleCategory(category.key)}
+                    checked={preferredCategories.includes(cat.key)}
+                    onChange={() => toggleCategory(cat.key)}
                     className="w-4 h-4 rounded border-stone-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
                   />
-                  <span className="text-sm text-stone-700">{category.label}</span>
+                  <span className="text-sm text-stone-700">{cat.label}</span>
                 </label>
               ))}
             </div>
@@ -430,7 +433,7 @@ export default function SettingsPage() {
             disabled={loadingPreferences}
             className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loadingPreferences ? 'Enregistrement...' : 'Enregistrer'}
+            {loadingPreferences ? t.common.saving : t.common.save}
           </button>
         </div>
         {toastPreferences && (

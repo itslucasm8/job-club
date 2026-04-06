@@ -2,10 +2,12 @@
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useTranslation } from '@/components/LanguageContext'
 
 export default function ProfilePage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const { t } = useTranslation()
   const user = session?.user as any
   const [savedCount, setSavedCount] = useState(0)
   const [portalLoading, setPortalLoading] = useState(false)
@@ -31,11 +33,11 @@ export default function ProfilePage() {
       if (data.url) {
         window.location.href = data.url
       } else {
-        alert('Erreur lors de l\'accès au portail d\'abonnement')
+        alert(t.profile.portalError)
       }
     } catch (e) {
       console.error('Error:', e)
-      alert('Erreur lors de l\'accès au portail d\'abonnement')
+      alert(t.profile.portalError)
     } finally {
       setPortalLoading(false)
     }
@@ -48,12 +50,12 @@ export default function ProfilePage() {
         <div className="w-[72px] h-[72px] rounded-full bg-white/20 border-[3px] border-white/40 flex items-center justify-center text-3xl font-bold mx-auto mb-3">
           {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
         </div>
-        <div className="text-xl font-bold">{user?.name || 'Membre'}</div>
+        <div className="text-xl font-bold">{user?.name || t.common.member}</div>
         <div className="text-sm opacity-70">{user?.email}</div>
         <div className="flex justify-center gap-8 mt-4">
-          <div className="text-center"><div className="text-2xl font-extrabold">{savedCount}</div><div className="text-[11px] opacity-70">Sauvegardés</div></div>
-          <div className="text-center"><div className="text-2xl font-extrabold">0</div><div className="text-[11px] opacity-70">Consultées</div></div>
-          <div className="text-center"><div className="text-2xl font-extrabold">∞</div><div className="text-[11px] opacity-70">Jours restants</div></div>
+          <div className="text-center"><div className="text-2xl font-extrabold">{savedCount}</div><div className="text-[11px] opacity-70">{t.profile.savedCount}</div></div>
+          <div className="text-center"><div className="text-2xl font-extrabold">0</div><div className="text-[11px] opacity-70">{t.profile.viewed}</div></div>
+          <div className="text-center"><div className="text-2xl font-extrabold">∞</div><div className="text-[11px] opacity-70">{t.profile.daysLeft}</div></div>
         </div>
       </div>
 
@@ -62,17 +64,17 @@ export default function ProfilePage() {
         <div className="mb-5 p-4 rounded-lg border border-stone-200 bg-stone-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="text-sm font-medium text-stone-700">Abonnement</div>
+              <div className="text-sm font-medium text-stone-700">{t.profile.subscription}</div>
               <span className={`px-3 py-1 text-xs font-bold rounded-full ${
                 user?.subscriptionStatus === 'active' ? 'bg-green-100 text-green-700' :
                 user?.subscriptionStatus === 'past_due' ? 'bg-amber-100 text-amber-700' :
                 user?.subscriptionStatus === 'canceled' ? 'bg-red-100 text-red-700' :
                 'bg-stone-100 text-stone-700'
               }`}>
-                {user?.subscriptionStatus === 'active' ? 'Actif' :
-                 user?.subscriptionStatus === 'past_due' ? 'En retard' :
-                 user?.subscriptionStatus === 'canceled' ? 'Annulé' :
-                 'Inactif'}
+                {user?.subscriptionStatus === 'active' ? t.profile.active :
+                 user?.subscriptionStatus === 'past_due' ? t.profile.pastDue :
+                 user?.subscriptionStatus === 'canceled' ? t.profile.canceled :
+                 t.profile.inactive}
               </span>
             </div>
           </div>
@@ -81,22 +83,22 @@ export default function ProfilePage() {
 
       {/* Menu */}
       <div className="space-y-0.5 mb-5">
-        <MenuItem icon="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" label="Mes offres sauvegardées" onClick={() => router.push('/saved')} />
-        <MenuItem icon="M12 12m-3 0a3 3 0 106 0 3 3 0 00-6 0 M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4" label="Paramètres du compte" onClick={() => router.push('/settings')} />
+        <MenuItem icon="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" label={t.profile.mySavedJobs} onClick={() => router.push('/saved')} />
+        <MenuItem icon="M12 12m-3 0a3 3 0 106 0 3 3 0 00-6 0 M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4" label={t.profile.accountSettings} onClick={() => router.push('/settings')} />
         {user?.stripeCustomerId && (
           <MenuItem
             icon="M1 4h22v16a2 2 0 01-2 2H3a2 2 0 01-2-2V4z M1 10h22"
-            label="Gérer mon abonnement"
+            label={t.profile.manageSubscription}
             onClick={handleManageSubscription}
             disabled={portalLoading}
           />
         )}
-        <MenuItem icon="M12 12m-10 0a10 10 0 1020 0 10 10 0 00-20 0 M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3 M12 17h.01" label="Guide d'utilisation" onClick={() => router.push('/guide')} />
+        <MenuItem icon="M12 12m-10 0a10 10 0 1020 0 10 10 0 00-20 0 M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3 M12 17h.01" label={t.profile.userGuide} onClick={() => router.push('/guide')} />
       </div>
 
       <button onClick={() => signOut({ callbackUrl: '/' })}
         className="w-full py-3.5 rounded-xl border-2 border-red-500 text-red-500 font-bold text-[15px] hover:bg-red-50 transition">
-        Se déconnecter
+        {t.profile.signOut}
       </button>
     </div>
   )

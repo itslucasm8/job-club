@@ -1,6 +1,7 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
 import PostHogProvider from '@/components/PostHogProvider'
+import { LanguageProvider } from '@/components/LanguageContext'
 
 // Force all pages to render dynamically (no stale pre-rendered HTML)
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr">
       <body className={`${inter.className} bg-stone-100 text-stone-900 min-h-screen`}>
-        <PostHogProvider>{children}</PostHogProvider>
+        <LanguageProvider>
+          <PostHogProvider>{children}</PostHogProvider>
+        </LanguageProvider>
       </body>
     </html>
   )

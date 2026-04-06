@@ -2,15 +2,17 @@
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { STATES, CATEGORIES } from '@/lib/utils'
+import { STATES, getCategories } from '@/lib/utils'
+import { useTranslation } from '@/components/LanguageContext'
 import { useToast } from '@/components/Toast'
 import JobCard from '@/components/JobCard'
 import JobModal from '@/components/JobModal'
 import JobCardSkeleton from '@/components/JobCardSkeleton'
 
 export default function FeedPage() {
+  const { t } = useTranslation()
   return (
-    <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="text-stone-400">Chargement...</div></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="text-stone-400">{t.common.loading}</div></div>}>
       <FeedContent />
     </Suspense>
   )
@@ -28,6 +30,8 @@ function FeedContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const { toast } = useToast()
+  const { t, language } = useTranslation()
+  const categories = getCategories(language)
   const [jobs, setJobs] = useState<any[]>([])
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
   const [selectedJob, setSelectedJob] = useState<any>(null)
@@ -83,7 +87,7 @@ function FeedContent() {
     try {
       const res = await fetch(`/api/jobs/${jobId}/save`, { method: 'POST' })
       if (!res.ok) {
-        toast('error', 'Erreur lors de la sauvegarde')
+        toast('error', t.feed.saveError)
         return
       }
       const data = await res.json()
@@ -93,20 +97,20 @@ function FeedContent() {
         return next
       })
       setStats(prev => prev ? { ...prev, savedCount: prev.savedCount + (data.saved ? 1 : -1) } : prev)
-      toast('success', data.saved ? 'Offre sauvegardée' : 'Offre retirée')
+      toast('success', data.saved ? t.feed.jobSaved : t.feed.jobRemoved)
     } catch {
-      toast('error', 'Erreur réseau')
+      toast('error', t.common.networkError)
     }
   }
 
   // Debounced search
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString())
       if (query) params.set('q', query); else params.delete('q')
       router.push(`/feed?${params}`)
     }, 400)
-    return () => clearTimeout(t)
+    return () => clearTimeout(timer)
   }, [query])
 
   return (
@@ -120,7 +124,7 @@ function FeedContent() {
               {stats?.newJobsToday ?? '\u2014'}
             </div>
             <div className="text-[10px] sm:text-xs font-medium text-purple-600/70 mt-0.5 leading-tight">
-              Nouvelles aujourd&apos;hui
+              {t.feed.newToday}
             </div>
           </div>
 
@@ -130,7 +134,7 @@ function FeedContent() {
               {stats?.savedCount ?? '\u2014'}
             </div>
             <div className="text-[10px] sm:text-xs font-medium text-amber-600/70 mt-0.5 leading-tight">
-              Offres sauvegardées
+              {t.feed.savedJobs}
             </div>
           </Link>
 
@@ -140,7 +144,7 @@ function FeedContent() {
               {stats?.preferredState || '\u2014'}
             </div>
             <div className="text-[10px] sm:text-xs font-medium text-emerald-600/70 mt-0.5 leading-tight">
-              Mon état préféré
+              {t.feed.preferredState}
             </div>
           </div>
         </div>
@@ -151,14 +155,14 @@ function FeedContent() {
         {/* Search bar */}
         <div className="flex items-center gap-2.5 bg-white rounded-xl px-3.5 py-2.5 border border-stone-200 focus-within:border-purple-400 focus-within:ring-2 focus-within:ring-purple-100 transition">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-[18px] h-[18px] text-stone-400 flex-shrink-0"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Rechercher un job..."
+          <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder={t.feed.searchPlaceholder}
             className="flex-1 bg-transparent outline-none text-sm text-stone-800 placeholder:text-stone-400" />
         </div>
 
         {/* State chips */}
         <div className="relative">
           <div className="flex gap-2 overflow-x-auto mt-2.5 pb-0.5 scrollbar-none">
-            <Chip active={state === 'all'} onClick={() => updateFilter('state', 'all')}>Tous</Chip>
+            <Chip active={state === 'all'} onClick={() => updateFilter('state', 'all')}>{t.common.all}</Chip>
             {STATES.map(s => <Chip key={s.code} active={state === s.code} onClick={() => updateFilter('state', s.code)}>{s.code}</Chip>)}
           </div>
           <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-warm-bg to-transparent pointer-events-none" />
@@ -167,7 +171,7 @@ function FeedContent() {
         {/* Category tabs */}
         <div className="relative">
           <div className="flex gap-1.5 overflow-x-auto mt-2 pb-0.5 scrollbar-none">
-            {CATEGORIES.map(c => (
+            {categories.map(c => (
               <button key={c.key} onClick={() => updateFilter('category', c.key)}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-[10px] text-[12px] font-semibold border transition whitespace-nowrap ${category === c.key ? 'bg-amber-400 text-stone-900 border-amber-400' : 'bg-white text-stone-500 border-stone-200 hover:border-purple-300'}`}>
                 {c.label}
@@ -177,7 +181,7 @@ function FeedContent() {
               onClick={() => setOnly88Days(!only88Days)}
               className={`flex-shrink-0 px-3 py-1.5 rounded-[10px] text-[12px] font-semibold border transition whitespace-nowrap ${only88Days ? 'bg-yellow-400 text-stone-900 border-yellow-400' : 'bg-white text-stone-500 border-stone-200 hover:border-yellow-300'}`}
             >
-              88 jours
+              {t.feed.days88}
             </button>
           </div>
           <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-warm-bg to-transparent pointer-events-none" />
@@ -192,7 +196,7 @@ function FeedContent() {
           ))
         ) : jobs.length === 0 ? (
           <div className="col-span-full text-center py-16 text-stone-400">
-            <p className="text-sm">Aucune offre trouvée. Essaie d&apos;autres filtres.</p>
+            <p className="text-sm">{t.feed.noResults}</p>
           </div>
         ) : (
           jobs.map(job => (

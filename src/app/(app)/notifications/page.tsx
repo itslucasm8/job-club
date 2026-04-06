@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslation } from '@/components/LanguageContext'
+import { timeAgo } from '@/lib/utils'
 
 interface Notification {
   id: string
@@ -14,6 +16,7 @@ interface Notification {
 
 export default function NotificationsPage() {
   const router = useRouter()
+  const { t, language } = useTranslation()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -76,17 +79,6 @@ export default function NotificationsPage() {
     fetchNotifications(notifications.length)
   }
 
-  function timeAgo(dateStr: string) {
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 60) return `${mins}min`
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return `${hours}h`
-    const days = Math.floor(hours / 24)
-    if (days < 7) return `${days}j`
-    return `${Math.floor(days / 7)}sem`
-  }
-
   const unreadCount = notifications.filter(n => !n.read).length
   const hasMore = notifications.length < total
 
@@ -106,9 +98,9 @@ export default function NotificationsPage() {
     <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-2xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900">Notifications</h1>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900">{t.notifications.title}</h1>
           {unreadCount > 0 && (
-            <p className="text-sm text-stone-500 mt-1">{unreadCount} non lue{unreadCount > 1 ? 's' : ''}</p>
+            <p className="text-sm text-stone-500 mt-1">{unreadCount} {unreadCount > 1 ? t.notifications.unreadPlural : t.notifications.unread}</p>
           )}
         </div>
         {unreadCount > 0 && (
@@ -116,7 +108,7 @@ export default function NotificationsPage() {
             onClick={markAllRead}
             className="text-sm text-purple-600 font-medium hover:text-purple-800 transition"
           >
-            Tout marquer lu
+            {t.notifications.markAllRead}
           </button>
         )}
       </div>
@@ -129,8 +121,8 @@ export default function NotificationsPage() {
               <path d="M13.73 21a2 2 0 01-3.46 0" />
             </svg>
           </div>
-          <p className="text-stone-500 text-sm mb-2">Aucune notification pour le moment</p>
-          <p className="text-stone-400 text-xs">Configure tes préférences dans les <button onClick={() => router.push('/settings')} className="text-purple-600 hover:underline">paramètres</button> pour recevoir des alertes.</p>
+          <p className="text-stone-500 text-sm mb-2">{t.notifications.empty}</p>
+          <p className="text-stone-400 text-xs">{t.notifications.emptyHelp} <button onClick={() => router.push('/settings')} className="text-purple-600 hover:underline">{t.notifications.emptyHelpSettings}</button> {t.notifications.emptyHelpEnd}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -151,7 +143,7 @@ export default function NotificationsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <div className="text-sm font-medium text-stone-900">{notif.title}</div>
-                    <div className="text-[11px] text-stone-400 flex-shrink-0">{timeAgo(notif.createdAt)}</div>
+                    <div className="text-[11px] text-stone-400 flex-shrink-0">{language === 'fr' ? `Il y a ${timeAgo(new Date(notif.createdAt), language)}` : `${timeAgo(new Date(notif.createdAt), language)} ago`}</div>
                   </div>
                   <div className="text-xs text-stone-500 mt-0.5">{notif.message}</div>
                 </div>
@@ -166,7 +158,7 @@ export default function NotificationsPage() {
                 disabled={loadingMore}
                 className="px-6 py-2.5 rounded-lg text-sm font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 transition disabled:opacity-50"
               >
-                {loadingMore ? 'Chargement...' : 'Voir plus'}
+                {loadingMore ? t.common.loading : t.notifications.loadMore}
               </button>
             </div>
           )}

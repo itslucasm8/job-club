@@ -27,9 +27,13 @@ export async function POST(req: Request) {
           data: { subscriptionStatus: 'active', subscriptionId: s.subscription as string },
         })
         // Send confirmation email
-        const user = await prisma.user.findFirst({ where: { stripeCustomerId: s.customer as string } })
+        const user = await prisma.user.findFirst({
+          where: { stripeCustomerId: s.customer as string },
+          select: { email: true, name: true, preferredLanguage: true },
+        })
         if (user) {
-          sendSubscriptionConfirmation(user.email, user.name ?? "").catch(console.error)
+          const lang = (user.preferredLanguage === 'en' ? 'en' : 'fr') as 'fr' | 'en'
+          sendSubscriptionConfirmation(user.email, user.name ?? "", lang).catch(console.error)
         }
       } catch (e) {
         Sentry.captureException(e, { tags: { webhook: 'checkout.session.completed' } })
@@ -61,9 +65,13 @@ export async function POST(req: Request) {
     case 'invoice.payment_failed': {
       try {
         const invoice = event.data.object as any
-        const user = await prisma.user.findFirst({ where: { stripeCustomerId: invoice.customer as string } })
+        const user = await prisma.user.findFirst({
+          where: { stripeCustomerId: invoice.customer as string },
+          select: { email: true, name: true, preferredLanguage: true },
+        })
         if (user) {
-          sendPaymentFailedEmail(user.email, user.name ?? "").catch(console.error)
+          const lang = (user.preferredLanguage === 'en' ? 'en' : 'fr') as 'fr' | 'en'
+          sendPaymentFailedEmail(user.email, user.name ?? "", lang).catch(console.error)
           logger.error('Payment failed for user', { route: '/api/stripe/webhook', email: user.email, invoiceId: invoice.id })
         }
       } catch (e) {

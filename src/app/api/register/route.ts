@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     }
 
     const { email, password, name } = result.data
+    const lang = body.preferredLanguage === 'en' ? 'en' as const : 'fr' as const
 
     // Check if email is already in use
     const existing = await prisma.user.findUnique({ where: { email } })
@@ -33,11 +34,11 @@ export async function POST(req: Request) {
 
     const passwordHash = await bcrypt.hash(password, 12)
     const user = await prisma.user.create({
-      data: { email, passwordHash, name },
+      data: { email, passwordHash, name, preferredLanguage: lang },
     })
 
     // Send welcome email (fire and forget)
-    sendWelcomeEmail(user.email, user.name || '').catch(console.error)
+    sendWelcomeEmail(user.email, user.name || '', lang).catch(console.error)
 
     return NextResponse.json({ id: user.id, email: user.email }, { status: 201 })
   } catch (e) {
