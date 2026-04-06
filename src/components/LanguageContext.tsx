@@ -1,6 +1,5 @@
 'use client'
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { useSession } from 'next-auth/react'
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react'
 import { translations, type Language, type Translations } from '@/lib/translations'
 
 type LanguageContextType = {
@@ -15,55 +14,44 @@ const LanguageContext = createContext<LanguageContextType>({
   t: translations.fr,
 })
 
-// Safe wrapper: LanguageProvider lives in the root layout but SessionProvider
-// only wraps (app)/ routes, so useSession() would crash on auth/public pages.
-function useSafeSession() {
-  try {
-    return useSession()
-  } catch {
-    return { status: 'unauthenticated' as const }
-  }
-}
-
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>('fr')
-  const { status } = useSafeSession()
+  const didSyncRef = useRef(false)
 
-  // On mount: load from localStorage immediately (fast), then sync from DB when authenticated
+  // On mount: load from localStorage (instant), then try syncing from DB
   useEffect(() => {
     const stored = localStorage.getItem('language') as Language | null
     if (stored === 'en' || stored === 'fr') {
       setLanguageState(stored)
       document.documentElement.lang = stored
     }
-  }, [])
 
-  useEffect(() => {
-    if (status !== 'authenticated') return
-    fetch('/api/user/settings')
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (data?.preferredLanguage === 'en' || data?.preferredLanguage === 'fr') {
-          setLanguageState(data.preferredLanguage)
-          localStorage.setItem('language', data.preferredLanguage)
-          document.documentElement.lang = data.preferredLanguage
-        }
-      })
-      .catch(() => {}) // localStorage value is fine as fallback
-  }, [status])
+    // Try fetching user's DB preference — returns 401 if not logged in, which we ignore
+    if (!didSyncRef.current) {
+      didSyncRef.current = true
+      fetch('/api/user/settings')
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data?.preferredLanguage === 'en' || data?.preferredLanguage === 'fr') {
+            setLanguageState(data.preferredLanguage)
+            localStorage.setItem('language', data.preferredLanguage)
+            document.documentElement.lang = data.preferredLanguage
+          }
+        })
+        .catch(() => {})
+    }
+  }, [])
 
   function setLanguage(lang: Language) {
     setLanguageState(lang)
     localStorage.setItem('language', lang)
     document.documentElement.lang = lang
-    // Persist to DB if authenticated (fire-and-forget)
-    if (status === 'authenticated') {
-      fetch('/api/user/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ preferredLanguage: lang }),
-      }).catch(() => {})
-    }
+    // Persist to DB (fire-and-forget, silently fails if not logged in)
+    fetch('/api/user/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preferredLanguage: lang }),
+    }).catch(() => {})
   }
 
   return (
