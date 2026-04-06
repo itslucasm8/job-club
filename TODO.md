@@ -30,7 +30,7 @@
 | # | Workstream | Plan | Type | Status |
 |---|-----------|------|------|--------|
 | 7 | **Observability (Sentry)** | [plan](docs/plans/observability-sentry.md) | Feature | **Done** |
-| 8 | **Product Analytics** | [plan](docs/plans/product-analytics.md) | Feature | Not started |
+| 8 | **Product Analytics** | [plan](docs/plans/product-analytics.md) | Feature | **Done** |
 
 ## Already Planned (existing detailed plans)
 
