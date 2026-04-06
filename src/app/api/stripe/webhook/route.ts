@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import { sendSubscriptionConfirmation, sendPaymentFailedEmail } from '@/lib/email'
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
           sendSubscriptionConfirmation(user.email, user.name ?? "").catch(console.error)
         }
       } catch (e) {
+        Sentry.captureException(e, { tags: { webhook: 'checkout.session.completed' } })
         logger.error('checkout.session.completed event failed', { route: '/api/stripe/webhook', error: String(e) })
       }
       break
@@ -41,6 +43,7 @@ export async function POST(req: Request) {
         const status = sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : 'inactive'
         await prisma.user.updateMany({ where: { subscriptionId: sub.id }, data: { subscriptionStatus: status } })
       } catch (e) {
+        Sentry.captureException(e, { tags: { webhook: 'customer.subscription.updated' } })
         logger.error('customer.subscription.updated event failed', { route: '/api/stripe/webhook', error: String(e) })
       }
       break
@@ -50,6 +53,7 @@ export async function POST(req: Request) {
         const sub = event.data.object as any
         await prisma.user.updateMany({ where: { subscriptionId: sub.id }, data: { subscriptionStatus: 'canceled', subscriptionId: null } })
       } catch (e) {
+        Sentry.captureException(e, { tags: { webhook: 'customer.subscription.deleted' } })
         logger.error('customer.subscription.deleted event failed', { route: '/api/stripe/webhook', error: String(e) })
       }
       break
@@ -63,6 +67,7 @@ export async function POST(req: Request) {
           logger.error('Payment failed for user', { route: '/api/stripe/webhook', email: user.email, invoiceId: invoice.id })
         }
       } catch (e) {
+        Sentry.captureException(e, { tags: { webhook: 'invoice.payment_failed' } })
         logger.error('invoice.payment_failed event failed', { route: '/api/stripe/webhook', error: String(e) })
       }
       break
@@ -79,6 +84,7 @@ export async function POST(req: Request) {
         }
         logger.info('Invoice paid successfully', { route: '/api/stripe/webhook', invoiceId: invoice.id, amount: invoice.amount_paid })
       } catch (e) {
+        Sentry.captureException(e, { tags: { webhook: 'invoice.paid' } })
         logger.error('invoice.paid event failed', { route: '/api/stripe/webhook', error: String(e) })
       }
       break

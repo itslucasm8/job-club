@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -46,6 +47,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ jobs, total, page, pages: Math.ceil(total / limit) })
   } catch (e) {
+    Sentry.captureException(e)
     logger.error('GET /api/jobs failed', { route: '/api/jobs', error: String(e) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
@@ -96,6 +98,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(job, { status: 201 })
   } catch (e) {
+    Sentry.captureException(e)
     logger.error('POST /api/jobs failed', { route: '/api/jobs', error: String(e) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }

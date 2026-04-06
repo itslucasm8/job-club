@@ -3,4 +3,5 @@ node_modules.bak/
 .next/
 .env*.local
 .env
+.env.sentry-build-plugin
 prisma/dev.db
