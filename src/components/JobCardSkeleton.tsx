@@ -1,30 +1,30 @@
 export default function JobCardSkeleton() {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white overflow-hidden animate-pulse">
-      <div className="px-4 py-3.5">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-stone-200" />
-            <div>
-              <div className="h-3.5 bg-stone-200 rounded w-24 mb-1.5" />
-              <div className="h-3 bg-stone-100 rounded w-16" />
-            </div>
-          </div>
-          <div className="h-6 bg-stone-100 rounded-full w-12" />
+    <div className="rounded-[14px] bg-warm-card shadow-[0_1px_3px_rgba(0,0,0,0.08)] p-5 animate-pulse">
+      {/* Header: avatar + text */}
+      <div className="flex items-center gap-2.5">
+        <div className="w-9 h-9 rounded-full bg-stone-200" />
+        <div>
+          <div className="h-3.5 bg-stone-200 rounded w-24 mb-1.5" />
+          <div className="h-3 bg-stone-100 rounded w-16" />
         </div>
       </div>
-      <div className="px-4 py-3">
+      {/* Title + location */}
+      <div className="mt-3">
         <div className="h-4 bg-stone-200 rounded w-3/4 mb-2" />
-        <div className="h-3 bg-stone-100 rounded w-full mb-1.5" />
-        <div className="h-3 bg-stone-100 rounded w-2/3 mb-3" />
-        <div className="flex gap-2">
-          <div className="h-6 bg-stone-100 rounded-full w-16" />
-          <div className="h-6 bg-stone-100 rounded-full w-20" />
-          <div className="h-6 bg-stone-100 rounded-full w-14" />
-        </div>
+        <div className="h-3 bg-stone-100 rounded w-1/2" />
       </div>
-      <div className="px-4 py-2.5 bg-stone-50/50 border-t border-stone-100">
-        <div className="h-3 bg-stone-100 rounded w-24" />
+      {/* Description lines */}
+      <div className="mt-2.5 space-y-1.5">
+        <div className="h-3 bg-stone-100 rounded w-full" />
+        <div className="h-3 bg-stone-100 rounded w-4/5" />
+        <div className="h-3 bg-stone-100 rounded w-2/3" />
+      </div>
+      {/* Tags */}
+      <div className="flex gap-2 mt-3">
+        <div className="h-6 bg-stone-100 rounded-full w-16" />
+        <div className="h-6 bg-stone-100 rounded-full w-12" />
+        <div className="h-6 bg-stone-100 rounded-full w-20" />
       </div>
     </div>
   )

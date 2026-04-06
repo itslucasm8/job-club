@@ -1,7 +1,7 @@
 'use client'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { STATES } from '@/lib/utils'
 
 const navItems = [
@@ -19,6 +19,16 @@ export default function Sidebar() {
   const { data: session } = useSession()
   const isAdmin = (session?.user as any)?.role === 'admin'
   const [showStates, setShowStates] = useState(true)
+  const [stateCounts, setStateCounts] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    fetch('/api/feed/stats')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.stateCounts) setStateCounts(data.stateCounts)
+      })
+      .catch(() => {})
+  }, [])
 
   return (
     <aside className="hidden lg:flex flex-col w-64 flex-shrink-0 bg-white border-r border-stone-200 h-screen sticky top-0 overflow-y-auto">
@@ -58,8 +68,9 @@ export default function Sidebar() {
         <div className="px-3 pb-5 space-y-0.5">
           {STATES.map(s => (
             <button key={s.code} onClick={() => router.push(`/feed?state=${s.code}`)}
-              className="w-full px-3 py-2 rounded-lg text-[13px] text-stone-500 hover:bg-stone-50 hover:text-stone-700 transition text-left">
+              className="w-full px-3 py-2 rounded-lg text-[13px] text-stone-500 hover:bg-stone-50 hover:text-stone-700 transition text-left flex items-center justify-between">
               <span>{s.code} — {s.name}</span>
+              <span className="text-[12px] font-medium text-stone-400 tabular-nums">{stateCounts[s.code] ?? '\u2014'}</span>
             </button>
           ))}
         </div>

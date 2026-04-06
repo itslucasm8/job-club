@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { STATES, CATEGORIES } from '@/lib/utils'
 import { useToast } from '@/components/Toast'
 import JobCard from '@/components/JobCard'
@@ -15,6 +16,14 @@ export default function FeedPage() {
   )
 }
 
+interface FeedStats {
+  newJobsToday: number
+  savedCount: number
+  savedIds: string[]
+  preferredState: string | null
+  stateCounts: Record<string, number>
+}
+
 function FeedContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -24,9 +33,23 @@ function FeedContent() {
   const [selectedJob, setSelectedJob] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState(searchParams.get('q') || '')
+  const [stats, setStats] = useState<FeedStats | null>(null)
 
   const state = searchParams.get('state') || 'all'
   const category = searchParams.get('category') || 'all'
+
+  // Fetch dashboard stats + saved IDs on mount
+  useEffect(() => {
+    fetch('/api/feed/stats')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          setStats(data)
+          setSavedIds(new Set(data.savedIds || []))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const fetchJobs = useCallback(async () => {
     setLoading(true)
@@ -67,6 +90,7 @@ function FeedContent() {
         if (data.saved) next.add(jobId); else next.delete(jobId)
         return next
       })
+      setStats(prev => prev ? { ...prev, savedCount: prev.savedCount + (data.saved ? 1 : -1) } : prev)
       toast('success', data.saved ? 'Offre sauvegardée' : 'Offre retirée')
     } catch {
       toast('error', 'Erreur réseau')
@@ -84,10 +108,46 @@ function FeedContent() {
   }, [query])
 
   return (
-    <>
-      {/* Search */}
-      <div className="bg-white border-b border-stone-200 px-4 sm:px-5 lg:px-7 py-3">
-        <div className="flex items-center gap-2.5 bg-stone-100 rounded-xl px-3.5 py-2.5 border border-stone-200 focus-within:border-purple-400 transition">
+    <div className="min-h-screen bg-warm-bg">
+      {/* Dashboard Stats Strip */}
+      <div className="px-4 sm:px-5 lg:px-7 pt-4 pb-2">
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+          {/* New today */}
+          <div className="rounded-[14px] bg-gradient-to-br from-purple-50 via-purple-50 to-purple-100/80 border border-purple-200/60 p-3 sm:p-4">
+            <div className="text-2xl sm:text-3xl font-extrabold text-purple-700">
+              {stats?.newJobsToday ?? '\u2014'}
+            </div>
+            <div className="text-[10px] sm:text-xs font-medium text-purple-600/70 mt-0.5 leading-tight">
+              Nouvelles aujourd&apos;hui
+            </div>
+          </div>
+
+          {/* Saved — clickable to /saved */}
+          <Link href="/saved" className="rounded-[14px] bg-gradient-to-br from-amber-50 via-amber-50 to-amber-100/80 border border-amber-200/60 p-3 sm:p-4 hover:shadow-md transition-shadow group">
+            <div className="text-2xl sm:text-3xl font-extrabold text-amber-700 group-hover:text-amber-800 transition-colors">
+              {stats?.savedCount ?? '\u2014'}
+            </div>
+            <div className="text-[10px] sm:text-xs font-medium text-amber-600/70 mt-0.5 leading-tight">
+              Offres sauvegard\u00e9es
+            </div>
+          </Link>
+
+          {/* Preferred state */}
+          <div className="rounded-[14px] bg-gradient-to-br from-emerald-50 via-emerald-50 to-emerald-100/80 border border-emerald-200/60 p-3 sm:p-4">
+            <div className="text-2xl sm:text-3xl font-extrabold text-emerald-700">
+              {stats?.preferredState || '\u2014'}
+            </div>
+            <div className="text-[10px] sm:text-xs font-medium text-emerald-600/70 mt-0.5 leading-tight">
+              Mon \u00e9tat pr\u00e9f\u00e9r\u00e9
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky Search & Filters */}
+      <div className="sticky top-[60px] z-30 bg-warm-bg border-b border-stone-200/80 px-4 sm:px-5 lg:px-7 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        {/* Search bar */}
+        <div className="flex items-center gap-2.5 bg-white rounded-xl px-3.5 py-2.5 border border-stone-200 focus-within:border-purple-400 focus-within:ring-2 focus-within:ring-purple-100 transition">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-[18px] h-[18px] text-stone-400 flex-shrink-0"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           <input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Rechercher un job..."
             className="flex-1 bg-transparent outline-none text-sm text-stone-800 placeholder:text-stone-400" />
@@ -99,7 +159,7 @@ function FeedContent() {
             <Chip active={state === 'all'} onClick={() => updateFilter('state', 'all')}>Tous</Chip>
             {STATES.map(s => <Chip key={s.code} active={state === s.code} onClick={() => updateFilter('state', s.code)}>{s.code}</Chip>)}
           </div>
-          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-warm-bg to-transparent pointer-events-none" />
         </div>
 
         {/* Category tabs */}
@@ -107,31 +167,24 @@ function FeedContent() {
           <div className="flex gap-1.5 overflow-x-auto mt-2 pb-0.5 scrollbar-none">
             {CATEGORIES.map(c => (
               <button key={c.key} onClick={() => updateFilter('category', c.key)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition whitespace-nowrap ${category === c.key ? 'bg-amber-400 text-stone-900 border-amber-400' : 'bg-stone-50 text-stone-500 border-stone-200 hover:border-purple-300'}`}>
+                className={`flex-shrink-0 px-3 py-1.5 rounded-[10px] text-[12px] font-semibold border transition whitespace-nowrap ${category === c.key ? 'bg-amber-400 text-stone-900 border-amber-400' : 'bg-white text-stone-500 border-stone-200 hover:border-purple-300'}`}>
                 {c.label}
               </button>
             ))}
           </div>
-          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-warm-bg to-transparent pointer-events-none" />
         </div>
       </div>
 
-      {/* Banner */}
-      <div className="mx-4 sm:mx-5 lg:mx-7 mt-4 rounded-xl bg-gradient-to-br from-purple-900 via-purple-800 to-purple-600 p-5 sm:p-6 text-white overflow-hidden relative">
-        <div className="absolute -right-8 -bottom-8 w-36 h-36 bg-white/5 rounded-full" />
-        <h2 className="text-lg sm:text-xl font-extrabold mb-1">Bienvenue sur Job Club</h2>
-        <p className="text-xs sm:text-sm opacity-80">Les dernières offres d&apos;emploi pour backpackers en Australie</p>
-      </div>
-
       {/* Job Grid */}
-      <div className="px-4 sm:px-5 lg:px-7 py-4 pb-24 lg:pb-10 grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+      <div className="px-4 sm:px-5 lg:px-7 py-4 pb-24 lg:pb-10 grid gap-[18px] grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
             <JobCardSkeleton key={i} />
           ))
         ) : jobs.length === 0 ? (
           <div className="col-span-full text-center py-16 text-stone-400">
-            <p className="text-sm">Aucune offre trouvée. Essaie d&apos;autres filtres.</p>
+            <p className="text-sm">Aucune offre trouv\u00e9e. Essaie d&apos;autres filtres.</p>
           </div>
         ) : (
           jobs.map(job => (
@@ -143,14 +196,14 @@ function FeedContent() {
       <JobModal job={selectedJob} saved={selectedJob ? savedIds.has(selectedJob.id) : false}
         onSave={() => { if (selectedJob) toggleSave(selectedJob.id) }}
         onClose={() => setSelectedJob(null)} />
-    </>
+    </div>
   )
 }
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button onClick={onClick}
-      className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-[13px] font-semibold border transition whitespace-nowrap ${active ? 'bg-purple-700 text-white border-purple-700' : 'bg-stone-100 text-stone-500 border-stone-200 hover:border-purple-400 hover:text-purple-700'}`}>
+      className={`flex-shrink-0 px-3.5 py-1.5 rounded-[10px] text-[13px] font-semibold border transition whitespace-nowrap ${active ? 'bg-purple-700 text-white border-purple-700' : 'bg-white text-stone-500 border-stone-200 hover:border-purple-400 hover:text-purple-700'}`}>
       {children}
     </button>
   )
