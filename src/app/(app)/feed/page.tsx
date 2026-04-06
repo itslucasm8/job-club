@@ -128,7 +128,7 @@ function FeedContent() {
               {stats?.savedCount ?? '\u2014'}
             </div>
             <div className="text-[10px] sm:text-xs font-medium text-amber-600/70 mt-0.5 leading-tight">
-              Offres sauvegard\u00e9es
+              Offres sauvegardées
             </div>
           </Link>
 
@@ -138,7 +138,7 @@ function FeedContent() {
               {stats?.preferredState || '\u2014'}
             </div>
             <div className="text-[10px] sm:text-xs font-medium text-emerald-600/70 mt-0.5 leading-tight">
-              Mon \u00e9tat pr\u00e9f\u00e9r\u00e9
+              Mon état préféré
             </div>
           </div>
         </div>
@@ -184,7 +184,7 @@ function FeedContent() {
           ))
         ) : jobs.length === 0 ? (
           <div className="col-span-full text-center py-16 text-stone-400">
-            <p className="text-sm">Aucune offre trouv\u00e9e. Essaie d&apos;autres filtres.</p>
+            <p className="text-sm">Aucune offre trouvée. Essaie d&apos;autres filtres.</p>
           </div>
         ) : (
           jobs.map(job => (
