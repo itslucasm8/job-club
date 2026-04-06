@@ -19,7 +19,7 @@ export default function AdminPage() {
   const [url, setUrl] = useState('')
   const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set())
   const [form, setForm] = useState({
-    title: '', company: '', state: '', location: '', category: '', type: 'casual', pay: '', description: '', sourceUrl: '',
+    title: '', company: '', state: '', location: '', category: '', type: 'casual', pay: '', description: '', sourceUrl: '', eligible88Days: false,
   })
 
   // User management
@@ -201,10 +201,15 @@ export default function AdminPage() {
                 : 'border-stone-200 focus:border-purple-400'
             }`}>
             <option value="">Sélectionner...</option>
-            <option value="farm">Agriculture / Ferme</option><option value="hospitality">Hôtellerie / Restauration</option>
-            <option value="construction">Construction / BTP</option><option value="trade">Métiers / Trade</option>
+            <option value="farm">Agriculture / Ferme</option>
+            <option value="hospitality">Hôtellerie / Restauration</option>
+            <option value="construction">Construction / BTP</option>
             <option value="retail">Commerce / Vente</option>
-            <option value="cleaning">Nettoyage / Entretien</option><option value="other">Autre</option>
+            <option value="cleaning">Nettoyage / Entretien</option>
+            <option value="events">Événements / Festivals</option>
+            <option value="animals">Animaux / Animalier</option>
+            <option value="transport">Transport / Livraison</option>
+            <option value="other">Autre</option>
           </select>
         </div>
         <div>
@@ -214,6 +219,15 @@ export default function AdminPage() {
             <option value="casual">Casual</option><option value="full_time">Temps plein</option>
             <option value="part_time">Temps partiel</option><option value="contract">Contrat</option>
           </select>
+          <label className="flex items-center gap-2 cursor-pointer mt-3">
+            <input
+              type="checkbox"
+              checked={form.eligible88Days}
+              onChange={e => setForm({ ...form, eligible88Days: e.target.checked })}
+              className="w-4 h-4 rounded border-stone-300 text-yellow-500 focus:ring-yellow-400"
+            />
+            <span className="text-sm font-medium text-stone-700">Éligible 88 jours</span>
+          </label>
         </div>
       </div>
       <div className="mb-4">

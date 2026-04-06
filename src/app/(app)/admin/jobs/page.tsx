@@ -96,9 +96,11 @@ export default function AdminJobsPage() {
     farm: 'Agriculture',
     hospitality: 'Hôtellerie',
     construction: 'Construction',
-    trade: 'Métiers',
     retail: 'Commerce',
     cleaning: 'Nettoyage',
+    events: 'Événements',
+    animals: 'Animaux',
+    transport: 'Transport',
     other: 'Autre',
   }
 

@@ -7,6 +7,11 @@ import { createJobSchema, jobQuerySchema, getFirstValidationError } from '@/lib/
 import { logger } from '@/lib/logger'
 import { createJobNotifications } from '@/lib/notifications'
 
+function detect88Days(title: string, description: string): boolean {
+  const text = `${title} ${description}`
+  return /88[\s-]?days|88[\s-]?jours|second[\s-]?year[\s-]?visa|2nd[\s-]?year[\s-]?visa|subclass[\s-]?417|specified[\s-]?work|visa[\s-]?extension|whv[\s-]?eligible/i.test(text)
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
@@ -28,6 +33,7 @@ export async function GET(req: Request) {
     ]
     if (state !== 'all') conditions.push({ state })
     if (category !== 'all') conditions.push({ category })
+    if (searchParams.get('eligible88Days') === 'true') conditions.push({ eligible88Days: true })
     if (q) {
       conditions.push({
         OR: [
@@ -67,7 +73,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: getFirstValidationError(result.error) }, { status: 400 })
     }
 
-    const { title, company, state, location, category, type, pay, description, applyUrl, sourceUrl } = result.data
+    const { title, company, state, location, category, type, pay, description, applyUrl, sourceUrl, eligible88Days } = result.data
 
     // Default expiry: 30 days from now
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
@@ -84,6 +90,7 @@ export async function POST(req: Request) {
         description,
         applyUrl: applyUrl || null,
         sourceUrl: sourceUrl || null,
+        eligible88Days: eligible88Days || detect88Days(title, description),
         expiresAt,
       },
     })
