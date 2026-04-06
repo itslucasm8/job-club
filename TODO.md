@@ -10,7 +10,7 @@
 
 | # | Workstream | Plan | Type | Status |
 |---|-----------|------|------|--------|
-| 0 | **Local Dev Environment Setup** | See [Getting Started](CLAUDE.md#getting-started-local-dev) | Setup | Not started |
+| 0 | **Local Dev Environment Setup** | See [Getting Started](CLAUDE.md#getting-started-local-dev) | Setup | **Done** |
 
 > Lucas: set up your local dev environment so you can test changes before they go to production. See CLAUDE.md for instructions (Docker, `.env`, `npm install`, `prisma db push`, `db:seed`).
 
@@ -20,7 +20,7 @@
 |---|-----------|------|------|--------|
 | 1 | **Stripe Production Setup** | [plan](docs/plans/stripe-production-setup.md) | Ops + Config | Not started |
 | 2 | **Resend Email Setup** | [plan](docs/plans/resend-email-setup.md) | Ops + Config | Not started |
-| 3 | **Production Database Hardening** | [plan](docs/plans/production-database.md) | Ops | Not started |
+| 3 | **Production Database Hardening** | [plan](docs/plans/production-database.md) | Ops | **Done** |
 | 4 | **DNS & Domain** | [plan](docs/plans/dns-domain.md) | Ops | Not started |
 | 5 | **Podia User Migration** | [plan](docs/plans/podia-user-migration.md) | Script + Ops | Not started |
 | 6 | **Seed Real Jobs** | [plan](docs/plans/seed-real-jobs.md) | Script + Ops | Not started |
