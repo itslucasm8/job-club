@@ -4,16 +4,18 @@ import { catLabel, typeLabel, timeAgo } from '@/lib/utils'
 interface Job {
   id: string; title: string; company: string; state: string; location: string;
   category: string; type: string; pay: string | null; description: string;
-  createdAt: string;
+  createdAt: string; eligible88Days?: boolean;
 }
 
 const tagColor: Record<string, string> = {
   farm: 'bg-green-100 text-green-800',
   hospitality: 'bg-blue-100 text-blue-800',
   construction: 'bg-amber-100 text-amber-800',
-  trade: 'bg-orange-100 text-orange-800',
   retail: 'bg-pink-100 text-pink-800',
   cleaning: 'bg-indigo-100 text-indigo-800',
+  events: 'bg-violet-100 text-violet-800',
+  animals: 'bg-teal-100 text-teal-800',
+  transport: 'bg-sky-100 text-sky-800',
   other: 'bg-stone-100 text-stone-600',
 }
 
@@ -72,6 +74,7 @@ export default function JobCard({ job, saved, onSave, onClick }: { job: Job; sav
 
       {/* Tags row: category + state + type + pay */}
       <div className="flex flex-wrap gap-1.5 mt-3">
+        {job.eligible88Days && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">88 jours</span>}
         <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${tagColor[job.category] || tagColor.other}`}>{catLabel(job.category)}</span>
         <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">{job.state}</span>
         <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{typeLabel(job.type)}</span>
