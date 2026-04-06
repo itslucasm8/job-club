@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { registerSchema, getFirstValidationError } from '@/lib/validation'
@@ -40,6 +41,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ id: user.id, email: user.email }, { status: 201 })
   } catch (e) {
+    Sentry.captureException(e)
     logger.error('POST /api/register failed', { route: '/api/register', error: String(e) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
