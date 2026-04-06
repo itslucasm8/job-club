@@ -12,6 +12,10 @@ const config: Config = {
           orange: '#f59e0b',
           'orange-dark': '#d97706',
           'orange-light': '#fbbf24',
+        },
+        warm: {
+          bg: '#faf9f7',
+          card: '#fefdfb',
         }
       }
     }
