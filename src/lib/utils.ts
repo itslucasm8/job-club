@@ -1,5 +1,12 @@
 import { translations, type Language } from './translations'
 
+export type { Language }
+
+/** Safely coerce any value to a valid Language, defaulting to 'fr' */
+export function normalizeLanguage(lang: string | null | undefined): Language {
+  return lang === 'en' ? 'en' : 'fr'
+}
+
 export const STATES = [
   { code: 'QLD', name: 'Queensland', followers: 141 },
   { code: 'NSW', name: 'New South Wales', followers: 261 },

@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { catLabel, type Language } from './utils'
 
 let _resend: Resend | null = null
 
@@ -13,9 +14,7 @@ function getResend(): Resend {
 
 const FROM = process.env.EMAIL_FROM || 'Job Club <noreply@jobclub.mlfrance.dev>'
 
-export type EmailLanguage = 'fr' | 'en'
-
-function getEmailTemplate(subject: string, content: string, lang: EmailLanguage = 'fr'): string {
+function getEmailTemplate(subject: string, content: string, lang: Language = 'fr'): string {
   const footerText = lang === 'en'
     ? '© 2026 Job Club. All rights reserved.'
     : '© 2026 Job Club. Tous droits réservés.'
@@ -111,7 +110,7 @@ function getEmailTemplate(subject: string, content: string, lang: EmailLanguage 
   `
 }
 
-export async function sendWelcomeEmail(to: string, name: string, lang: EmailLanguage = 'fr') {
+export async function sendWelcomeEmail(to: string, name: string, lang: Language = 'fr') {
   const resend = getResend()
   const baseUrl = process.env.NEXTAUTH_URL || 'https://jobclub.mlfrance.dev'
   const greeting = name || (lang === 'en' ? 'friend' : 'ami')
@@ -144,7 +143,7 @@ export async function sendWelcomeEmail(to: string, name: string, lang: EmailLang
   })
 }
 
-export async function sendPasswordResetEmail(to: string, resetUrl: string, lang: EmailLanguage = 'fr') {
+export async function sendPasswordResetEmail(to: string, resetUrl: string, lang: Language = 'fr') {
   const resend = getResend()
 
   const content = lang === 'en'
@@ -175,7 +174,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string, lang:
   })
 }
 
-export async function sendSubscriptionConfirmation(to: string, name: string, lang: EmailLanguage = 'fr') {
+export async function sendSubscriptionConfirmation(to: string, name: string, lang: Language = 'fr') {
   const resend = getResend()
   const greeting = name || (lang === 'en' ? 'friend' : 'ami')
 
@@ -213,7 +212,7 @@ export async function sendSubscriptionConfirmation(to: string, name: string, lan
   })
 }
 
-export async function sendPaymentFailedEmail(to: string, name: string, lang: EmailLanguage = 'fr') {
+export async function sendPaymentFailedEmail(to: string, name: string, lang: Language = 'fr') {
   const resend = getResend()
   const baseUrl = process.env.NEXTAUTH_URL || 'https://jobclub.mlfrance.dev'
   const greeting = name || (lang === 'en' ? 'friend' : 'ami')
@@ -250,39 +249,13 @@ export async function sendJobAlertEmail(
   to: string,
   name: string,
   job: { title: string; company: string; state: string; category: string },
-  lang: EmailLanguage = 'fr'
+  lang: Language = 'fr'
 ) {
   const resend = getResend()
   const baseUrl = process.env.NEXTAUTH_URL || 'https://jobclub.mlfrance.dev'
   const greeting = name || (lang === 'en' ? 'friend' : 'ami')
 
-  const categoryLabelsFr: Record<string, string> = {
-    farm: 'Agriculture',
-    hospitality: 'Hôtellerie',
-    construction: 'Construction',
-    trade: 'Métiers',
-    retail: 'Commerce',
-    cleaning: 'Nettoyage',
-    events: 'Événements',
-    animals: 'Animaux',
-    transport: 'Transport',
-    other: 'Autre',
-  }
-
-  const categoryLabelsEn: Record<string, string> = {
-    farm: 'Agriculture',
-    hospitality: 'Hospitality',
-    construction: 'Construction',
-    trade: 'Trade',
-    retail: 'Retail',
-    cleaning: 'Cleaning',
-    events: 'Events',
-    animals: 'Animals',
-    transport: 'Transport',
-    other: 'Other',
-  }
-
-  const categoryLabels = lang === 'en' ? categoryLabelsEn : categoryLabelsFr
+  const categoryLabel = catLabel(job.category, lang)
 
   const content = lang === 'en'
     ? `<div class="content">
@@ -291,7 +264,7 @@ export async function sendJobAlertEmail(
         <div style="background-color: #f3e8ff; border-radius: 8px; padding: 16px; margin: 20px 0;">
           <p style="margin: 0 0 4px 0; font-size: 16px; font-weight: 700; color: #1c1917;">${job.title}</p>
           <p style="margin: 0 0 4px 0; font-size: 14px; color: #57534e;">${job.company} — ${job.state}</p>
-          <p style="margin: 0; font-size: 13px; color: #78716c;">${categoryLabels[job.category] || job.category}</p>
+          <p style="margin: 0; font-size: 13px; color: #78716c;">${categoryLabel}</p>
         </div>
         <div style="text-align: center;">
           <a href="${baseUrl}/feed" class="button">View job</a>
@@ -305,7 +278,7 @@ export async function sendJobAlertEmail(
         <div style="background-color: #f3e8ff; border-radius: 8px; padding: 16px; margin: 20px 0;">
           <p style="margin: 0 0 4px 0; font-size: 16px; font-weight: 700; color: #1c1917;">${job.title}</p>
           <p style="margin: 0 0 4px 0; font-size: 14px; color: #57534e;">${job.company} — ${job.state}</p>
-          <p style="margin: 0; font-size: 13px; color: #78716c;">${categoryLabels[job.category] || job.category}</p>
+          <p style="margin: 0; font-size: 13px; color: #78716c;">${categoryLabel}</p>
         </div>
         <div style="text-align: center;">
           <a href="${baseUrl}/feed" class="button">Voir l'offre</a>

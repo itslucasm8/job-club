@@ -1,6 +1,7 @@
 import { prisma } from './prisma'
 import { logger } from './logger'
 import { sendJobAlertEmail } from './email'
+import { normalizeLanguage, type Language } from './utils'
 
 export interface JobData {
   id: string
@@ -29,7 +30,7 @@ export async function createJobNotifications(job: JobData): Promise<void> {
     })
 
     const notificationsToCreate = []
-    const emailsToSend: { to: string; name: string; lang: 'fr' | 'en' }[] = []
+    const emailsToSend: { to: string; name: string; lang: Language }[] = []
 
     for (const user of users) {
       // Parse preferences
@@ -69,7 +70,7 @@ export async function createJobNotifications(job: JobData): Promise<void> {
 
         // Queue email if user has email alerts enabled
         if (user.emailAlerts) {
-          const lang = (user.preferredLanguage === 'en' ? 'en' : 'fr') as 'fr' | 'en'
+          const lang = normalizeLanguage(user.preferredLanguage)
           emailsToSend.push({ to: user.email, name: user.name || '', lang })
         }
       }

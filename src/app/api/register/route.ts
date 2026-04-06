@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { registerSchema, getFirstValidationError } from '@/lib/validation'
 import { sendWelcomeEmail } from '@/lib/email'
+import { normalizeLanguage } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 import { registerLimiter, getClientIP } from '@/lib/rate-limit'
 
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
     }
 
     const { email, password, name } = result.data
-    const lang = body.preferredLanguage === 'en' ? 'en' as const : 'fr' as const
+    const lang = normalizeLanguage(body.preferredLanguage)
 
     // Check if email is already in use
     const existing = await prisma.user.findUnique({ where: { email } })

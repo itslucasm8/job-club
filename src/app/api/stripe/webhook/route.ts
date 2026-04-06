@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import { sendSubscriptionConfirmation, sendPaymentFailedEmail } from '@/lib/email'
+import { normalizeLanguage } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 
 export async function POST(req: Request) {
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
           select: { email: true, name: true, preferredLanguage: true },
         })
         if (user) {
-          const lang = (user.preferredLanguage === 'en' ? 'en' : 'fr') as 'fr' | 'en'
+          const lang = normalizeLanguage(user.preferredLanguage)
           sendSubscriptionConfirmation(user.email, user.name ?? "", lang).catch(console.error)
         }
       } catch (e) {
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
           select: { email: true, name: true, preferredLanguage: true },
         })
         if (user) {
-          const lang = (user.preferredLanguage === 'en' ? 'en' : 'fr') as 'fr' | 'en'
+          const lang = normalizeLanguage(user.preferredLanguage)
           sendPaymentFailedEmail(user.email, user.name ?? "", lang).catch(console.error)
           logger.error('Payment failed for user', { route: '/api/stripe/webhook', email: user.email, invoiceId: invoice.id })
         }
