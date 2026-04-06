@@ -13,15 +13,15 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Mot de passe', type: 'password' },
       },
       async authorize(credentials, req) {
-        if (!credentials?.email || !credentials?.password) throw new Error('Remplis tous les champs')
+        if (!credentials?.email || !credentials?.password) return null
 
         // Rate limit by email to prevent brute force on specific accounts
-        if (!authLimiter.check(credentials.email)) throw new Error('Trop de tentatives. Réessaie dans quelques minutes.')
+        if (!authLimiter.check(credentials.email)) return null
 
         const user = await prisma.user.findUnique({ where: { email: credentials.email } })
-        if (!user) throw new Error('Aucun compte trouvé avec cet email')
+        if (!user) return null
         const valid = await bcrypt.compare(credentials.password, user.passwordHash)
-        if (!valid) throw new Error('Mot de passe incorrect')
+        if (!valid) return null
         return { id: user.id, email: user.email, name: user.name, role: user.role, subscriptionStatus: user.subscriptionStatus }
       },
     }),

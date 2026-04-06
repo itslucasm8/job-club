@@ -17,10 +17,25 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
+
+    // Pre-check credentials to get specific error messages
+    const check = await fetch('/api/auth/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    if (!check.ok) {
+      const data = await check.json()
+      setError(data.error)
+      setLoading(false)
+      return
+    }
+
+    // Credentials valid — sign in via NextAuth
     const res = await signIn('credentials', { email, password, redirect: false })
     setLoading(false)
     if (res?.error) {
-      setError(res.error === 'CredentialsSignin' ? 'Email ou mot de passe incorrect' : res.error)
+      setError('Erreur de connexion. Réessaie.')
     } else {
       router.push('/feed')
     }
