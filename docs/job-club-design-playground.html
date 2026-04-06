@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Club — Design Playground</title>
+<style>
+  /* ── Reset & Base ──────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #111118;
+    --surface: #1a1a24;
+    --surface2: #22222e;
+    --border: #2a2a3a;
+    --text: #e0e0e8;
+    --text-dim: #888899;
+    --accent: #9333ea;
+    --accent-light: #a855f7;
+    --orange: #f59e0b;
+    --success: #22c55e;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* ── Playground Layout ─────────────────────── */
+  .playground {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: 100vh;
+  }
+
+  /* ── Controls Panel ────────────────────────── */
+  .controls {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .controls h1 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .controls h1 .logo-icon {
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, var(--orange), #fbbf24);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+  .controls .subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+  }
+
+  .control-group {
+    margin-bottom: 20px;
+  }
+  .control-group h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .control-row label {
+    font-size: 13px;
+    color: var(--text);
+  }
+  .control-row .value {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    min-width: 40px;
+    text-align: right;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 120px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+  }
+  select:focus { border-color: var(--accent); }
+
+  .toggle {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    cursor: pointer;
+  }
+  .toggle input { display: none; }
+  .toggle .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 10px;
+    transition: 0.2s;
+  }
+  .toggle .slider::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: 0.2s;
+  }
+  .toggle input:checked + .slider { background: var(--accent); }
+  .toggle input:checked + .slider::before { left: 18px; }
+
+  /* ── Presets ────────────────────────────────── */
+  .presets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .preset-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .preset-btn:hover { border-color: var(--accent); background: #2a2a3a; }
+  .preset-btn.active { border-color: var(--accent); background: rgba(147, 51, 234, 0.15); }
+
+  /* ── Preview Area ──────────────────────────── */
+  .preview-area {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .preview-toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .preview-toolbar .device-btns {
+    display: flex;
+    gap: 4px;
+  }
+  .device-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .device-btn:hover { border-color: var(--accent); color: var(--text); }
+  .device-btn.active { border-color: var(--accent); background: rgba(147, 51, 234, 0.15); color: var(--text); }
+  .preview-toolbar .viewport-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: monospace;
+  }
+
+  .preview-container {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+    background: #0d0d14;
+  }
+  .preview-frame {
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 60px rgba(0,0,0,0.4);
+    transition: width 0.4s ease;
+    height: fit-content;
+    min-height: 800px;
+    position: relative;
+  }
+
+  /* ── Prompt Output ─────────────────────────── */
+  .prompt-area {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 16px 20px;
+    flex-shrink: 0;
+  }
+  .prompt-area h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .prompt-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+    max-height: 120px;
+    overflow-y: auto;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+  .copy-btn {
+    margin-top: 8px;
+    background: var(--accent);
+    border: none;
+    color: white;
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .copy-btn:hover { background: var(--accent-light); }
+
+  /* ═══════════════════════════════════════════════
+     PREVIEW CONTENT — The actual Job Club mockup
+     ═══════════════════════════════════════════════ */
+
+  .jc { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; color: #1f1f1f; }
+
+  /* Top Bar */
+  .jc-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid #f0ebe5;
+    background: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .jc-topbar-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 18px;
+    color: #6b21a8;
+  }
+  .jc-topbar-logo .arrow {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+  }
+  .jc-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .jc-notif-bell {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  .jc-notif-bell:hover { background: #f5f0ff; }
+  .jc-notif-bell svg { width: 20px; height: 20px; color: #555; }
+  .jc-notif-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 16px;
+    height: 16px;
+    background: #ef4444;
+    border-radius: 50%;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+  }
+  .jc-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #6b21a8;
+    color: white;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  /* Layout */
+  .jc-layout {
+    display: flex;
+    min-height: 700px;
+  }
+
+  /* Sidebar */
+  .jc-sidebar {
+    width: 240px;
+    border-right: 1px solid #f0ebe5;
+    padding: 20px 0;
+    flex-shrink: 0;
+    background: #faf9f7;
+  }
+  .jc-sidebar.hidden { display: none; }
+  .jc-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    font-size: 14px;
+    color: #555;
+    cursor: pointer;
+    transition: 0.15s;
+    position: relative;
+  }
+  .jc-nav-item:hover { background: #f3f0ff; color: #6b21a8; }
+  .jc-nav-item.active {
+    color: #6b21a8;
+    font-weight: 600;
+    background: #f3f0ff;
+  }
+  .jc-nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 4px;
+    bottom: 4px;
+    width: 3px;
+    background: #6b21a8;
+    border-radius: 0 3px 3px 0;
+  }
+  .jc-nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .jc-nav-section {
+    padding: 16px 20px 8px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #999;
+    font-weight: 600;
+  }
+  .jc-state-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 20px 7px 24px;
+    font-size: 13px;
+    color: #666;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .jc-state-item:hover { background: #f3f0ff; color: #6b21a8; }
+  .jc-state-count {
+    font-size: 11px;
+    background: #f0ebe5;
+    padding: 1px 7px;
+    border-radius: 10px;
+    color: #888;
+    font-weight: 500;
+  }
+  .jc-tool-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 20px;
+    font-size: 13px;
+    color: #aaa;
+    cursor: default;
+  }
+  .jc-tool-item svg { width: 16px; height: 16px; opacity: 0.5; }
+  .jc-tool-badge {
+    font-size: 9px;
+    background: #f0ebe5;
+    padding: 2px 6px;
+    border-radius: 8px;
+    color: #999;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .jc-sidebar-profile {
+    margin-top: 20px;
+    padding: 14px 20px;
+    border-top: 1px solid #f0ebe5;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .jc-sidebar-profile .name { font-size: 13px; font-weight: 600; }
+  .jc-sidebar-profile .email { font-size: 11px; color: #999; }
+
+  /* Main Content */
+  .jc-main {
+    flex: 1;
+    padding: 0;
+    overflow-y: auto;
+    background: #fefefe;
+  }
+
+  /* Dashboard Strip */
+  .jc-dashboard {
+    display: flex;
+    gap: 12px;
+    padding: 20px 24px 12px;
+    overflow-x: auto;
+  }
+  .jc-dash-card {
+    flex: 1;
+    min-width: 140px;
+    padding: 16px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.3s;
+  }
+  .jc-dash-card.card-new {
+    background: linear-gradient(135deg, #f3f0ff 0%, #ede5ff 100%);
+    border: 1px solid #e2d6f5;
+  }
+  .jc-dash-card.card-saved {
+    background: linear-gradient(135deg, #fff8ed 0%, #fff3de 100%);
+    border: 1px solid #f5e6c8;
+  }
+  .jc-dash-card.card-state {
+    background: linear-gradient(135deg, #f0fdf4 0%, #e5fbeb 100%);
+    border: 1px solid #c8ebd3;
+  }
+  .jc-dash-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .card-new .jc-dash-icon { background: #6b21a8; color: white; }
+  .card-saved .jc-dash-icon { background: #f59e0b; color: white; }
+  .card-state .jc-dash-icon { background: #22c55e; color: white; }
+  .jc-dash-info .number { font-size: 22px; font-weight: 800; color: #1f1f1f; line-height: 1; }
+  .jc-dash-info .label { font-size: 12px; color: #888; margin-top: 2px; }
+
+  /* Search & Filters */
+  .jc-filters-area {
+    padding: 12px 24px;
+    position: sticky;
+    top: 57px;
+    background: #fefefe;
+    z-index: 50;
+    border-bottom: 1px solid #f0ebe5;
+  }
+  .jc-filters-area.not-sticky {
+    position: static;
+    border-bottom: none;
+  }
+  .jc-search {
+    position: relative;
+    margin-bottom: 12px;
+  }
+  .jc-search input {
+    width: 100%;
+    padding: 12px 16px 12px 44px;
+    border-radius: 12px;
+    border: 1.5px solid #e8e4de;
+    font-size: 14px;
+    background: #faf9f7;
+    color: #333;
+    outline: none;
+    transition: 0.2s;
+  }
+  .jc-search input:focus { border-color: #6b21a8; background: #fff; box-shadow: 0 0 0 3px rgba(107, 33, 168, 0.08); }
+  .jc-search input::placeholder { color: #bbb; }
+  .jc-search svg {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: #bbb;
+  }
+
+  .jc-chips {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .jc-chips::-webkit-scrollbar { display: none; }
+  .jc-chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1.5px solid #e8e4de;
+    background: #fff;
+    color: #666;
+  }
+  .jc-chip:hover { border-color: #ccc; background: #f9f8f6; }
+  .jc-chip.active-state { background: #6b21a8; color: white; border-color: #6b21a8; }
+  .jc-chip.active-cat { background: #f59e0b; color: white; border-color: #f59e0b; }
+  .jc-cat-chips { margin-top: 8px; }
+
+  /* Job Cards Grid */
+  .jc-grid {
+    display: grid;
+    padding: 16px 24px 40px;
+    gap: 16px;
+  }
+  .jc-grid.cols-1 { grid-template-columns: 1fr; }
+  .jc-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .jc-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* Job Card */
+  .jc-card {
+    background: #fff;
+    border: 1px solid #f0ebe5;
+    padding: 18px;
+    transition: all 0.25s;
+    cursor: pointer;
+    position: relative;
+  }
+  .jc-card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+  }
+  .jc-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .jc-company-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #6b21a8;
+    color: white;
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .jc-company-info { flex: 1; }
+  .jc-company-name { font-size: 13px; font-weight: 600; color: #333; }
+  .jc-time { font-size: 11px; color: #aaa; }
+  .jc-save-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: #faf9f7;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.2s;
+    color: #ccc;
+  }
+  .jc-save-btn:hover { background: #fff0f0; color: #ef4444; }
+  .jc-save-btn.saved { color: #ef4444; background: #fff0f0; }
+  .jc-card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1f1f1f;
+    margin-bottom: 6px;
+    line-height: 1.3;
+    padding-right: 30px;
+  }
+  .jc-card-desc {
+    font-size: 13px;
+    color: #777;
+    line-height: 1.5;
+    margin-bottom: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .jc-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .jc-tag {
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .jc-tag.cat-farm { background: #dcfce7; color: #166534; }
+  .jc-tag.cat-hospitality { background: #dbeafe; color: #1e40af; }
+  .jc-tag.cat-construction { background: #fef3c7; color: #92400e; }
+  .jc-tag.cat-trade { background: #ffedd5; color: #9a3412; }
+  .jc-tag.cat-retail { background: #fce7f3; color: #9d174d; }
+  .jc-tag.cat-cleaning { background: #e0e7ff; color: #3730a3; }
+  .jc-tag.cat-other { background: #f5f5f4; color: #57534e; }
+  .jc-tag.type { background: #f5f5f4; color: #57534e; }
+  .jc-tag.pay { background: #f0fdf4; color: #166534; font-weight: 700; }
+  .jc-tag.state-inline {
+    background: #f3f0ff;
+    color: #6b21a8;
+    font-weight: 600;
+  }
+  .jc-new-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: #fff7ed;
+    color: #ea580c;
+    border: 1px solid #fed7aa;
+  }
+  .jc-card-location {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 10px;
+  }
+  .jc-card-location svg { width: 13px; height: 13px; }
+
+  /* Bottom Tabs (Mobile) */
+  .jc-bottom-tabs {
+    display: none;
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    border-top: 1px solid #f0ebe5;
+    padding: 8px 0;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    z-index: 100;
+  }
+  .jc-bottom-tabs.show { display: flex; justify-content: space-around; }
+  .jc-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    color: #999;
+    cursor: pointer;
+    padding: 4px 12px;
+  }
+  .jc-tab.active { color: #6b21a8; }
+  .jc-tab svg { width: 22px; height: 22px; }
+
+  /* Responsive adjustments within preview */
+  @media (max-width: 900px) {
+    .playground { grid-template-columns: 1fr; }
+    .controls { border-right: none; border-bottom: 1px solid var(--border); max-height: 40vh; }
+    .preview-container { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="playground">
+  <!-- ══════ Controls Panel ══════ -->
+  <div class="controls">
+    <h1>
+      <span class="logo-icon">⚡</span>
+      Job Club Playground
+    </h1>
+    <p class="subtitle">Explore le design de la page d'accueil</p>
+
+    <!-- Presets -->
+    <div class="control-group">
+      <h3>Presets</h3>
+      <div class="presets">
+        <button class="preset-btn active" onclick="applyPreset('modern')">Clean Modern</button>
+        <button class="preset-btn" onclick="applyPreset('bold')">Bold Purple</button>
+        <button class="preset-btn" onclick="applyPreset('warm')">Warm & Soft</button>
+        <button class="preset-btn" onclick="applyPreset('minimal')">Minimal</button>
+      </div>
+    </div>
+
+    <!-- Viewport -->
+    <div class="control-group">
+      <h3>Viewport</h3>
+      <div class="preview-toolbar" style="background:transparent;border:none;padding:0;">
+        <div class="device-btns">
+          <button class="device-btn" onclick="setDevice('mobile')">📱 Mobile</button>
+          <button class="device-btn active" onclick="setDevice('tablet')">📱 Tablet</button>
+          <button class="device-btn" onclick="setDevice('desktop')">🖥 Desktop</button>
+        </div>
+      </div>
+      <div class="control-row" style="margin-top:8px">
+        <label>Largeur</label>
+        <input type="range" min="360" max="1280" value="820" id="viewport-width" oninput="updateViewport(this.value)">
+        <span class="value" id="viewport-val">820px</span>
+      </div>
+    </div>
+
+    <!-- Cards -->
+    <div class="control-group">
+      <h3>Job Cards</h3>
+      <div class="control-row">
+        <label>Border Radius</label>
+        <input type="range" min="0" max="24" value="12" id="card-radius" oninput="updateAll()">
+        <span class="value" id="radius-val">12px</span>
+      </div>
+      <div class="control-row">
+        <label>Shadow</label>
+        <select id="card-shadow" onchange="updateAll()">
+          <option value="none">None</option>
+          <option value="subtle" selected>Subtle</option>
+          <option value="medium">Medium</option>
+          <option value="strong">Strong</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label>Grid Gap</label>
+        <input type="range" min="8" max="32" value="16" id="card-gap" oninput="updateAll()">
+        <span class="value" id="gap-val">16px</span>
+      </div>
+      <div class="control-row">
+        <label>Card Padding</label>
+        <input type="range" min="12" max="28" value="18" id="card-padding" oninput="updateAll()">
+        <span class="value" id="padding-val">18px</span>
+      </div>
+      <div class="control-row">
+        <label>Badge "NEW"</label>
+        <label class="toggle">
+          <input type="checkbox" id="show-new" checked onchange="updateAll()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="control-row">
+        <label>Heart Save Button</label>
+        <label class="toggle">
+          <input type="checkbox" id="heart-save" checked onchange="updateAll()">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="control-group">
+      <h3>Dashboard Strip</h3>
+      <div class="control-row">
+        <label>Visible</label>
+        <label class="toggle">
+          <input type="checkbox" id="show-dash" checked onchange="updateAll()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="control-row">
+        <label>Card Radius</label>
+        <input type="range" min="4" max="20" value="12" id="dash-radius" oninput="updateAll()">
+        <span class="value" id="dash-radius-val">12px</span>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="control-group">
+      <h3>Filters</h3>
+      <div class="control-row">
+        <label>Sticky on scroll</label>
+        <label class="toggle">
+          <input type="checkbox" id="sticky-filters" checked onchange="updateAll()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="control-row">
+        <label>Chip Style</label>
+        <select id="chip-style" onchange="updateAll()">
+          <option value="pill" selected>Rounded Pill</option>
+          <option value="rounded">Soft Round</option>
+          <option value="square">Square</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label>Search Bar Size</label>
+        <select id="search-size" onchange="updateAll()">
+          <option value="compact">Compact</option>
+          <option value="normal" selected>Normal</option>
+          <option value="large">Large</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="control-group">
+      <h3>Sidebar</h3>
+      <div class="control-row">
+        <label>Show Sidebar</label>
+        <label class="toggle">
+          <input type="checkbox" id="show-sidebar" checked onchange="updateAll()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="control-row">
+        <label>Tool Placeholders</label>
+        <label class="toggle">
+          <input type="checkbox" id="show-tools" checked onchange="updateAll()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="control-row">
+        <label>State Job Counts</label>
+        <label class="toggle">
+          <input type="checkbox" id="show-counts" checked onchange="updateAll()">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Typography -->
+    <div class="control-group">
+      <h3>Typography</h3>
+      <div class="control-row">
+        <label>Base Font Size</label>
+        <input type="range" min="12" max="18" value="14" id="font-size" oninput="updateAll()">
+        <span class="value" id="font-val">14px</span>
+      </div>
+      <div class="control-row">
+        <label>Title Weight</label>
+        <select id="title-weight" onchange="updateAll()">
+          <option value="600">Semi-Bold</option>
+          <option value="700" selected>Bold</option>
+          <option value="800">Extra-Bold</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Colors -->
+    <div class="control-group">
+      <h3>Background</h3>
+      <div class="control-row">
+        <label>Page Background</label>
+        <select id="page-bg" onchange="updateAll()">
+          <option value="#fefefe" selected>White</option>
+          <option value="#faf9f7">Warm Off-White</option>
+          <option value="#f8f7ff">Light Purple Tint</option>
+          <option value="#f5f5f4">Stone</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label>Card Background</label>
+        <select id="card-bg" onchange="updateAll()">
+          <option value="#ffffff" selected>White</option>
+          <option value="#fefdfb">Warm White</option>
+          <option value="#faf9ff">Purple Tint</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ Preview Area ══════ -->
+  <div class="preview-area">
+    <div class="preview-container">
+      <div class="preview-frame" id="preview-frame" style="width: 820px;">
+        <div class="jc" id="jc-preview">
+
+          <!-- Top Bar -->
+          <div class="jc-topbar">
+            <div class="jc-topbar-logo">
+              <span class="arrow" style="color:#f59e0b">⚡</span>
+              Job Club
+            </div>
+            <div class="jc-topbar-right">
+              <div class="jc-notif-bell">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+                <span class="jc-notif-badge">3</span>
+              </div>
+              <div class="jc-avatar">M</div>
+            </div>
+          </div>
+
+          <div class="jc-layout">
+            <!-- Sidebar -->
+            <div class="jc-sidebar" id="jc-sidebar">
+              <div class="jc-nav-item active">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
+                Accueil
+              </div>
+              <div class="jc-nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>
+                Tous les States
+              </div>
+              <div class="jc-nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                Mes sauvegardes
+              </div>
+              <div class="jc-nav-item">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                Mon Profil
+              </div>
+
+              <div class="jc-nav-section">États</div>
+              <div id="sidebar-states">
+                <div class="jc-state-item">QLD — Queensland <span class="jc-state-count">24</span></div>
+                <div class="jc-state-item">NSW — New South Wales <span class="jc-state-count">18</span></div>
+                <div class="jc-state-item">VIC — Victoria <span class="jc-state-count">12</span></div>
+                <div class="jc-state-item">SA — South Australia <span class="jc-state-count">8</span></div>
+                <div class="jc-state-item">WA — Western Australia <span class="jc-state-count">15</span></div>
+                <div class="jc-state-item">TAS — Tasmania <span class="jc-state-count">6</span></div>
+                <div class="jc-state-item">NT — Northern Territory <span class="jc-state-count">9</span></div>
+                <div class="jc-state-item">ACT — Capital Territory <span class="jc-state-count">4</span></div>
+              </div>
+
+              <div id="sidebar-tools">
+                <div class="jc-nav-section">Outils</div>
+                <div class="jc-tool-item">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                  Carte Interactive
+                  <span class="jc-tool-badge">Bientôt</span>
+                </div>
+                <div class="jc-tool-item">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  CV Builder
+                  <span class="jc-tool-badge">Bientôt</span>
+                </div>
+              </div>
+
+              <div class="jc-sidebar-profile">
+                <div class="jc-avatar" style="width:30px;height:30px;font-size:12px;">M</div>
+                <div>
+                  <div class="name">MLF Jobs</div>
+                  <div class="email">lucas@mlfrance.dev</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="jc-main" id="jc-main">
+
+              <!-- Dashboard Strip -->
+              <div class="jc-dashboard" id="jc-dashboard">
+                <div class="jc-dash-card card-new">
+                  <div class="jc-dash-icon">📨</div>
+                  <div class="jc-dash-info">
+                    <div class="number">12</div>
+                    <div class="label">Nouvelles aujourd'hui</div>
+                  </div>
+                </div>
+                <div class="jc-dash-card card-saved">
+                  <div class="jc-dash-icon">💛</div>
+                  <div class="jc-dash-info">
+                    <div class="number">5</div>
+                    <div class="label">Offres sauvegardées</div>
+                  </div>
+                </div>
+                <div class="jc-dash-card card-state">
+                  <div class="jc-dash-icon">📍</div>
+                  <div class="jc-dash-info">
+                    <div class="number">QLD</div>
+                    <div class="label">Mon état préféré</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Search + Filters -->
+              <div class="jc-filters-area" id="jc-filters">
+                <div class="jc-search">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                  <input type="text" placeholder="Rechercher un job...">
+                </div>
+                <div class="jc-chips" id="state-chips">
+                  <span class="jc-chip active-state">Tous</span>
+                  <span class="jc-chip">QLD</span>
+                  <span class="jc-chip">NSW</span>
+                  <span class="jc-chip">VIC</span>
+                  <span class="jc-chip">SA</span>
+                  <span class="jc-chip">WA</span>
+                  <span class="jc-chip">TAS</span>
+                  <span class="jc-chip">NT</span>
+                  <span class="jc-chip">ACT</span>
+                </div>
+                <div class="jc-chips jc-cat-chips" id="cat-chips">
+                  <span class="jc-chip active-cat">Tout</span>
+                  <span class="jc-chip">Agriculture</span>
+                  <span class="jc-chip">Hôtellerie</span>
+                  <span class="jc-chip">Construction</span>
+                  <span class="jc-chip">Métiers</span>
+                  <span class="jc-chip">Commerce</span>
+                  <span class="jc-chip">Nettoyage</span>
+                  <span class="jc-chip">Autre</span>
+                </div>
+              </div>
+
+              <!-- Job Grid -->
+              <div class="jc-grid cols-2" id="jc-grid">
+
+                <!-- Card 1 — NEW -->
+                <div class="jc-card" id="card-template">
+                  <button class="jc-save-btn" title="Sauvegarder"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg></button>
+                  <div class="jc-card-header">
+                    <div class="jc-company-avatar" style="background:#16a34a">S</div>
+                    <div class="jc-company-info">
+                      <div class="jc-company-name">Sundown Farm</div>
+                      <div class="jc-time">Il y a 2h · <span class="jc-new-badge">NEW</span></div>
+                    </div>
+                  </div>
+                  <div class="jc-card-title">Fruit Pickers Needed — Immediate Start</div>
+                  <div class="jc-card-location">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>
+                    Bundaberg, QLD
+                  </div>
+                  <div class="jc-card-desc">Join our friendly team picking strawberries and tomatoes. Accommodation available on-site. Great for 88 days!</div>
+                  <div class="jc-card-tags">
+                    <span class="jc-tag cat-farm">Agriculture</span>
+                    <span class="jc-tag type">Casual</span>
+                    <span class="jc-tag pay">$28-32/h</span>
+                  </div>
+                </div>
+
+                <!-- Card 2 — NEW -->
+                <div class="jc-card">
+                  <button class="jc-save-btn"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg></button>
+                  <div class="jc-card-header">
+                    <div class="jc-company-avatar" style="background:#2563eb">R</div>
+                    <div class="jc-company-info">
+                      <div class="jc-company-name">Reef Lodge Cairns</div>
+                      <div class="jc-time">Il y a 5h · <span class="jc-new-badge">NEW</span></div>
+                    </div>
+                  </div>
+                  <div class="jc-card-title">Réceptionniste bilingue — Front Desk</div>
+                  <div class="jc-card-location">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>
+                    Cairns, QLD
+                  </div>
+                  <div class="jc-card-desc">Hostel looking for a friendly French-speaking receptionist. Morning & evening shifts. Free accommodation included.</div>
+                  <div class="jc-card-tags">
+                    <span class="jc-tag cat-hospitality">Hôtellerie</span>
+                    <span class="jc-tag type">Temps plein</span>
+                    <span class="jc-tag pay">$25-27/h</span>
+                  </div>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="jc-card">
+                  <button class="jc-save-btn saved"><svg width="16" height="16" fill="currentColor" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg></button>
+                  <div class="jc-card-header">
+                    <div class="jc-company-avatar" style="background:#ea580c">P</div>
+                    <div class="jc-company-info">
+                      <div class="jc-company-name">Powerline Services</div>
+                      <div class="jc-time">Il y a 1j</div>
+                    </div>
+                  </div>
+                  <div class="jc-card-title">Line Crew Labourers — QLD</div>
+                  <div class="jc-card-location">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>
+                    Toowoomba, QLD
+                  </div>
+                  <div class="jc-card-desc">Looking for fit and motivated labourers for powerline construction. FIFO available. No experience needed, training provided.</div>
+                  <div class="jc-card-tags">
+                    <span class="jc-tag cat-construction">Construction</span>
+                    <span class="jc-tag type">Temps plein</span>
+                    <span class="jc-tag pay">$35-42/h</span>
+                  </div>
+                </div>
+
+                <!-- Card 4 -->
+                <div class="jc-card">
+                  <button class="jc-save-btn"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg></button>
+                  <div class="jc-card-header">
+                    <div class="jc-company-avatar" style="background:#6b21a8">B</div>
+                    <div class="jc-company-info">
+                      <div class="jc-company-name">Bororen Hotel</div>
+                      <div class="jc-time">Il y a 2j</div>
+                    </div>
+                  </div>
+                  <div class="jc-card-title">Bar & Kitchen Staff Required</div>
+                  <div class="jc-card-location">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>
+                    Bororen, QLD
+                  </div>
+                  <div class="jc-card-desc">Experienced bar staff and kitchen hands wanted. Must have RSA. Pub experience preferred. Accommodation can be arranged.</div>
+                  <div class="jc-card-tags">
+                    <span class="jc-tag cat-hospitality">Hôtellerie</span>
+                    <span class="jc-tag type">Temps partiel</span>
+                    <span class="jc-tag pay">$27-30/h</span>
+                  </div>
+                </div>
+
+                <!-- Card 5 — NEW -->
+                <div class="jc-card">
+                  <button class="jc-save-btn"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg></button>
+                  <div class="jc-card-header">
+                    <div class="jc-company-avatar" style="background:#0891b2">T</div>
+                    <div class="jc-company-info">
+                      <div class="jc-company-name">Tiwi Island Retreat</div>
+                      <div class="jc-time">Il y a 8h · <span class="jc-new-badge">NEW</span></div>
+                    </div>
+                  </div>
+                  <div class="jc-card-title">Host — Front of House / All-Rounder</div>
+                  <div class="jc-card-location">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>
+                    Tiwi Islands, NT
+                  </div>
+                  <div class="jc-card-desc">Off-grid island retreat 80km from Darwin. Looking for an enthusiastic host to welcome guests and help run day-to-day operations.</div>
+                  <div class="jc-card-tags">
+                    <span class="jc-tag cat-hospitality">Hôtellerie</span>
+                    <span class="jc-tag type">Casual</span>
+                    <span class="jc-tag state-inline">NT</span>
+                  </div>
+                </div>
+
+                <!-- Card 6 -->
+                <div class="jc-card">
+                  <button class="jc-save-btn"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg></button>
+                  <div class="jc-card-header">
+                    <div class="jc-company-avatar" style="background:#dc2626">C</div>
+                    <div class="jc-company-info">
+                      <div class="jc-company-name">CleanCo Melbourne</div>
+                      <div class="jc-time">Il y a 3j</div>
+                    </div>
+                  </div>
+                  <div class="jc-card-title">Nettoyage commercial — CBD</div>
+                  <div class="jc-card-location">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>
+                    Melbourne CBD, VIC
+                  </div>
+                  <div class="jc-card-desc">Commercial cleaning team needs reliable workers for office buildings. Evening shifts 6pm-10pm. ABN required.</div>
+                  <div class="jc-card-tags">
+                    <span class="jc-tag cat-cleaning">Nettoyage</span>
+                    <span class="jc-tag type">Contrat</span>
+                    <span class="jc-tag pay">$30/h</span>
+                    <span class="jc-tag state-inline">VIC</span>
+                  </div>
+                </div>
+
+              </div><!-- /grid -->
+
+              <!-- Bottom Tabs (mobile only) -->
+              <div class="jc-bottom-tabs" id="jc-bottom-tabs">
+                <div class="jc-tab active">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
+                  Accueil
+                </div>
+                <div class="jc-tab">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>
+                  States
+                </div>
+                <div class="jc-tab">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                  Sauvegardés
+                </div>
+                <div class="jc-tab">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                  Profil
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div><!-- /jc -->
+      </div><!-- /preview-frame -->
+    </div><!-- /preview-container -->
+
+    <!-- Prompt Output -->
+    <div class="prompt-area">
+      <h4>Generated Prompt — Copy and paste into Claude</h4>
+      <div class="prompt-box" id="prompt-output"></div>
+      <button class="copy-btn" id="copy-btn" onclick="copyPrompt()">Copy Prompt</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Defaults & State ────────────────────────────
+const DEFAULTS = {
+  viewport: 820,
+  cardRadius: 12,
+  cardShadow: 'subtle',
+  cardGap: 16,
+  cardPadding: 18,
+  showNew: true,
+  heartSave: true,
+  showDash: true,
+  dashRadius: 12,
+  stickyFilters: true,
+  chipStyle: 'pill',
+  searchSize: 'normal',
+  showSidebar: true,
+  showTools: true,
+  showCounts: true,
+  fontSize: 14,
+  titleWeight: '700',
+  pageBg: '#fefefe',
+  cardBg: '#ffffff',
+  preset: 'modern'
+};
+
+const state = { ...DEFAULTS };
+
+// ── Presets ──────────────────────────────────────
+const presets = {
+  modern: {
+    cardRadius: 12, cardShadow: 'subtle', cardGap: 16, cardPadding: 18,
+    showNew: true, heartSave: true, showDash: true, dashRadius: 12,
+    stickyFilters: true, chipStyle: 'pill', searchSize: 'normal',
+    showSidebar: true, showTools: true, showCounts: true,
+    fontSize: 14, titleWeight: '700', pageBg: '#fefefe', cardBg: '#ffffff'
+  },
+  bold: {
+    cardRadius: 16, cardShadow: 'medium', cardGap: 20, cardPadding: 22,
+    showNew: true, heartSave: true, showDash: true, dashRadius: 16,
+    stickyFilters: true, chipStyle: 'pill', searchSize: 'large',
+    showSidebar: true, showTools: true, showCounts: true,
+    fontSize: 15, titleWeight: '800', pageBg: '#f8f7ff', cardBg: '#ffffff'
+  },
+  warm: {
+    cardRadius: 14, cardShadow: 'subtle', cardGap: 18, cardPadding: 20,
+    showNew: true, heartSave: true, showDash: true, dashRadius: 14,
+    stickyFilters: true, chipStyle: 'rounded', searchSize: 'normal',
+    showSidebar: true, showTools: true, showCounts: true,
+    fontSize: 14, titleWeight: '700', pageBg: '#faf9f7', cardBg: '#fefdfb'
+  },
+  minimal: {
+    cardRadius: 8, cardShadow: 'none', cardGap: 12, cardPadding: 16,
+    showNew: false, heartSave: false, showDash: false, dashRadius: 8,
+    stickyFilters: true, chipStyle: 'square', searchSize: 'compact',
+    showSidebar: true, showTools: false, showCounts: false,
+    fontSize: 13, titleWeight: '600', pageBg: '#fefefe', cardBg: '#ffffff'
+  }
+};
+
+function applyPreset(name) {
+  Object.assign(state, presets[name]);
+  state.preset = name;
+
+  // Update all controls to match
+  document.getElementById('card-radius').value = state.cardRadius;
+  document.getElementById('card-shadow').value = state.cardShadow;
+  document.getElementById('card-gap').value = state.cardGap;
+  document.getElementById('card-padding').value = state.cardPadding;
+  document.getElementById('show-new').checked = state.showNew;
+  document.getElementById('heart-save').checked = state.heartSave;
+  document.getElementById('show-dash').checked = state.showDash;
+  document.getElementById('dash-radius').value = state.dashRadius;
+  document.getElementById('sticky-filters').checked = state.stickyFilters;
+  document.getElementById('chip-style').value = state.chipStyle;
+  document.getElementById('search-size').value = state.searchSize;
+  document.getElementById('show-sidebar').checked = state.showSidebar;
+  document.getElementById('show-tools').checked = state.showTools;
+  document.getElementById('show-counts').checked = state.showCounts;
+  document.getElementById('font-size').value = state.fontSize;
+  document.getElementById('title-weight').value = state.titleWeight;
+  document.getElementById('page-bg').value = state.pageBg;
+  document.getElementById('card-bg').value = state.cardBg;
+
+  // Highlight active preset button
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  updateAll();
+}
+
+// ── Device Buttons ──────────────────────────────
+function setDevice(device) {
+  const widths = { mobile: 390, tablet: 820, desktop: 1280 };
+  state.viewport = widths[device];
+  document.getElementById('viewport-width').value = state.viewport;
+  document.querySelectorAll('.device-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  updateViewport(state.viewport);
+}
+
+function updateViewport(val) {
+  state.viewport = parseInt(val);
+  document.getElementById('viewport-val').textContent = val + 'px';
+  document.getElementById('preview-frame').style.width = val + 'px';
+
+  // Auto-adjust grid columns and sidebar
+  const grid = document.getElementById('jc-grid');
+  const sidebar = document.getElementById('jc-sidebar');
+  const bottomTabs = document.getElementById('jc-bottom-tabs');
+
+  if (state.viewport <= 480) {
+    grid.className = 'jc-grid cols-1';
+    sidebar.classList.add('hidden');
+    bottomTabs.classList.add('show');
+  } else if (state.viewport <= 900) {
+    grid.className = 'jc-grid cols-2';
+    sidebar.classList.add('hidden');
+    bottomTabs.classList.add('show');
+  } else {
+    grid.className = 'jc-grid cols-3';
+    if (state.showSidebar) sidebar.classList.remove('hidden');
+    bottomTabs.classList.remove('show');
+  }
+  updatePrompt();
+}
+
+// ── Read State from Controls ────────────────────
+function readControls() {
+  state.cardRadius = parseInt(document.getElementById('card-radius').value);
+  state.cardShadow = document.getElementById('card-shadow').value;
+  state.cardGap = parseInt(document.getElementById('card-gap').value);
+  state.cardPadding = parseInt(document.getElementById('card-padding').value);
+  state.showNew = document.getElementById('show-new').checked;
+  state.heartSave = document.getElementById('heart-save').checked;
+  state.showDash = document.getElementById('show-dash').checked;
+  state.dashRadius = parseInt(document.getElementById('dash-radius').value);
+  state.stickyFilters = document.getElementById('sticky-filters').checked;
+  state.chipStyle = document.getElementById('chip-style').value;
+  state.searchSize = document.getElementById('search-size').value;
+  state.showSidebar = document.getElementById('show-sidebar').checked;
+  state.showTools = document.getElementById('show-tools').checked;
+  state.showCounts = document.getElementById('show-counts').checked;
+  state.fontSize = parseInt(document.getElementById('font-size').value);
+  state.titleWeight = document.getElementById('title-weight').value;
+  state.pageBg = document.getElementById('page-bg').value;
+  state.cardBg = document.getElementById('card-bg').value;
+}
+
+// ── Render Preview ──────────────────────────────
+function renderPreview() {
+  // Value labels
+  document.getElementById('radius-val').textContent = state.cardRadius + 'px';
+  document.getElementById('gap-val').textContent = state.cardGap + 'px';
+  document.getElementById('padding-val').textContent = state.cardPadding + 'px';
+  document.getElementById('dash-radius-val').textContent = state.dashRadius + 'px';
+  document.getElementById('font-val').textContent = state.fontSize + 'px';
+
+  // Cards
+  const shadowMap = {
+    none: 'none',
+    subtle: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+    medium: '0 4px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)',
+    strong: '0 8px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08)'
+  };
+
+  const cards = document.querySelectorAll('.jc-card');
+  cards.forEach(card => {
+    card.style.borderRadius = state.cardRadius + 'px';
+    card.style.boxShadow = shadowMap[state.cardShadow];
+    card.style.padding = state.cardPadding + 'px';
+    card.style.background = state.cardBg;
+    if (state.cardShadow !== 'none') {
+      card.style.border = '1px solid ' + (state.cardBg === '#ffffff' ? '#f0ebe500' : '#f0ebe5');
+    } else {
+      card.style.border = '1px solid #e8e4de';
+    }
+  });
+
+  // Grid
+  const grid = document.getElementById('jc-grid');
+  grid.style.gap = state.cardGap + 'px';
+
+  // Dashboard
+  const dash = document.getElementById('jc-dashboard');
+  dash.style.display = state.showDash ? 'flex' : 'none';
+  document.querySelectorAll('.jc-dash-card').forEach(c => {
+    c.style.borderRadius = state.dashRadius + 'px';
+  });
+
+  // Filters
+  const filters = document.getElementById('jc-filters');
+  if (state.stickyFilters) {
+    filters.classList.remove('not-sticky');
+  } else {
+    filters.classList.add('not-sticky');
+  }
+
+  // Chips
+  const chipRadiusMap = { pill: '20px', rounded: '10px', square: '6px' };
+  document.querySelectorAll('.jc-chip').forEach(chip => {
+    chip.style.borderRadius = chipRadiusMap[state.chipStyle];
+  });
+
+  // Search
+  const searchInput = document.querySelector('.jc-search input');
+  const searchSizeMap = { compact: '10px 14px 10px 40px', normal: '12px 16px 12px 44px', large: '16px 20px 16px 48px' };
+  const searchFontMap = { compact: '13px', normal: '14px', large: '15px' };
+  const searchRadiusMap = { compact: '8px', normal: '12px', large: '16px' };
+  searchInput.style.padding = searchSizeMap[state.searchSize];
+  searchInput.style.fontSize = searchFontMap[state.searchSize];
+  searchInput.style.borderRadius = searchRadiusMap[state.searchSize];
+
+  // NEW badges
+  document.querySelectorAll('.jc-new-badge').forEach(b => {
+    b.style.display = state.showNew ? 'inline-flex' : 'none';
+  });
+
+  // Heart save
+  document.querySelectorAll('.jc-save-btn').forEach(b => {
+    b.style.display = state.heartSave ? 'flex' : 'none';
+  });
+
+  // Sidebar
+  const sidebar = document.getElementById('jc-sidebar');
+  if (state.viewport > 900) {
+    sidebar.classList.toggle('hidden', !state.showSidebar);
+  }
+
+  // Tools
+  document.getElementById('sidebar-tools').style.display = state.showTools ? 'block' : 'none';
+
+  // State counts
+  document.querySelectorAll('.jc-state-count').forEach(c => {
+    c.style.display = state.showCounts ? 'inline' : 'none';
+  });
+
+  // Typography
+  document.getElementById('jc-preview').style.fontSize = state.fontSize + 'px';
+  document.querySelectorAll('.jc-card-title').forEach(t => {
+    t.style.fontWeight = state.titleWeight;
+  });
+
+  // Page background
+  document.getElementById('jc-main').style.background = state.pageBg;
+
+  // Responsive grid columns
+  if (state.viewport <= 480) {
+    grid.className = 'jc-grid cols-1';
+  } else if (state.viewport <= 900) {
+    grid.className = 'jc-grid cols-2';
+  } else {
+    grid.className = 'jc-grid cols-3';
+  }
+}
+
+// ── Prompt Output ───────────────────────────────
+function updatePrompt() {
+  const parts = [];
+
+  parts.push('Redesign the Job Club logged-in home page (src/app/(app)/feed/page.tsx) with the following design decisions:');
+
+  // Dashboard
+  if (state.showDash) {
+    parts.push(`\n\n**Dashboard Strip:** Add a stats strip at the top with 3 cards — "Nouvelles aujourd'hui" (new jobs count in last 24h), "Offres sauvegardées" (saved count, clickable to /saved), and "Mon état préféré" (user's preferred state). Cards have ${state.dashRadius}px border-radius with soft gradient backgrounds (purple for new, amber for saved, green for state).`);
+  }
+
+  // Search & Filters
+  const stickyText = state.stickyFilters ? 'Make the search bar and filter chips sticky on scroll (position: sticky below the top bar)' : 'Keep the search and filters scrolling naturally with content';
+  const searchText = state.searchSize !== 'normal' ? ` Search bar size: ${state.searchSize}.` : '';
+  const chipText = state.chipStyle !== 'pill' ? ` Filter chips: ${state.chipStyle} style (border-radius: ${state.chipStyle === 'rounded' ? '10px' : '6px'}).` : '';
+  parts.push(`\n\n**Search & Filters:** ${stickyText}.${searchText}${chipText}`);
+
+  // Cards
+  const shadowDescMap = { none: 'no shadow (flat cards with border)', subtle: 'a subtle shadow (0 1px 3px)', medium: 'a medium shadow (0 4px 12px)', strong: 'a pronounced shadow (0 8px 24px)' };
+  parts.push(`\n\n**Job Cards:** ${state.cardRadius}px border-radius, ${shadowDescMap[state.cardShadow]}, ${state.cardPadding}px padding, ${state.cardGap}px grid gap.`);
+
+  if (state.heartSave) {
+    parts.push(' Replace the text "Sauvegarder" button with a heart icon button in the top-right corner of each card.');
+  }
+  if (state.showNew) {
+    parts.push(' Add an orange "NEW" badge next to the timestamp for jobs posted within the last 24 hours.');
+  }
+
+  // Location
+  parts.push(' Add a location line below the title showing "📍 City, STATE" with a small map pin icon. Move the state badge from top-right to inline as a tag.');
+
+  // Typography
+  if (state.fontSize !== 14) {
+    parts.push(`\n\n**Typography:** Base font size ${state.fontSize}px.`);
+  }
+  if (state.titleWeight !== '700') {
+    parts.push(` Job title weight: ${state.titleWeight}.`);
+  }
+
+  // Background
+  if (state.pageBg !== '#fefefe') {
+    const bgNames = { '#faf9f7': 'warm off-white (#faf9f7)', '#f8f7ff': 'light purple tint (#f8f7ff)', '#f5f5f4': 'stone (#f5f5f4)' };
+    parts.push(`\n\n**Background:** Page background: ${bgNames[state.pageBg] || state.pageBg}.`);
+  }
+  if (state.cardBg !== '#ffffff') {
+    parts.push(` Card background: ${state.cardBg}.`);
+  }
+
+  // Sidebar
+  if (state.showTools) {
+    parts.push(`\n\n**Sidebar Tools:** Add a "Outils" section in the sidebar with two greyed-out items: "Carte Interactive" and "CV Builder", each with a "Bientôt" badge. These are placeholders for future features.`);
+  }
+  if (state.showCounts) {
+    parts.push(`\n\n**State Job Counts:** Show the number of active jobs next to each state in the sidebar (e.g., "QLD — 24").`);
+  }
+
+  // Remove welcome banner
+  parts.push(`\n\n**Remove** the purple "Bienvenue sur Job Club" welcome banner — it takes up space without adding value. The dashboard strip replaces it.`);
+
+  // Mobile
+  parts.push('\n\n**Mobile:** Keep bottom tabs. On mobile, hide the sidebar and show 1-column job grid. The search bar' + (state.stickyFilters ? ' and filters stay sticky.' : ' stays at the top.'));
+
+  document.getElementById('prompt-output').textContent = parts.join('');
+}
+
+// ── Update Everything ───────────────────────────
+function updateAll() {
+  readControls();
+  renderPreview();
+  updatePrompt();
+}
+
+// ── Copy Prompt ─────────────────────────────────
+function copyPrompt() {
+  const text = document.getElementById('prompt-output').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!';
+    btn.style.background = '#22c55e';
+    setTimeout(() => {
+      btn.textContent = 'Copy Prompt';
+      btn.style.background = '';
+    }, 2000);
+  });
+}
+
+// ── Interactive Filter Chips ────────────────────
+document.querySelectorAll('#state-chips .jc-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('#state-chips .jc-chip').forEach(c => c.classList.remove('active-state'));
+    chip.classList.add('active-state');
+  });
+});
+document.querySelectorAll('#cat-chips .jc-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('#cat-chips .jc-chip').forEach(c => c.classList.remove('active-cat'));
+    chip.classList.add('active-cat');
+  });
+});
+
+// ── Interactive Save Buttons ────────────────────
+document.querySelectorAll('.jc-save-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    btn.classList.toggle('saved');
+    const svg = btn.querySelector('svg');
+    if (btn.classList.contains('saved')) {
+      svg.setAttribute('fill', 'currentColor');
+    } else {
+      svg.setAttribute('fill', 'none');
+    }
+  });
+});
+
+// ── Init ────────────────────────────────────────
+updateAll();
+</script>
+
+</body>
+</html>

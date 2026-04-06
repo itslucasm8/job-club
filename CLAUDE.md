@@ -164,16 +164,29 @@ See `.env.example` for the full list. Key groups:
 - **Job `applyUrl` is legacy** — field exists in schema but isn't displayed in the UI. Don't add UI for it.
 - **Path alias** — `@/*` maps to `./src/*` (defined in tsconfig.json). Use `@/lib/prisma` not `../../lib/prisma`.
 
-## Planning Docs
+## Planning Docs & TODO
 
-Implementation plans and design docs are in `docs/plans/`. Check there for Phase 1 roadmap and UX decisions. Phase 1 status is also tracked in Claude's memory system.
+Master checklist of all outstanding work: [`TODO.md`](TODO.md)
 
-## What's NOT Done Yet (Phase 1 Critical)
+Each workstream has its own executable plan in `docs/plans/`:
 
-1. Stripe production setup (live keys, webhook endpoint, price IDs)
-2. Resend email domain verification + API key
-3. Podia subscriber migration (~230 users)
-4. Seed real jobs (clear demo data)
-5. DNS/domain decision
-6. Observability (Sentry for errors — not yet integrated)
-7. Automated backup cron not yet scheduled on VPS
+| Plan | Type | Description |
+|------|------|-------------|
+| [`stripe-production-setup.md`](docs/plans/stripe-production-setup.md) | Ops | Live Stripe keys, webhook, Customer Portal |
+| [`resend-email-setup.md`](docs/plans/resend-email-setup.md) | Ops | Domain verification, API key, deliverability |
+| [`production-database.md`](docs/plans/production-database.md) | Ops | Postgres hardening, automated backups, restore testing |
+| [`dns-domain.md`](docs/plans/dns-domain.md) | Ops | Domain decision, Cloudflare Tunnel, SSL |
+| [`podia-user-migration.md`](docs/plans/podia-user-migration.md) | Script | Migrate ~230 Podia subscribers with grace period |
+| [`seed-real-jobs.md`](docs/plans/seed-real-jobs.md) | Script | Clear demo data, post real listings |
+| [`observability-sentry.md`](docs/plans/observability-sentry.md) | Feature | Sentry SDK, error boundaries, alerts |
+| [`product-analytics.md`](docs/plans/product-analytics.md) | Feature | Usage tracking, event analytics, dashboards |
+
+Older monolithic plans (partially completed):
+- [`2026-03-30-production-launch-plan.md`](docs/plans/2026-03-30-production-launch-plan.md) — Foundation hardening
+- [`2026-03-31-phase1-functional-phase2-ux-plan.md`](docs/plans/2026-03-31-phase1-functional-phase2-ux-plan.md) — Functional gaps + UX polish
+
+### How to Execute Plans
+
+- **Feature plans** (Observability, Analytics): Tell Claude to use `feature-dev` skill
+- **Ops plans** (Stripe, Resend, DNS, Database): Follow steps interactively — some require dashboard access
+- **Script plans** (Migration, Seeding): Claude writes and runs the scripts
