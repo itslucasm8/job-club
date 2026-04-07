@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     const ip = getClientIP(req)
     if (!passwordResetLimiter.check(ip)) {
       return NextResponse.json(
-        { error: 'Trop de tentatives. Réessaie dans quelques minutes.' },
+        { error: 'RATE_LIMIT' },
         { status: 429 }
       )
     }
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
 
     if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
-        { error: 'Email valide requis' },
+        { error: 'INVALID_EMAIL' },
         { status: 400 }
       )
     }
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error('POST /api/auth/reset-password error:', e)
     return NextResponse.json(
-      { error: 'Erreur serveur' },
+      { error: 'SERVER_ERROR' },
       { status: 500 }
     )
   }

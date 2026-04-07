@@ -9,14 +9,14 @@ export async function POST(req: Request) {
 
     if (!token || !password) {
       return NextResponse.json(
-        { error: 'Token et mot de passe requis' },
+        { error: 'TOKEN_PASSWORD_REQUIRED' },
         { status: 400 }
       )
     }
 
     if (typeof password !== 'string' || password.length < 8) {
       return NextResponse.json(
-        { error: 'Le mot de passe doit contenir au moins 8 caractères' },
+        { error: 'PASSWORD_TOO_SHORT' },
         { status: 400 }
       )
     }
@@ -28,21 +28,21 @@ export async function POST(req: Request) {
 
     if (!resetRecord) {
       return NextResponse.json(
-        { error: 'Lien de réinitialisation invalide' },
+        { error: 'INVALID_LINK' },
         { status: 400 }
       )
     }
 
     if (resetRecord.used) {
       return NextResponse.json(
-        { error: 'Ce lien a déjà été utilisé' },
+        { error: 'LINK_ALREADY_USED' },
         { status: 400 }
       )
     }
 
     if (new Date() > resetRecord.expiresAt) {
       return NextResponse.json(
-        { error: 'Ce lien a expiré' },
+        { error: 'LINK_EXPIRED' },
         { status: 400 }
       )
     }
@@ -63,13 +63,13 @@ export async function POST(req: Request) {
     })
 
     return NextResponse.json(
-      { message: 'Mot de passe réinitialisé avec succès' },
+      { message: 'OK' },
       { status: 200 }
     )
   } catch (e) {
     console.error('POST /api/auth/reset-password/confirm error:', e)
     return NextResponse.json(
-      { error: 'Erreur serveur' },
+      { error: 'SERVER_ERROR' },
       { status: 500 }
     )
   }

@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const ip = getClientIP(req)
     if (!registerLimiter.check(ip)) {
       logger.warn('Rate limit exceeded on register', { route: '/api/register', ip })
-      return NextResponse.json({ error: 'Trop de tentatives. Réessaie dans quelques minutes.' }, { status: 429 })
+      return NextResponse.json({ error: 'RATE_LIMIT' }, { status: 429 })
     }
 
     const body = await req.json()
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     // Check if email is already in use
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
-      return NextResponse.json({ error: 'Cet email est déjà utilisé' }, { status: 400 })
+      return NextResponse.json({ error: 'EMAIL_EXISTS' }, { status: 400 })
     }
 
     const passwordHash = await bcrypt.hash(password, 12)
@@ -45,6 +45,6 @@ export async function POST(req: Request) {
   } catch (e) {
     Sentry.captureException(e)
     logger.error('POST /api/register failed', { route: '/api/register', error: String(e) })
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    return NextResponse.json({ error: 'SERVER_ERROR' }, { status: 500 })
   }
 }

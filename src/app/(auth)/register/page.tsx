@@ -4,7 +4,7 @@ import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useTranslation } from '@/components/LanguageContext'
+import { useTranslation, translateApiError } from '@/components/LanguageContext'
 
 export default function RegisterPage() {
   const [name, setName] = useState('')
@@ -29,7 +29,7 @@ export default function RegisterPage() {
 
     if (!res.ok) {
       const data = await res.json()
-      setError(data.error || t.register.signupError)
+      setError(translateApiError(data.error, t) || t.register.signupError)
       setLoading(false)
       return
     }

@@ -4,7 +4,7 @@ import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useTranslation } from '@/components/LanguageContext'
+import { useTranslation, translateApiError } from '@/components/LanguageContext'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -28,7 +28,7 @@ export default function LoginPage() {
     })
     if (!check.ok) {
       const data = await check.json()
-      setError(data.error)
+      setError(translateApiError(data.error, t))
       setLoading(false)
       return
     }

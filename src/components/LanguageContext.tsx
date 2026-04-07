@@ -65,3 +65,8 @@ export function useTranslation() {
   const ctx = useContext(LanguageContext)
   return ctx
 }
+
+/** Translate an API error code to the user's language, with fallback to the raw string */
+export function translateApiError(code: string, t: { apiErrors: Record<string, string> }): string {
+  return t.apiErrors[code] || code
+}

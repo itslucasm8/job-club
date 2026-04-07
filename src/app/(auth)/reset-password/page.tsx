@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useTranslation } from '@/components/LanguageContext'
+import { useTranslation, translateApiError } from '@/components/LanguageContext'
 
 export default function ResetPasswordPage() {
   return (
@@ -44,7 +44,7 @@ function ResetPasswordContent() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || t.resetPassword.requestError)
+        setError(translateApiError(data.error, t) || t.resetPassword.requestError)
         return
       }
 
@@ -85,7 +85,7 @@ function ResetPasswordContent() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || t.resetPassword.resetError)
+        setError(translateApiError(data.error, t) || t.resetPassword.resetError)
         return
       }
 

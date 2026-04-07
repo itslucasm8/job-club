@@ -333,6 +333,22 @@ const fr = {
     signIn: 'Se connecter',
   },
 
+  // API error codes → user-facing messages
+  apiErrors: {
+    RATE_LIMIT: 'Trop de tentatives. Réessaie dans quelques minutes.',
+    FIELDS_REQUIRED: 'Remplis tous les champs.',
+    EMAIL_NOT_FOUND: 'Aucun compte trouvé avec cet email.',
+    WRONG_PASSWORD: 'Mot de passe incorrect.',
+    EMAIL_EXISTS: 'Cet email est déjà utilisé.',
+    INVALID_EMAIL: 'Email valide requis.',
+    TOKEN_PASSWORD_REQUIRED: 'Token et mot de passe requis.',
+    PASSWORD_TOO_SHORT: 'Le mot de passe doit contenir au moins 8 caractères.',
+    INVALID_LINK: 'Lien de réinitialisation invalide.',
+    LINK_ALREADY_USED: 'Ce lien a déjà été utilisé.',
+    LINK_EXPIRED: 'Ce lien a expiré.',
+    SERVER_ERROR: 'Erreur serveur.',
+  } as Record<string, string>,
+
   // Reset password page
   resetPassword: {
     title: 'Réinitialiser le mot de passe',
@@ -803,6 +819,21 @@ const en: typeof fr = {
     alreadyMember: 'Already a member?',
     signIn: 'Sign in',
   },
+
+  apiErrors: {
+    RATE_LIMIT: 'Too many attempts. Try again in a few minutes.',
+    FIELDS_REQUIRED: 'Please fill in all fields.',
+    EMAIL_NOT_FOUND: 'No account found with this email.',
+    WRONG_PASSWORD: 'Incorrect password.',
+    EMAIL_EXISTS: 'This email is already in use.',
+    INVALID_EMAIL: 'A valid email is required.',
+    TOKEN_PASSWORD_REQUIRED: 'Token and password required.',
+    PASSWORD_TOO_SHORT: 'Password must be at least 8 characters.',
+    INVALID_LINK: 'Invalid reset link.',
+    LINK_ALREADY_USED: 'This link has already been used.',
+    LINK_EXPIRED: 'This link has expired.',
+    SERVER_ERROR: 'Server error.',
+  } as Record<string, string>,
 
   resetPassword: {
     title: 'Reset password',
