@@ -18,6 +18,40 @@ export async function GET() {
   return NextResponse.json(users)
 }
 
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as any).role !== 'admin') {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+  }
+
+  const { email, password, name } = await req.json()
+  if (!email || !password) {
+    return NextResponse.json({ error: 'Email et mot de passe requis' }, { status: 400 })
+  }
+  if (password.length < 6) {
+    return NextResponse.json({ error: 'Mot de passe trop court (min 6 caractères)' }, { status: 400 })
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email } })
+  if (existing) {
+    return NextResponse.json({ error: 'Un compte avec cet email existe déjà' }, { status: 400 })
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12)
+  const user = await prisma.user.create({
+    data: {
+      email,
+      name: name || null,
+      passwordHash,
+      role: 'admin',
+      subscriptionStatus: 'active',
+    },
+    select: { id: true, email: true, name: true, role: true, createdAt: true },
+  })
+
+  return NextResponse.json(user)
+}
+
 export async function PATCH(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as any).role !== 'admin') {

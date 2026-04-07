@@ -30,6 +30,8 @@ export default function AdminDashboardPage() {
   const [newPassword, setNewPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
   const [addAdminEmail, setAddAdminEmail] = useState('')
+  const [addAdminPassword, setAddAdminPassword] = useState('')
+  const [addAdminName, setAddAdminName] = useState('')
   const [addingAdmin, setAddingAdmin] = useState(false)
 
   useEffect(() => {
@@ -109,13 +111,17 @@ export default function AdminDashboardPage() {
   }
 
   async function addAdmin() {
-    if (!addAdminEmail.trim()) return
+    if (!addAdminEmail.trim() || !addAdminPassword.trim()) return
+    if (addAdminPassword.length < 6) {
+      alert(language === 'fr' ? 'Mot de passe trop court (min 6 caractères)' : 'Password too short (min 6 characters)')
+      return
+    }
     setAddingAdmin(true)
     try {
       const res = await fetch('/api/admin/users', {
-        method: 'PATCH',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: addAdminEmail.trim(), promoteToAdmin: true }),
+        body: JSON.stringify({ email: addAdminEmail.trim(), password: addAdminPassword, name: addAdminName.trim() || undefined }),
       })
       if (res.ok) {
         const newAdmin = await res.json()
@@ -123,9 +129,12 @@ export default function AdminDashboardPage() {
           ...prev,
           adminUsers: [newAdmin, ...prev.adminUsers],
           adminCount: prev.adminCount + 1,
-          memberCount: prev.memberCount - 1,
+          totalUsers: prev.totalUsers + 1,
         } : prev)
         setAddAdminEmail('')
+        setAddAdminPassword('')
+        setAddAdminName('')
+        alert(language === 'fr' ? 'Administrateur créé !' : 'Administrator created!')
       } else {
         const err = await res.json()
         alert(err.error || 'Erreur')
@@ -337,27 +346,43 @@ export default function AdminDashboardPage() {
               )
             })}
           </div>
-          {/* Add admin */}
+          {/* Create admin */}
           <div className="px-4 sm:px-5 py-3 border-t border-stone-200 bg-stone-50">
             <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-2">
-              {language === 'fr' ? 'Ajouter un administrateur' : 'Add an administrator'}
+              {language === 'fr' ? 'Créer un administrateur' : 'Create an administrator'}
             </div>
-            <div className="flex gap-2">
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={addAdminName}
+                onChange={e => setAddAdminName(e.target.value)}
+                placeholder={language === 'fr' ? 'Prénom (optionnel)' : 'Name (optional)'}
+                className="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400"
+              />
               <input
                 type="email"
                 value={addAdminEmail}
                 onChange={e => setAddAdminEmail(e.target.value)}
-                placeholder={language === 'fr' ? 'Email du membre existant' : 'Existing member email'}
-                className="flex-1 px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400"
-                onKeyDown={e => e.key === 'Enter' && addAdmin()}
+                placeholder="Email"
+                className="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400"
               />
-              <button
-                onClick={addAdmin}
-                disabled={addingAdmin || !addAdminEmail.trim()}
-                className="px-4 py-2 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition disabled:opacity-50"
-              >
-                {addingAdmin ? '...' : (language === 'fr' ? 'Promouvoir' : 'Promote')}
-              </button>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={addAdminPassword}
+                  onChange={e => setAddAdminPassword(e.target.value)}
+                  placeholder={language === 'fr' ? 'Mot de passe (min 6 car.)' : 'Password (min 6 chars)'}
+                  className="flex-1 px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400"
+                  onKeyDown={e => e.key === 'Enter' && addAdmin()}
+                />
+                <button
+                  onClick={addAdmin}
+                  disabled={addingAdmin || !addAdminEmail.trim() || !addAdminPassword.trim()}
+                  className="px-4 py-2 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition disabled:opacity-50"
+                >
+                  {addingAdmin ? '...' : (language === 'fr' ? 'Créer' : 'Create')}
+                </button>
+              </div>
             </div>
           </div>
         </div>
