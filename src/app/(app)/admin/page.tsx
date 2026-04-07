@@ -163,36 +163,36 @@ export default function AdminDashboardPage() {
   return (
     <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-5xl">
       <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">
-        {(t.admin as any).dashboardTitle || 'Tableau de bord'}
+        {t.admin.dashboardTitle || 'Tableau de bord'}
       </h1>
       <p className="text-sm text-stone-500 mb-6">
-        {(t.admin as any).dashboardSubtitle || "Vue d'ensemble de votre Job Club"}
+        {t.admin.dashboardSubtitle || "Vue d'ensemble de votre Job Club"}
       </p>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <StatCard
-          label={(t.admin as any).activeJobs || 'Annonces actives'}
+          label={t.admin.activeJobs || 'Annonces actives'}
           value={data.activeJobs}
-          sub={`+${data.weeklyJobs} ${(t.admin as any).thisWeek || 'cette semaine'}`}
+          sub={`+${data.weeklyJobs} ${t.admin.thisWeek || 'cette semaine'}`}
           color="purple"
         />
         <StatCard
-          label={(t.admin as any).users || 'Utilisateurs'}
+          label={t.admin.users || 'Utilisateurs'}
           value={data.totalUsers}
-          sub={`${data.adminCount} ${(t.admin as any).adminsCount || 'admins'} · ${data.memberCount} ${(t.admin as any).membersCount || 'membres'}`}
+          sub={`${data.adminCount} ${t.admin.adminsCount || 'admins'} · ${data.memberCount} ${t.admin.membersCount || 'membres'}`}
           color="green"
         />
         <StatCard
-          label={(t.admin as any).activeSubscribers || 'Abonnés actifs'}
+          label={t.admin.activeSubscribers || 'Abonnés actifs'}
           value={data.activeSubscribers}
-          sub={`$${subscriptionRevenue} ${(t.admin as any).monthlyRevenue || 'AUD/mois'}`}
+          sub={`$${subscriptionRevenue} ${t.admin.monthlyRevenue || 'AUD/mois'}`}
           color="amber"
         />
         <StatCard
-          label={(t.admin as any).eligible88 || 'Annonces 88 jours'}
+          label={t.admin.eligible88 || 'Annonces 88 jours'}
           value={data.eligible88}
-          sub={`${data.activeJobs > 0 ? Math.round((data.eligible88 / data.activeJobs) * 100) : 0}% ${(t.admin as any).ofTotal || 'du total'}`}
+          sub={`${data.activeJobs > 0 ? Math.round((data.eligible88 / data.activeJobs) * 100) : 0}% ${t.admin.ofTotal || 'du total'}`}
           color="blue"
         />
       </div>
@@ -201,10 +201,10 @@ export default function AdminDashboardPage() {
       <div className="bg-white border border-stone-200 rounded-lg overflow-hidden mb-6">
         <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-stone-200">
           <h2 className="text-base font-bold text-stone-800">
-            {(t.admin as any).recentActivity || 'Activité récente'}
+            {t.admin.recentActivity || 'Activité récente'}
           </h2>
           <button onClick={() => router.push('/admin/jobs')} className="text-xs text-purple-600 font-semibold hover:text-purple-800">
-            {(t.admin as any).viewAll || 'Voir tout'} ›
+            {t.admin.viewAll || 'Voir tout'} ›
           </button>
         </div>
         {data.recentJobs.slice(0, 4).map(job => (
@@ -212,7 +212,7 @@ export default function AdminDashboardPage() {
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></div>
             <span className="truncate">
               <strong>{job.title}</strong> — {job.location ? `${job.location}, ${job.state}` : job.state}
-              {' '}{(t.admin as any).published || 'publiée'}
+              {' '}{t.admin.published || 'publiée'}
             </span>
             <span className="ml-auto text-stone-400 text-[11px] flex-shrink-0">{timeAgo(job.createdAt)}</span>
           </div>
@@ -222,7 +222,7 @@ export default function AdminDashboardPage() {
             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></div>
             <span>
               <strong>{data.latestSignup.name || data.latestSignup.email}</strong>
-              {' '}{(t.admin as any).registered || "s'est inscrit(e)"}
+              {' '}{t.admin.registered || "s'est inscrit(e)"}
             </span>
             <span className="ml-auto text-stone-400 text-[11px] flex-shrink-0">{timeAgo(data.latestSignup.createdAt)}</span>
           </div>
@@ -232,10 +232,10 @@ export default function AdminDashboardPage() {
             <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></div>
             <span>
               <strong>{data.expiredToday} {language === 'fr' ? 'annonces' : 'jobs'}</strong>
-              {' '}{(t.admin as any).expired || 'expirées (30 jours)'}
+              {' '}{t.admin.expired || 'expirées (30 jours)'}
             </span>
             <span className="ml-auto text-stone-400 text-[11px] flex-shrink-0">
-              {(t.admin as any).today || "aujourd'hui"}
+              {t.admin.today || "aujourd'hui"}
             </span>
           </div>
         )}
@@ -247,7 +247,7 @@ export default function AdminDashboardPage() {
         <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
           <div className="px-4 sm:px-5 py-3 border-b border-stone-200">
             <h2 className="text-base font-bold text-stone-800">
-              {(t.admin as any).jobsByState || 'Annonces par état'}
+              {t.admin.jobsByState || 'Annonces par état'}
             </h2>
           </div>
           <div className="p-4 grid grid-cols-4 gap-2">
@@ -267,7 +267,7 @@ export default function AdminDashboardPage() {
             <h2 className="text-base font-bold text-stone-800">
               Administrateurs
             </h2>
-            <span className="text-xs text-stone-400">{data.adminCount} {(t.admin as any).adminsCount || 'admins'}</span>
+            <span className="text-xs text-stone-400">{data.adminCount} {t.admin.adminsCount || 'admins'}</span>
           </div>
           <div className="divide-y divide-stone-100">
             {data.adminUsers.map(user => {

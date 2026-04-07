@@ -240,7 +240,6 @@ const fr = {
     expired: 'expirées (30 jours)',
     today: "aujourd'hui",
     jobsByState: 'Annonces par état',
-    recentUsers: 'Utilisateurs récents',
     manage: 'Gérer',
   },
 
@@ -694,7 +693,6 @@ const en: typeof fr = {
     expired: 'expired (30 days)',
     today: 'today',
     jobsByState: 'Jobs by state',
-    recentUsers: 'Recent users',
     manage: 'Manage',
   },
 

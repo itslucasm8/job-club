@@ -230,7 +230,7 @@ export default function SettingsPage() {
               className="w-full px-4 py-2.5 rounded-lg border border-stone-200 text-stone-400 bg-stone-50 cursor-not-allowed"
             />
             <p className="text-xs text-stone-400 mt-1 italic">
-              {(t.settings as any).emailReadonly || "L'email ne peut pas être modifié (utilisé pour la connexion)"}
+              {t.settings.emailReadonly}
             </p>
           </div>
           <button
@@ -255,7 +255,7 @@ export default function SettingsPage() {
       {/* Language Section */}
       <section className="mb-8">
         <h2 className="text-lg font-bold text-stone-900 mb-4">
-          {(t.settings as any).languageTitle || 'Langue / Language'}
+          {t.settings.languageTitle}
         </h2>
         <div className="bg-white p-5 rounded-lg border border-stone-200">
           <div className="flex gap-3">
@@ -385,7 +385,7 @@ export default function SettingsPage() {
             disabled={loadingPassword}
             className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loadingPassword ? t.common.saving : ((t.settings as any).savePassword || 'Changer le mot de passe')}
+            {loadingPassword ? t.common.saving : (t.settings.savePassword)}
           </button>
         </div>
         {toastPassword && (
@@ -467,7 +467,7 @@ export default function SettingsPage() {
             disabled={loadingPreferences}
             className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loadingPreferences ? t.common.saving : ((t.settings as any).savePreferences || 'Enregistrer les préférences')}
+            {loadingPreferences ? t.common.saving : (t.settings.savePreferences)}
           </button>
         </div>
         {toastPreferences && (

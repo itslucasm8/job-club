@@ -16,14 +16,14 @@ export default function BottomTabs() {
   const adminTabs = [
     { href: '/admin', label: 'Board', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
     { href: '/admin/publish', label: t.nav.publish, icon: 'M12 5v14 M5 12h14' },
-    { href: '/admin/jobs', label: (t.nav as any).manageJobs ? 'Annonces' : 'Jobs', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { href: '/admin/jobs', label: 'Annonces', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2' },
     { href: '/profile', label: t.nav.profile, icon: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2 M12 7m-4 0a4 4 0 108 0 4 4 0 00-8 0' },
   ]
 
   const userTabs = [
     { href: '/feed', label: t.nav.home, icon: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10' },
     { href: '/states', label: t.nav.states, icon: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10m-3 0a3 3 0 106 0 3 3 0 00-6 0' },
-    { href: '/saved', label: (t.nav as any).saved || 'Sauv.', icon: 'M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z' },
+    { href: '/saved', label: t.nav.saved, icon: 'M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z' },
     { href: '/profile', label: t.nav.profile, icon: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2 M12 7m-4 0a4 4 0 108 0 4 4 0 00-8 0' },
   ]
 
@@ -47,7 +47,7 @@ export default function BottomTabs() {
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
-              {(t as any).modeSwitch?.admin || 'Admin'}
+              {t.modeSwitch.admin}
             </button>
             <button
               onClick={() => { if (!inUserMode) toggleViewAsUser() }}
@@ -60,7 +60,7 @@ export default function BottomTabs() {
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.38 8.38 0 0113 0"/>
               </svg>
-              {(t as any).modeSwitch?.client || 'Client'}
+              {t.modeSwitch.client}
             </button>
           </div>
         </div>

@@ -65,7 +65,7 @@ export default function ProfilePage() {
               <div className="text-sm font-medium text-stone-700">{t.profile.subscription}</div>
               {user?.subscriptionStatus === 'active' && (
                 <div className="text-[11px] text-stone-400 mt-0.5">
-                  {(t.profile as any).renewalDate || 'Renouvellement le'}{' '}
+                  {t.profile.renewalDate}{' '}
                   {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </div>
               )}

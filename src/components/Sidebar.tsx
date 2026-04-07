@@ -18,7 +18,7 @@ export default function Sidebar() {
   const [stateCounts, setStateCounts] = useState<Record<string, number>>({})
 
   const adminNav = [
-    { href: '/admin', label: (t.admin as any).dashboardTitle || 'Tableau de bord', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
+    { href: '/admin', label: t.admin.dashboardTitle || 'Tableau de bord', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
     { href: '/admin/publish', label: t.nav.publishJob, icon: 'M12 5v14 M5 12h14' },
     { href: '/admin/jobs', label: t.nav.manageJobs, icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2' },
   ]
@@ -63,7 +63,7 @@ export default function Sidebar() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
             </svg>
-            {(t as any).modeSwitch?.admin || 'Admin'}
+            {t.modeSwitch.admin}
           </button>
           <button
             onClick={() => { if (!inUserMode) toggleViewAsUser() }}
@@ -76,7 +76,7 @@ export default function Sidebar() {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.38 8.38 0 0113 0"/>
             </svg>
-            {(t as any).modeSwitch?.client || 'Client'}
+            {t.modeSwitch.client}
           </button>
         </div>
       )}
