@@ -15,10 +15,13 @@ services:
     #   - '5432:5432'
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN}
     restart: unless-stopped
     ports:
-      - '3000:3000'
+      - '3030:3000'
     depends_on:
       - db
     env_file:

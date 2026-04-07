@@ -18,11 +18,11 @@
 
 | # | Workstream | Plan | Type | Status |
 |---|-----------|------|------|--------|
-| 1 | **Stripe Production Setup** | [plan](docs/plans/stripe-production-setup.md) | Ops + Config | Not started |
-| 2 | **Resend Email Setup** | [plan](docs/plans/resend-email-setup.md) | Ops + Config | Not started |
+| 1 | **Stripe Production Setup** | [plan](docs/plans/stripe-production-setup.md) | Ops + Config | **Done** — Live keys, price IDs, webhook configured on VPS. Shared Stripe account with MLF. |
+| 2 | **Resend Email Setup** | [plan](docs/plans/resend-email-setup.md) | Ops + Config | **Done** — API key configured, sending from `noreply@thejobclub.com.au`. Verify DKIM/SPF/DMARC if email deliverability issues arise. |
 | 3 | **Production Database Hardening** | [plan](docs/plans/production-database.md) | Ops | **Done** |
-| 4 | **DNS & Domain** | [plan](docs/plans/dns-domain.md) | Ops | Not started |
-| 5 | **Podia User Migration** | [plan](docs/plans/podia-user-migration.md) | Script + Ops | Not started |
+| 4 | **DNS & Domain** | [plan](docs/plans/dns-domain.md) | Ops | **Done** — `thejobclub.com.au` live via Cloudflare Tunnel. Nameservers pointed from VentraIP. |
+| 5 | **Podia User Migration** | [plan](docs/plans/podia-user-migration.md) | Script + Ops | Not started — needs Podia CSV export + subscription strategy decision |
 | 6 | **Seed Real Jobs** | [plan](docs/plans/seed-real-jobs.md) | Script + Ops | **Partially done** — 889 jobs scraped from Podia & imported locally. Need to import on production. |
 
 ## Important (should complete before or shortly after go-live)
@@ -31,7 +31,17 @@
 |---|-----------|------|------|--------|
 | 7 | **Observability (Sentry)** | [plan](docs/plans/observability-sentry.md) | Feature | **Done** |
 | 8 | **Product Analytics** | [plan](docs/plans/product-analytics.md) | Feature | **Done** |
-| 9 | **Category Redesign + 88 Days Flag** | [spec](docs/superpowers/specs/2026-04-07-categories-88days-design.md) | Feature | **Done** — PR #1 ready to merge. 9 categories, 88-day badge + filter. |
+| 9 | **Category Redesign + 88 Days Flag** | [spec](docs/superpowers/specs/2026-04-07-categories-88days-design.md) | Feature | **Done** — PR #1 merged. 9 categories, 88-day badge + filter. |
+
+## Cleanup / Small Items
+
+| # | Item | Status |
+|---|------|--------|
+| 10 | **Sentry DSN in production** — DSN configured and active in running container. | **Done** |
+| 13 | **Sentry source maps** — Currently disabled in `next.config.js`. Need a Sentry auth token to upload source maps during build. Without this, error stack traces show minified JS instead of your TypeScript code. | Not started |
+| 14 | **Sentry alerts** — High-priority issue alerts + new bug alerts configured and actively firing. | **Done** |
+| 11 | **Remove old Cloudflare tunnel route** — `jobclub.mlfrance.dev` route still exists in Cloudflare Zero Trust. Should be removed to avoid confusion. | Not started |
+| 12 | **Resend domain verification check** — Confirm DKIM/SPF/DMARC records pass for `thejobclub.com.au`. Send a test email and check headers in Gmail ("Show original"). | Not verified |
 
 ## Already Planned (existing detailed plans)
 

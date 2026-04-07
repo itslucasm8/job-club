@@ -6,14 +6,12 @@ const nextConfig = {
 }
 
 module.exports = withSentryConfig(nextConfig, {
+  org: "my-little-france",
+  project: "javascript-nextjs",
+
   // Route browser Sentry events through your own domain to bypass ad blockers
   tunnelRoute: "/monitoring",
 
-  // Don't upload source maps yet (needs auth token — will set up later)
-  sourcemaps: {
-    disable: true,
-  },
-
-  // Suppress build logs about missing org/project
+  // Suppress noisy build logs
   silent: true,
 })

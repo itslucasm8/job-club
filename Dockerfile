@@ -8,6 +8,10 @@ RUN npm ci --omit=dev
 # Stage 2: Build
 FROM node:20-alpine AS builder
 WORKDIR /app
+
+ARG SENTRY_AUTH_TOKEN
+ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
+
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN npm ci
