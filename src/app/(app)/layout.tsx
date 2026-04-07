@@ -6,7 +6,6 @@ import { AdminViewProvider } from '@/components/AdminViewContext'
 import Sidebar from '@/components/Sidebar'
 import TopBar from '@/components/TopBar'
 import BottomTabs from '@/components/BottomTabs'
-import AdminViewBanner from '@/components/AdminViewBanner'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -23,7 +22,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </div>
           </div>
           <BottomTabs />
-          <AdminViewBanner />
         </ToastProvider>
       </AdminViewProvider>
     </SessionProvider>

@@ -31,6 +31,8 @@ const fr = {
     states: 'États',
     publish: 'Publier',
     profile: 'Profil',
+    dashboard: 'Tableau de bord',
+    saved: 'Sauvegardes',
   },
 
   // Categories
@@ -112,6 +114,7 @@ const fr = {
     userGuide: "Guide d'utilisation",
     signOut: 'Se déconnecter',
     portalError: "Erreur lors de l'accès au portail d'abonnement",
+    renewalDate: 'Renouvellement le',
   },
 
   // Settings page
@@ -143,6 +146,11 @@ const fr = {
     statesLabel: 'États',
     categoriesLabel: 'Catégories',
     preferencesUpdated: 'Préférences mises à jour',
+    emailReadonly: "L'email ne peut pas être modifié (utilisé pour la connexion)",
+    savePersonal: 'Enregistrer',
+    savePassword: 'Changer le mot de passe',
+    savePreferences: 'Enregistrer les préférences',
+    languageTitle: 'Langue / Language',
   },
 
   // Notifications page
@@ -214,6 +222,26 @@ const fr = {
     // View as user
     viewAsUser: 'Voir comme utilisateur',
     viewAsUserActive: 'Vue utilisateur active',
+    dashboardTitle: 'Tableau de bord',
+    dashboardSubtitle: "Vue d'ensemble de votre Job Club",
+    activeJobs: 'Annonces actives',
+    thisWeek: 'cette semaine',
+    users: 'Utilisateurs',
+    adminsCount: 'admins',
+    membersCount: 'membres',
+    activeSubscribers: 'Abonnés actifs',
+    monthlyRevenue: 'AUD/mois',
+    eligible88: 'Annonces 88 jours',
+    ofTotal: 'du total',
+    recentActivity: 'Activité récente',
+    viewAll: 'Voir tout',
+    published: 'publiée',
+    registered: "s'est inscrit(e)",
+    expired: 'expirées (30 jours)',
+    today: "aujourd'hui",
+    jobsByState: 'Annonces par état',
+    recentUsers: 'Utilisateurs récents',
+    manage: 'Gérer',
   },
 
   // Admin Jobs page
@@ -433,6 +461,12 @@ const fr = {
     label: 'FR',
     switchTo: 'EN',
   },
+
+  // Mode switch (admin/client)
+  modeSwitch: {
+    admin: 'Admin',
+    client: 'Client',
+  },
 }
 
 const en: typeof fr = {
@@ -464,6 +498,8 @@ const en: typeof fr = {
     states: 'States',
     publish: 'Publish',
     profile: 'Profile',
+    dashboard: 'Dashboard',
+    saved: 'Saved',
   },
 
   categories: {
@@ -538,6 +574,7 @@ const en: typeof fr = {
     userGuide: 'User guide',
     signOut: 'Sign out',
     portalError: 'Error accessing subscription portal',
+    renewalDate: 'Renews on',
   },
 
   settings: {
@@ -568,6 +605,11 @@ const en: typeof fr = {
     statesLabel: 'States',
     categoriesLabel: 'Categories',
     preferencesUpdated: 'Preferences updated',
+    emailReadonly: 'Email cannot be changed (used for login)',
+    savePersonal: 'Save',
+    savePassword: 'Change password',
+    savePreferences: 'Save preferences',
+    languageTitle: 'Language',
   },
 
   notifications: {
@@ -634,6 +676,26 @@ const en: typeof fr = {
     roleUpdateError: 'Error updating role',
     viewAsUser: 'View as user',
     viewAsUserActive: 'User view active',
+    dashboardTitle: 'Dashboard',
+    dashboardSubtitle: 'Your Job Club overview',
+    activeJobs: 'Active jobs',
+    thisWeek: 'this week',
+    users: 'Users',
+    adminsCount: 'admins',
+    membersCount: 'members',
+    activeSubscribers: 'Active subscribers',
+    monthlyRevenue: 'AUD/month',
+    eligible88: '88-day jobs',
+    ofTotal: 'of total',
+    recentActivity: 'Recent activity',
+    viewAll: 'View all',
+    published: 'published',
+    registered: 'registered',
+    expired: 'expired (30 days)',
+    today: 'today',
+    jobsByState: 'Jobs by state',
+    recentUsers: 'Recent users',
+    manage: 'Manage',
   },
 
   adminJobs: {
@@ -839,6 +901,11 @@ const en: typeof fr = {
   language: {
     label: 'EN',
     switchTo: 'FR',
+  },
+
+  modeSwitch: {
+    admin: 'Admin',
+    client: 'Client',
   },
 }
 

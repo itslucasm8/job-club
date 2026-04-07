@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { STATES, getCategories } from '@/lib/utils'
 import { useTranslation } from '@/components/LanguageContext'
+import type { Language } from '@/lib/translations'
 
 type Toast = { type: 'success' | 'error'; message: string } | null
 
@@ -101,7 +102,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/user/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({ name }),
       })
 
       const data = await res.json()
@@ -225,10 +226,12 @@ export default function SettingsPage() {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-stone-300 text-stone-900 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="votre.email@example.com"
+              readOnly
+              className="w-full px-4 py-2.5 rounded-lg border border-stone-200 text-stone-400 bg-stone-50 cursor-not-allowed"
             />
+            <p className="text-xs text-stone-400 mt-1 italic">
+              {(t.settings as any).emailReadonly || "L'email ne peut pas être modifié (utilisé pour la connexion)"}
+            </p>
           </div>
           <button
             onClick={handleSavePersonal}
@@ -247,6 +250,37 @@ export default function SettingsPage() {
             {toastPersonal.message}
           </div>
         )}
+      </section>
+
+      {/* Language Section */}
+      <section className="mb-8">
+        <h2 className="text-lg font-bold text-stone-900 mb-4">
+          {(t.settings as any).languageTitle || 'Langue / Language'}
+        </h2>
+        <div className="bg-white p-5 rounded-lg border border-stone-200">
+          <div className="flex gap-3">
+            <button
+              onClick={() => setLanguage('fr' as Language)}
+              className={`flex-1 py-2.5 rounded-lg font-bold text-sm border-2 transition ${
+                language === 'fr'
+                  ? 'bg-purple-50 border-purple-300 text-purple-700'
+                  : 'bg-stone-50 border-stone-200 text-stone-500 hover:border-stone-300'
+              }`}
+            >
+              Fran&ccedil;ais
+            </button>
+            <button
+              onClick={() => setLanguage('en' as Language)}
+              className={`flex-1 py-2.5 rounded-lg font-bold text-sm border-2 transition ${
+                language === 'en'
+                  ? 'bg-purple-50 border-purple-300 text-purple-700'
+                  : 'bg-stone-50 border-stone-200 text-stone-500 hover:border-stone-300'
+              }`}
+            >
+              English
+            </button>
+          </div>
+        </div>
       </section>
 
       {/* Password Section */}
@@ -351,7 +385,7 @@ export default function SettingsPage() {
             disabled={loadingPassword}
             className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loadingPassword ? t.common.saving : t.common.save}
+            {loadingPassword ? t.common.saving : ((t.settings as any).savePassword || 'Changer le mot de passe')}
           </button>
         </div>
         {toastPassword && (
@@ -433,7 +467,7 @@ export default function SettingsPage() {
             disabled={loadingPreferences}
             className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loadingPreferences ? t.common.saving : t.common.save}
+            {loadingPreferences ? t.common.saving : ((t.settings as any).savePreferences || 'Enregistrer les préférences')}
           </button>
         </div>
         {toastPreferences && (

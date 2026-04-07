@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Club — Admin UI Redesign Mockup v2</title>
+<style>
+  :root {
+    --purple: #6b21a8; --purple-light: #9333ea; --purple-bg: #f3e8ff; --purple-border: #d8b4fe;
+    --orange: #f59e0b; --orange-dark: #92400e; --orange-bg: #fef3c7;
+    --stone-50: #fafaf9; --stone-100: #f5f5f4; --stone-200: #e7e5e4; --stone-300: #d6d3d1;
+    --stone-400: #a8a29e; --stone-500: #78716c; --stone-600: #57534e; --stone-700: #44403c; --stone-900: #1c1917;
+    --green: #22c55e; --green-bg: #dcfce7; --red: #ef4444; --blue: #3b82f6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #18181b; color: var(--stone-900); }
+
+  /* ═══════════════════ NAV SIDEBAR ═══════════════════ */
+  .mockup-nav {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 220px; background: #1c1917; z-index: 200;
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+  .mockup-nav-header { padding: 20px 16px 12px; border-bottom: 1px solid #2e2e2e; }
+  .mockup-nav-header h1 { font-size: 14px; font-weight: 800; color: var(--orange); letter-spacing: 0.04em; }
+  .mockup-nav-header p { font-size: 10px; color: #71717a; margin-top: 2px; }
+  .nav-group-label { padding: 16px 16px 6px; font-size: 9px; font-weight: 700; color: #52525b; text-transform: uppercase; letter-spacing: 0.08em; }
+  .nav-link {
+    display: flex; align-items: center; gap: 10px; padding: 9px 16px; font-size: 12px; font-weight: 500;
+    color: #a1a1aa; cursor: pointer; transition: all 0.15s; border-left: 2px solid transparent;
+  }
+  .nav-link:hover { color: #e4e4e7; background: rgba(255,255,255,0.04); }
+  .nav-link.active { color: #fff; background: rgba(255,255,255,0.08); border-left-color: var(--orange); font-weight: 600; }
+  .nav-link svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
+  .nav-link.active svg { opacity: 1; }
+  .nav-link .tag { margin-left: auto; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: #3f3f46; color: #a1a1aa; }
+  .nav-link.active .tag { background: var(--orange); color: var(--stone-900); }
+  .mockup-nav-footer { margin-top: auto; padding: 12px 16px; border-top: 1px solid #2e2e2e; }
+  .mockup-nav-footer p { font-size: 10px; color: #52525b; line-height: 1.4; }
+
+  /* ═══════════════════ MAIN CONTENT ═══════════════════ */
+  .mockup-main { margin-left: 220px; min-height: 100vh; }
+  .mockup-view { display: none; padding: 32px; }
+  .mockup-view.active { display: block; }
+
+  /* Section wrappers */
+  .view-header { margin-bottom: 8px; }
+  .view-header h2 { font-size: 20px; font-weight: 800; color: #fff; }
+  .view-header p { font-size: 12px; color: #71717a; margin-top: 2px; }
+  .view-label { display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 8px; border-radius: 4px; margin-bottom: 16px; }
+  .view-label.desktop { background: #1e3a5f; color: #60a5fa; }
+  .view-label.mobile { background: #3b1f0b; color: #fb923c; }
+  .view-label.both { background: #1a2e1a; color: #4ade80; }
+
+  .note-box {
+    margin: 20px 0; padding: 14px 18px; background: rgba(250,204,21,0.08); border: 1px solid rgba(250,204,21,0.2);
+    border-radius: 10px; font-size: 12px; color: #fbbf24; line-height: 1.6;
+  }
+  .note-box strong { color: #fde68a; }
+  .note-box code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+  .note-box::before { content: "DESIGN NOTE"; display: block; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: #a16207; margin-bottom: 6px; }
+
+  .change-list { margin: 12px 0; padding: 0; list-style: none; }
+  .change-list li { font-size: 12px; color: #a1a1aa; padding: 4px 0; padding-left: 16px; position: relative; line-height: 1.5; }
+  .change-list li::before { content: "→"; position: absolute; left: 0; color: var(--orange); font-weight: 700; }
+
+  /* ═══════════════════ DESKTOP MOCKUP FRAME ═══════════════════ */
+  .desktop-frame {
+    background: var(--stone-100); border-radius: 12px; overflow: hidden;
+    border: 1px solid #3f3f46; box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+  .desktop-chrome {
+    height: 32px; background: #27272a; display: flex; align-items: center; padding: 0 12px; gap: 6px;
+  }
+  .desktop-chrome .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .desktop-chrome .dot.r { background: #ef4444; } .desktop-chrome .dot.y { background: #eab308; } .desktop-chrome .dot.g { background: #22c55e; }
+  .desktop-chrome .url { margin-left: 12px; font-size: 10px; color: #71717a; background: #1c1917; padding: 3px 10px; border-radius: 4px; }
+  .desktop-inner { display: flex; min-height: 540px; }
+
+  /* Sidebar inside mockup */
+  .sb { width: 240px; background: #fff; border-right: 1px solid var(--stone-200); display: flex; flex-direction: column; flex-shrink: 0; }
+  .sb-logo { display: flex; align-items: center; gap: 8px; padding: 16px 16px 12px; }
+  .sb-logo svg { width: 32px; height: 32px; }
+  .sb-logo span { font-size: 18px; font-weight: 800; color: var(--purple); }
+
+  .sb-switch { margin: 0 10px 10px; background: var(--stone-100); border-radius: 8px; padding: 3px; display: flex; gap: 3px; }
+  .sb-switch-btn {
+    flex: 1; padding: 7px 0; border-radius: 6px; border: none; font-size: 11px; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.2s;
+  }
+  .sb-switch-btn.on-admin { background: var(--purple); color: #fff; box-shadow: 0 1px 3px rgba(107,33,168,0.25); }
+  .sb-switch-btn.on-user { background: var(--orange); color: var(--stone-900); box-shadow: 0 1px 3px rgba(245,158,11,0.25); }
+  .sb-switch-btn.off { background: transparent; color: var(--stone-500); }
+
+  .sb-section { padding: 0 10px; }
+  .sb-label { padding: 14px 6px 4px; font-size: 9px; font-weight: 700; color: var(--stone-400); text-transform: uppercase; letter-spacing: 0.06em; }
+  .sb-item {
+    display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; font-size: 12px;
+    font-weight: 500; color: var(--stone-500); margin-bottom: 1px; cursor: default;
+  }
+  .sb-item.on { background: var(--purple-bg); color: var(--purple); font-weight: 600; }
+  .sb-item.on-o { background: var(--orange-bg); color: var(--orange-dark); font-weight: 600; }
+  .sb-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .sb-item .ct { margin-left: auto; font-size: 9px; font-weight: 700; background: var(--purple); color: #fff; padding: 1px 6px; border-radius: 8px; }
+
+  .sb-profile {
+    margin-top: auto; border-top: 1px solid var(--stone-200); padding: 12px; display: flex; align-items: center; gap: 10px;
+  }
+  .sb-avatar {
+    width: 32px; height: 32px; border-radius: 50%; background: var(--purple-bg); border: 2px solid var(--purple-border);
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--purple); flex-shrink: 0;
+  }
+  .sb-profile-name { font-size: 12px; font-weight: 600; color: var(--stone-900); }
+  .sb-profile-email { font-size: 10px; color: var(--stone-400); }
+
+  /* Content inside mockup */
+  .mc { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .mc-topbar {
+    height: 50px; background: #fff; border-bottom: 1px solid var(--stone-200);
+    display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0;
+  }
+  .mc-topbar .crumb { font-size: 12px; color: var(--stone-400); }
+  .mc-topbar .crumb b { color: var(--stone-900); font-weight: 600; }
+  .mc-topbar-right { display: flex; align-items: center; gap: 10px; }
+  .mc-topbar-right .lang { padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; background: var(--stone-100); color: var(--stone-500); }
+  .mc-topbar-right .bell { position: relative; }
+  .mc-topbar-right .bell svg { width: 18px; height: 18px; color: var(--stone-500); }
+  .mc-topbar-right .bell .dot { position: absolute; top: -2px; right: -2px; width: 7px; height: 7px; background: var(--red); border-radius: 50%; border: 1.5px solid #fff; }
+  .mc-body { flex: 1; padding: 20px; overflow-y: auto; background: var(--stone-50); }
+  .mc-title { font-size: 18px; font-weight: 800; color: var(--stone-900); margin-bottom: 2px; }
+  .mc-subtitle { font-size: 11px; color: var(--stone-500); margin-bottom: 18px; }
+
+  /* Stat cards */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat { background: #fff; border: 1px solid var(--stone-200); border-radius: 10px; padding: 14px; }
+  .stat .s-label { font-size: 10px; font-weight: 600; color: var(--stone-500); margin-bottom: 2px; }
+  .stat .s-val { font-size: 22px; font-weight: 800; color: var(--stone-900); }
+  .stat .s-sub { font-size: 10px; color: var(--stone-400); margin-top: 1px; }
+  .stat.s-purple { border-left: 3px solid var(--purple); }
+  .stat.s-green { border-left: 3px solid var(--green); }
+  .stat.s-orange { border-left: 3px solid var(--orange); }
+  .stat.s-blue { border-left: 3px solid var(--blue); }
+
+  /* Section card */
+  .sec { background: #fff; border: 1px solid var(--stone-200); border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+  .sec-h { padding: 12px 16px; border-bottom: 1px solid var(--stone-200); display: flex; align-items: center; justify-content: space-between; }
+  .sec-h h3 { font-size: 13px; font-weight: 700; }
+  .sec-h a { font-size: 10px; color: var(--purple); font-weight: 600; text-decoration: none; }
+  .act-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--stone-100); font-size: 11px; }
+  .act-row:last-child { border-bottom: none; }
+  .act-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .act-row .t { margin-left: auto; color: var(--stone-400); font-size: 10px; white-space: nowrap; }
+
+  /* State chips row */
+  .state-chips { display: flex; gap: 8px; flex-wrap: wrap; padding: 14px 16px; }
+  .state-chip { flex: 1; min-width: 60px; text-align: center; padding: 10px 4px; background: var(--stone-100); border-radius: 8px; }
+  .state-chip .v { font-size: 16px; font-weight: 800; }
+  .state-chip .l { font-size: 9px; font-weight: 600; color: var(--stone-500); }
+
+  /* Users table inside dashboard */
+  .users-mini { padding: 0; }
+  .users-mini table { width: 100%; border-collapse: collapse; }
+  .users-mini th { text-align: left; padding: 8px 16px; font-size: 10px; font-weight: 600; color: var(--stone-500); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--stone-200); }
+  .users-mini td { padding: 8px 16px; font-size: 11px; border-bottom: 1px solid var(--stone-100); }
+  .users-mini .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 9px; font-weight: 700; }
+  .users-mini .badge.admin { background: var(--purple-bg); color: var(--purple); }
+  .users-mini .badge.user { background: var(--stone-100); color: var(--stone-600); }
+
+  /* ═══════════════════ MOBILE MOCKUP FRAME ═══════════════════ */
+  .phone {
+    width: 360px; background: #fff; border-radius: 28px; border: 3px solid #3f3f46;
+    overflow: hidden; position: relative; box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+  .phone-notch { height: 36px; background: #fff; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--stone-900); }
+  .phone-topbar { height: 48px; background: #fff; border-bottom: 1px solid var(--stone-200); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; }
+  .phone-topbar-logo { display: flex; align-items: center; gap: 6px; }
+  .phone-topbar-logo svg { width: 24px; height: 24px; }
+  .phone-topbar-logo span { font-size: 15px; font-weight: 800; color: var(--purple); }
+  .phone-topbar-r { display: flex; align-items: center; gap: 8px; }
+
+  .phone-switch { margin: 8px 12px; background: var(--stone-100); border-radius: 8px; padding: 3px; display: flex; gap: 3px; }
+  .phone-switch .sb-switch-btn { font-size: 10px; padding: 6px 0; }
+
+  .phone-body { padding: 12px 14px 72px; min-height: 480px; background: var(--stone-50); }
+
+  .phone-tabs {
+    position: absolute; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--stone-200);
+    display: flex; justify-content: space-around; padding: 6px 0 18px;
+  }
+  .phone-tab { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 9px; font-weight: 600; color: var(--stone-400); padding: 4px 8px; }
+  .phone-tab.on { color: var(--purple); }
+  .phone-tab.on-o { color: var(--orange); }
+  .phone-tab svg { width: 20px; height: 20px; }
+
+  /* Mobile stat */
+  .m-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .m-stat { background: #fff; border: 1px solid var(--stone-200); border-radius: 8px; padding: 12px; }
+  .m-stat .s-label { font-size: 10px; font-weight: 600; color: var(--stone-500); }
+  .m-stat .s-val { font-size: 20px; font-weight: 800; }
+
+  /* ═══════════════════ SIDE-BY-SIDE LAYOUTS ═══════════════════ */
+  .side-by-side { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .side-by-side > * { flex: 1; min-width: 340px; }
+
+  .phones-row { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+  .phone-col { display: flex; flex-direction: column; align-items: center; }
+  .phone-col-label { font-size: 10px; font-weight: 700; color: #71717a; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+
+  /* ═══════════════════ FORM MOCKUP (publish) ═══════════════════ */
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .form-field label { display: block; font-size: 10px; font-weight: 600; color: var(--stone-600); margin-bottom: 3px; }
+  .form-field input, .form-field select {
+    width: 100%; padding: 7px 10px; border: 1px solid var(--stone-200); border-radius: 7px;
+    font-size: 11px; color: var(--stone-900); background: #fff;
+  }
+  .form-field textarea {
+    width: 100%; padding: 7px 10px; border: 1px solid var(--stone-200); border-radius: 7px;
+    font-size: 11px; color: var(--stone-900); background: #fff; resize: none; height: 60px;
+  }
+  .form-btn {
+    width: 100%; padding: 10px; border: none; border-radius: 8px; font-size: 12px; font-weight: 700;
+    cursor: pointer; margin-top: 6px;
+  }
+  .form-btn.primary { background: var(--purple); color: #fff; }
+  .form-btn.secondary { background: var(--orange); color: var(--stone-900); }
+
+  /* ═══════════════════ SETTINGS MOCKUP ═══════════════════ */
+  .set-card { background: #fff; border: 1px solid var(--stone-200); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  .set-card h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+  .set-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--stone-100); }
+  .set-row:last-child { border-bottom: none; }
+  .set-row .lbl { font-size: 11px; font-weight: 500; color: var(--stone-600); }
+  .set-row .val { font-size: 11px; color: var(--stone-900); background: var(--stone-100); padding: 5px 10px; border: 1px solid var(--stone-200); border-radius: 6px; min-width: 160px; text-align: right; }
+  .set-row .val.ro { color: var(--stone-400); background: var(--stone-50); }
+  .toggle { width: 36px; height: 20px; border-radius: 10px; background: var(--purple); position: relative; }
+  .toggle .k { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .chip { padding: 5px 10px; border-radius: 6px; font-size: 10px; font-weight: 600; border: 1px solid var(--stone-200); color: var(--stone-500); }
+  .chip.sel { background: var(--purple-bg); border-color: var(--purple-border); color: var(--purple); }
+  .lang-pick { display: flex; gap: 6px; margin-top: 4px; }
+  .lang-pick button {
+    flex: 1; padding: 8px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; border: 2px solid;
+  }
+  .lang-pick .sel { background: var(--purple-bg); border-color: var(--purple-border); color: var(--purple); }
+  .lang-pick .unsel { background: var(--stone-100); border-color: var(--stone-200); color: var(--stone-500); }
+
+  /* ═══════════════════ PROFILE MOCKUP ═══════════════════ */
+  .prof-header {
+    text-align: center; padding: 24px 16px; background: linear-gradient(135deg, var(--purple), var(--purple-light));
+    border-radius: 12px; color: #fff; margin-bottom: 14px;
+  }
+  .prof-header .av { width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 3px solid rgba(255,255,255,0.4); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; margin: 0 auto 10px; }
+  .prof-header .nm { font-size: 18px; font-weight: 700; }
+  .prof-header .em { font-size: 11px; opacity: 0.7; }
+  .prof-header .ps { display: flex; justify-content: center; gap: 28px; margin-top: 14px; }
+  .prof-header .ps .pv { font-size: 20px; font-weight: 800; }
+  .prof-header .ps .pl { font-size: 9px; opacity: 0.7; }
+  .prof-sub { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1px solid var(--stone-200); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .prof-sub .ps-label { font-size: 11px; font-weight: 600; color: var(--stone-600); }
+  .prof-sub .ps-date { font-size: 10px; color: var(--stone-400); }
+  .prof-sub .ps-badge { padding: 3px 10px; border-radius: 6px; font-size: 10px; font-weight: 700; background: var(--green-bg); color: #166534; }
+  .prof-menu-item {
+    display: flex; align-items: center; justify-content: space-between; padding: 12px 14px;
+    background: #fff; border: 1px solid var(--stone-200); border-radius: 8px; margin-bottom: 5px;
+  }
+  .prof-menu-item svg { width: 16px; height: 16px; color: var(--stone-500); margin-right: 10px; }
+  .prof-menu-item span { font-size: 12px; font-weight: 500; color: var(--stone-600); }
+  .prof-menu-item .arr { color: var(--stone-400); font-size: 13px; margin-left: auto; }
+  .prof-logout {
+    width: 100%; padding: 12px; border-radius: 10px; border: 2px solid var(--red); background: none;
+    color: var(--red); font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 10px;
+  }
+
+  /* ═══════════════════ JOBS TABLE MOCKUP ═══════════════════ */
+  .jobs-toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; }
+  .jobs-toolbar input { flex: 1; padding: 7px 12px; border: 1px solid var(--stone-200); border-radius: 7px; font-size: 11px; }
+  .jobs-toolbar .jt-stat { font-size: 11px; font-weight: 700; color: var(--stone-500); white-space: nowrap; }
+  .jobs-toolbar .jt-stat b { color: var(--green); }
+  .jobs-tbl { width: 100%; border-collapse: collapse; }
+  .jobs-tbl th { text-align: left; padding: 7px 10px; font-size: 9px; font-weight: 700; color: var(--stone-500); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--stone-200); }
+  .jobs-tbl td { padding: 8px 10px; font-size: 11px; border-bottom: 1px solid var(--stone-100); }
+  .jobs-tbl .status { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 9px; font-weight: 700; }
+  .jobs-tbl .status.active { background: var(--green-bg); color: #166534; }
+  .jobs-tbl .status.inactive { background: var(--stone-100); color: var(--stone-600); }
+  .jobs-tbl .btn { padding: 3px 8px; border-radius: 5px; font-size: 9px; font-weight: 700; border: none; cursor: pointer; }
+  .jobs-tbl .btn.edit { background: var(--purple-bg); color: var(--purple); }
+  .jobs-tbl .btn.del { background: #fee2e2; color: #b91c1c; }
+
+  /* ═══════════════════ RESPONSIVE MOCKUP NAV ═══════════════════ */
+  @media (max-width: 900px) {
+    .mockup-nav { width: 100%; position: relative; flex-direction: row; flex-wrap: wrap; overflow-x: auto; }
+    .mockup-nav-header { padding: 10px 14px; border-bottom: none; border-right: 1px solid #2e2e2e; }
+    .nav-group-label { display: none; }
+    .nav-link { padding: 10px 12px; font-size: 11px; white-space: nowrap; border-left: none; border-bottom: 2px solid transparent; }
+    .nav-link.active { border-bottom-color: var(--orange); }
+    .nav-link svg, .nav-link .tag { display: none; }
+    .mockup-nav-footer { display: none; }
+    .mockup-main { margin-left: 0; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .side-by-side > * { min-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ MOCKUP NAVIGATION ═══════════════════ -->
+<nav class="mockup-nav">
+  <div class="mockup-nav-header">
+    <h1>JOB CLUB REDESIGN</h1>
+    <p>Interactive Mockup v2</p>
+  </div>
+
+  <div class="nav-group-label">Admin Mode</div>
+  <div class="nav-link active" onclick="show('dashboard')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Dashboard
+  </div>
+  <div class="nav-link" onclick="show('publish')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Publish Job
+  </div>
+  <div class="nav-link" onclick="show('manage')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/></svg>
+    Manage Jobs
+  </div>
+
+  <div class="nav-group-label">User Mode</div>
+  <div class="nav-link" onclick="show('userview')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    Client View
+  </div>
+
+  <div class="nav-group-label">Shared Pages</div>
+  <div class="nav-link" onclick="show('profile')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.38 8.38 0 0113 0"/></svg>
+    Profile
+  </div>
+  <div class="nav-link" onclick="show('settings')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33"/></svg>
+    Settings
+  </div>
+
+  <div class="nav-group-label">Mobile</div>
+  <div class="nav-link" onclick="show('mobile')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+    Mobile Views
+    <span class="tag">4</span>
+  </div>
+
+  <div class="mockup-nav-footer">
+    <p>Click each section to see the proposed design. Yellow notes explain what changed and why.</p>
+  </div>
+</nav>
+
+<!-- ═══════════════════ MAIN CONTENT ═══════════════════ -->
+<div class="mockup-main">
+
+<!-- ════════════ 1. DASHBOARD ════════════ -->
+<div id="v-dashboard" class="mockup-view active">
+  <div class="view-header"><h2>Admin Dashboard</h2><p>New landing page for admin mode — replaces the old combined publish+users page</p></div>
+  <span class="view-label desktop">Desktop</span>
+
+  <div class="desktop-frame">
+    <div class="desktop-chrome">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <div class="url">jobclub.mlfrance.dev/admin</div>
+    </div>
+    <div class="desktop-inner">
+      <!-- Sidebar -->
+      <div class="sb">
+        <div class="sb-logo">
+          <svg viewBox="0 0 40 40" fill="none"><path d="M10 32L18 8 22 20 32 4" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M29 8L32 4 31 12" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Job Club</span>
+        </div>
+        <div class="sb-switch">
+          <button class="sb-switch-btn on-admin">Admin</button>
+          <button class="sb-switch-btn off">Client</button>
+        </div>
+        <div class="sb-section">
+          <div class="sb-label">Administration</div>
+          <div class="sb-item on">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            Tableau de bord
+          </div>
+          <div class="sb-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Publier une annonce
+          </div>
+          <div class="sb-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/></svg>
+            Gestion des annonces
+            <span class="ct">847</span>
+          </div>
+        </div>
+        <div class="sb-profile">
+          <div class="sb-avatar">L</div>
+          <div><div class="sb-profile-name">Lucas</div><div class="sb-profile-email">lucas@mlfrance.dev</div></div>
+        </div>
+      </div>
+      <!-- Content -->
+      <div class="mc">
+        <div class="mc-topbar">
+          <div class="crumb">Admin › <b>Tableau de bord</b></div>
+          <div class="mc-topbar-right">
+            <div class="lang">FR</div>
+            <div class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div class="dot"></div></div>
+            <div class="sb-avatar" style="width:28px;height:28px;font-size:10px;">L</div>
+          </div>
+        </div>
+        <div class="mc-body">
+          <div class="mc-title">Tableau de bord</div>
+          <div class="mc-subtitle">Vue d'ensemble de votre Job Club</div>
+
+          <div class="stats-row">
+            <div class="stat s-purple"><div class="s-label">Annonces actives</div><div class="s-val">847</div><div class="s-sub">+23 cette semaine</div></div>
+            <div class="stat s-green"><div class="s-label">Utilisateurs</div><div class="s-val">12</div><div class="s-sub">3 admins · 9 membres</div></div>
+            <div class="stat s-orange"><div class="s-label">Abonnes actifs</div><div class="s-val">9</div><div class="s-sub">$360 AUD/mois</div></div>
+            <div class="stat s-blue"><div class="s-label">Annonces 88 jours</div><div class="s-val">312</div><div class="s-sub">37% du total</div></div>
+          </div>
+
+          <!-- Recent activity -->
+          <div class="sec">
+            <div class="sec-h"><h3>Activite recente</h3><a href="#">Voir tout ›</a></div>
+            <div class="act-row"><div class="act-dot" style="background:var(--green)"></div><span><b>Farm Hand — Bundaberg QLD</b> publiee</span><span class="t">il y a 12 min</span></div>
+            <div class="act-row"><div class="act-dot" style="background:var(--green)"></div><span><b>Housekeeping — Byron Bay NSW</b> publiee</span><span class="t">il y a 45 min</span></div>
+            <div class="act-row"><div class="act-dot" style="background:var(--orange)"></div><span><b>Marie D.</b> s'est inscrite</span><span class="t">il y a 2h</span></div>
+            <div class="act-row"><div class="act-dot" style="background:var(--red)"></div><span><b>15 annonces</b> expirees (30 jours)</span><span class="t">aujourd'hui</span></div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <!-- Jobs by state -->
+            <div class="sec">
+              <div class="sec-h"><h3>Annonces par etat</h3></div>
+              <div class="state-chips">
+                <div class="state-chip"><div class="v">284</div><div class="l">QLD</div></div>
+                <div class="state-chip"><div class="v">198</div><div class="l">NSW</div></div>
+                <div class="state-chip"><div class="v">142</div><div class="l">VIC</div></div>
+                <div class="state-chip"><div class="v">95</div><div class="l">SA</div></div>
+                <div class="state-chip"><div class="v">78</div><div class="l">WA</div></div>
+                <div class="state-chip"><div class="v">50</div><div class="l">Other</div></div>
+              </div>
+            </div>
+
+            <!-- Users preview -->
+            <div class="sec">
+              <div class="sec-h"><h3>Utilisateurs recents</h3><a href="#">Gerer ›</a></div>
+              <div class="users-mini">
+                <table>
+                  <thead><tr><th>Nom</th><th>Role</th><th>Inscrit</th></tr></thead>
+                  <tbody>
+                    <tr><td>Marie D.</td><td><span class="badge user">User</span></td><td style="color:var(--stone-400)">Aujourd'hui</td></tr>
+                    <tr><td>Lucas M.</td><td><span class="badge admin">Admin</span></td><td style="color:var(--stone-400)">1 mars</td></tr>
+                    <tr><td>Tom B.</td><td><span class="badge user">User</span></td><td style="color:var(--stone-400)">28 fev</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong>What changed:</strong> The old <code>/admin</code> was a publish form + user table crammed together. Now:
+    <ul class="change-list">
+      <li><code>/admin</code> is a <strong>dashboard</strong> — stats, activity, state breakdown, user preview</li>
+      <li>Publish form moves to <code>/admin/publish</code></li>
+      <li>User management gets its own link via "Gerer ›" — but the preview lives on the dashboard for quick glance</li>
+      <li><strong>Stats page dropped</strong> — the dashboard IS the stats page. No separate redundant page.</li>
+      <li>Admin sidebar: 3 nav items only (Dashboard, Publish, Manage Jobs). Clean.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ════════════ 2. PUBLISH JOB ════════════ -->
+<div id="v-publish" class="mockup-view">
+  <div class="view-header"><h2>Publish Job</h2><p>Existing publish form — now on its own page at /admin/publish</p></div>
+  <span class="view-label desktop">Desktop</span>
+
+  <div class="desktop-frame">
+    <div class="desktop-chrome">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <div class="url">jobclub.mlfrance.dev/admin/publish</div>
+    </div>
+    <div class="desktop-inner">
+      <div class="sb">
+        <div class="sb-logo"><svg viewBox="0 0 40 40" fill="none"><path d="M10 32L18 8 22 20 32 4" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M29 8L32 4 31 12" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Job Club</span></div>
+        <div class="sb-switch"><button class="sb-switch-btn on-admin">Admin</button><button class="sb-switch-btn off">Client</button></div>
+        <div class="sb-section">
+          <div class="sb-label">Administration</div>
+          <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Tableau de bord</div>
+          <div class="sb-item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Publier une annonce</div>
+          <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/></svg>Gestion des annonces<span class="ct">847</span></div>
+        </div>
+        <div class="sb-profile"><div class="sb-avatar">L</div><div><div class="sb-profile-name">Lucas</div><div class="sb-profile-email">lucas@mlfrance.dev</div></div></div>
+      </div>
+      <div class="mc">
+        <div class="mc-topbar"><div class="crumb">Admin › <b>Publier une annonce</b></div><div class="mc-topbar-right"><div class="lang">FR</div><div class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div><div class="sb-avatar" style="width:28px;height:28px;font-size:10px;">L</div></div></div>
+        <div class="mc-body" style="max-width: 640px;">
+          <div class="mc-title">Publier une annonce</div>
+          <div class="mc-subtitle">Remplissez les details ou collez une URL pour extraction automatique</div>
+
+          <!-- URL extract -->
+          <div class="sec" style="margin-bottom: 16px;">
+            <div style="padding: 14px 16px;">
+              <div style="font-size: 12px; font-weight: 700; margin-bottom: 6px;">Extraction automatique</div>
+              <div style="display: flex; gap: 8px;">
+                <input style="flex:1; padding: 7px 10px; border: 1px solid var(--stone-200); border-radius: 7px; font-size: 11px;" placeholder="https://www.gumtree.com.au/...">
+                <button class="form-btn secondary" style="width: auto; padding: 7px 16px; margin: 0;">Extraire</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form -->
+          <div class="form-row">
+            <div class="form-field"><label>Titre du poste *</label><input placeholder="Ex: Farm Hand — Fruit Picking"></div>
+            <div class="form-field"><label>Entreprise *</label><input placeholder="Ex: Sunny Farms"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-field"><label>Etat *</label><select><option>Selectionnez...</option><option>QLD</option><option>NSW</option></select></div>
+            <div class="form-field"><label>Ville / Zone</label><input placeholder="Ex: Bundaberg"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-field"><label>Categorie *</label><select><option>Selectionnez...</option><option>Ferme</option><option>Hotellerie</option></select></div>
+            <div class="form-field"><label>Type de contrat</label><select><option>Casual</option><option>Full-time</option><option>Part-time</option></select></div>
+          </div>
+          <div class="form-row">
+            <div class="form-field"><label>Salaire</label><input placeholder="Ex: $28/h"></div>
+            <div class="form-field" style="display: flex; align-items: flex-end;">
+              <label style="display: flex; align-items: center; gap: 6px; padding: 8px 0; cursor: pointer;">
+                <input type="checkbox" style="width: 14px; height: 14px;">
+                <span style="font-size: 11px; font-weight: 600; color: var(--stone-600);">Eligible 88 jours</span>
+              </label>
+            </div>
+          </div>
+          <div class="form-field" style="margin-bottom: 10px;"><label>Description *</label><textarea placeholder="Details du poste, contact, etc."></textarea></div>
+          <button class="form-btn primary">Publier l'annonce</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong>Same form, own page.</strong> The publish form is identical to what exists today — just moved from <code>/admin</code> to <code>/admin/publish</code>. User management no longer shares this page.
+  </div>
+</div>
+
+<!-- ════════════ 3. MANAGE JOBS ════════════ -->
+<div id="v-manage" class="mockup-view">
+  <div class="view-header"><h2>Manage Jobs</h2><p>Existing jobs table — now accessible from both desktop sidebar and mobile tabs</p></div>
+  <span class="view-label desktop">Desktop</span>
+
+  <div class="desktop-frame">
+    <div class="desktop-chrome">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <div class="url">jobclub.mlfrance.dev/admin/jobs</div>
+    </div>
+    <div class="desktop-inner">
+      <div class="sb">
+        <div class="sb-logo"><svg viewBox="0 0 40 40" fill="none"><path d="M10 32L18 8 22 20 32 4" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M29 8L32 4 31 12" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Job Club</span></div>
+        <div class="sb-switch"><button class="sb-switch-btn on-admin">Admin</button><button class="sb-switch-btn off">Client</button></div>
+        <div class="sb-section">
+          <div class="sb-label">Administration</div>
+          <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Tableau de bord</div>
+          <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Publier une annonce</div>
+          <div class="sb-item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/></svg>Gestion des annonces<span class="ct">847</span></div>
+        </div>
+        <div class="sb-profile"><div class="sb-avatar">L</div><div><div class="sb-profile-name">Lucas</div><div class="sb-profile-email">lucas@mlfrance.dev</div></div></div>
+      </div>
+      <div class="mc">
+        <div class="mc-topbar"><div class="crumb">Admin › <b>Gestion des annonces</b></div><div class="mc-topbar-right"><div class="lang">FR</div><div class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div><div class="sb-avatar" style="width:28px;height:28px;font-size:10px;">L</div></div></div>
+        <div class="mc-body">
+          <div class="mc-title">Gestion des annonces</div>
+          <div class="mc-subtitle">Modifier, desactiver ou reactiver vos annonces</div>
+
+          <div class="jobs-toolbar">
+            <input placeholder="Rechercher par titre ou entreprise...">
+            <div class="jt-stat"><b>847</b> actives · 53 inactives</div>
+          </div>
+
+          <div class="sec">
+            <table class="jobs-tbl">
+              <thead><tr><th>Titre</th><th>Entreprise</th><th>Etat</th><th>Categorie</th><th>Date</th><th>Statut</th><th style="text-align:center">Actions</th></tr></thead>
+              <tbody>
+                <tr><td style="font-weight:600">Farm Hand — Fruit Picking</td><td>Sunny Farms</td><td style="font-weight:600">QLD</td><td>Ferme</td><td style="color:var(--stone-400)">7 avr</td><td><span class="status active">Actif</span></td><td style="text-align:center"><button class="btn edit">Modifier</button> <button class="btn del">Supprimer</button></td></tr>
+                <tr><td style="font-weight:600">Housekeeping — Hotel Resort</td><td>Beachside Hotel</td><td style="font-weight:600">NSW</td><td>Hotellerie</td><td style="color:var(--stone-400)">7 avr</td><td><span class="status active">Actif</span></td><td style="text-align:center"><button class="btn edit">Modifier</button> <button class="btn del">Supprimer</button></td></tr>
+                <tr><td style="font-weight:600">Construction Labourer</td><td>BuildCo</td><td style="font-weight:600">VIC</td><td>Construction</td><td style="color:var(--stone-400)">6 avr</td><td><span class="status active">Actif</span></td><td style="text-align:center"><button class="btn edit">Modifier</button> <button class="btn del">Supprimer</button></td></tr>
+                <tr style="opacity:0.6"><td style="font-weight:600">Grape Picker</td><td>Valley Wines</td><td style="font-weight:600">SA</td><td>Ferme</td><td style="color:var(--stone-400)">5 mars</td><td><span class="status inactive">Inactif</span></td><td style="text-align:center"><button class="btn edit">Modifier</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong>No changes to this page</strong> — the Manage Jobs table stays as-is. The only difference is it's now reachable from mobile bottom tabs (previously desktop-only).
+  </div>
+</div>
+
+<!-- ════════════ 4. CLIENT VIEW ════════════ -->
+<div id="v-userview" class="mockup-view">
+  <div class="view-header"><h2>Client View</h2><p>What admins see when they switch to "Client" mode — and what regular subscribers always see</p></div>
+  <span class="view-label desktop">Desktop</span>
+
+  <div class="desktop-frame">
+    <div class="desktop-chrome">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <div class="url">jobclub.mlfrance.dev/feed</div>
+    </div>
+    <div class="desktop-inner">
+      <div class="sb">
+        <div class="sb-logo"><svg viewBox="0 0 40 40" fill="none"><path d="M10 32L18 8 22 20 32 4" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M29 8L32 4 31 12" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Job Club</span></div>
+        <div class="sb-switch"><button class="sb-switch-btn off">Admin</button><button class="sb-switch-btn on-user">Client</button></div>
+        <div class="sb-section">
+          <div class="sb-item on-o"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>Accueil</div>
+          <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Tous les etats</div>
+          <div class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>Sauvegardes</div>
+        </div>
+        <div class="sb-profile"><div class="sb-avatar">L</div><div><div class="sb-profile-name">Lucas</div><div class="sb-profile-email">lucas@mlfrance.dev</div></div></div>
+      </div>
+      <div class="mc">
+        <div class="mc-topbar"><div class="crumb"><b>Accueil</b> — Dernieres annonces</div><div class="mc-topbar-right"><div class="lang">FR</div><div class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div><div class="sb-avatar" style="width:28px;height:28px;font-size:10px;">L</div></div></div>
+        <div class="mc-body">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+            <div style="padding: 6px 14px; border-radius: 20px; background: var(--orange-bg); color: var(--orange-dark); font-size: 11px; font-weight: 700;">Toutes</div>
+            <div style="padding: 6px 14px; border-radius: 20px; background: var(--stone-100); color: var(--stone-500); font-size: 11px; font-weight: 600;">Ferme</div>
+            <div style="padding: 6px 14px; border-radius: 20px; background: var(--stone-100); color: var(--stone-500); font-size: 11px; font-weight: 600;">Hotellerie</div>
+            <div style="padding: 6px 14px; border-radius: 20px; background: var(--stone-100); color: var(--stone-500); font-size: 11px; font-weight: 600;">Construction</div>
+            <div style="padding: 6px 14px; border-radius: 20px; background: var(--stone-100); color: var(--stone-500); font-size: 11px; font-weight: 600;">88 Jours</div>
+          </div>
+          <div style="display:grid; gap: 10px;">
+            <div style="background:#fff; border: 1px solid var(--stone-200); border-radius: 10px; padding: 14px; display:flex; justify-content:space-between; align-items: start;">
+              <div><div style="font-size: 13px; font-weight: 700;">Farm Hand — Fruit Picking</div><div style="font-size: 11px; color: var(--stone-500); margin-top: 2px;">Bundaberg, QLD · $28/h · Casual</div></div>
+              <span style="background: var(--orange-bg); color: var(--orange-dark); font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 5px; flex-shrink:0;">88 JOURS</span>
+            </div>
+            <div style="background:#fff; border: 1px solid var(--stone-200); border-radius: 10px; padding: 14px;">
+              <div style="font-size: 13px; font-weight: 700;">Housekeeping — Hotel Resort</div><div style="font-size: 11px; color: var(--stone-500); margin-top: 2px;">Byron Bay, NSW · $25/h · Part-time</div>
+            </div>
+            <div style="background:#fff; border: 1px solid var(--stone-200); border-radius: 10px; padding: 14px;">
+              <div style="font-size: 13px; font-weight: 700;">Construction Labourer</div><div style="font-size: 11px; color: var(--stone-500); margin-top: 2px;">Melbourne, VIC · $32/h · Full-time</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong>Admin in client mode</strong> — the mode switch stays visible (so you can flip back), but all admin nav items disappear. Sidebar shows: Home, All States, Saved. This is exactly what a paying subscriber sees.
+    <br><br><strong>For regular users:</strong> the mode switch component doesn't render at all. They only see the 3 user nav items.
+  </div>
+</div>
+
+<!-- ════════════ 5. PROFILE ════════════ -->
+<div id="v-profile" class="mockup-view">
+  <div class="view-header"><h2>Profile (Cleaned)</h2><p>Removed fake stats, shows real subscription data</p></div>
+  <span class="view-label both">Both modes</span>
+
+  <div style="max-width: 420px;">
+    <div class="desktop-frame">
+      <div class="desktop-chrome">
+        <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+        <div class="url">jobclub.mlfrance.dev/profile</div>
+      </div>
+      <div style="padding: 20px; background: var(--stone-50);">
+        <div class="prof-header">
+          <div class="av">L</div>
+          <div class="nm">Lucas</div>
+          <div class="em">lucas@mlfrance.dev</div>
+          <div class="ps">
+            <div class="stat" style="text-align:center"><div class="pv">23</div><div class="pl">Sauvegardees</div></div>
+          </div>
+        </div>
+
+        <div class="prof-sub">
+          <div><div class="ps-label">Abonnement</div><div class="ps-date">Renouvellement le 7 mai 2026</div></div>
+          <div class="ps-badge">Actif</div>
+        </div>
+
+        <div class="prof-menu-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg><span>Mes annonces sauvegardees</span><span class="arr">›</span></div>
+        <div class="prof-menu-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0"/></svg><span>Parametres du compte</span><span class="arr">›</span></div>
+        <div class="prof-menu-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg><span>Gerer l'abonnement</span><span class="arr">›</span></div>
+        <div class="prof-menu-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg><span>Guide d'utilisation</span><span class="arr">›</span></div>
+        <button class="prof-logout">Se deconnecter</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong>What changed:</strong>
+    <ul class="change-list">
+      <li>Removed <strong>"Vus: 0"</strong> — was always 0, never tracked. Looked broken.</li>
+      <li>Removed <strong>"Jours restants: ∞"</strong> — was always infinity, not connected to real data.</li>
+      <li>Only shows <strong>"Sauvegardees: 23"</strong> — real data from the API.</li>
+      <li>Subscription card now shows <strong>actual renewal date</strong> instead of just "Actif" badge.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ════════════ 6. SETTINGS ════════════ -->
+<div id="v-settings" class="mockup-view">
+  <div class="view-header"><h2>Settings (Cleaned)</h2><p>Read-only email, language selector added, 3 save buttons kept</p></div>
+  <span class="view-label both">Both modes</span>
+
+  <div style="max-width: 480px;">
+    <div class="desktop-frame">
+      <div class="desktop-chrome">
+        <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+        <div class="url">jobclub.mlfrance.dev/settings</div>
+      </div>
+      <div style="padding: 20px; background: var(--stone-50);">
+        <div style="font-size: 18px; font-weight: 800; margin-bottom: 18px;">Parametres</div>
+
+        <!-- Personal -->
+        <div class="set-card">
+          <h3>Informations personnelles</h3>
+          <div class="set-row"><div class="lbl">Nom</div><div class="val">Lucas M.</div></div>
+          <div class="set-row"><div class="lbl">Email</div><div class="val ro">lucas@mlfrance.dev</div></div>
+          <div style="font-size: 10px; color: var(--stone-400); font-style: italic; padding-top: 4px;">L'email ne peut pas etre modifie (utilise pour la connexion)</div>
+          <button class="form-btn primary" style="margin-top: 10px; font-size: 11px; padding: 8px;">Enregistrer</button>
+        </div>
+
+        <!-- Language -->
+        <div class="set-card">
+          <h3>Langue / Language</h3>
+          <div class="lang-pick">
+            <button class="sel">Francais</button>
+            <button class="unsel">English</button>
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="set-card">
+          <h3>Mot de passe</h3>
+          <div class="set-row"><div class="lbl">Actuel</div><div class="val">••••••••</div></div>
+          <div class="set-row"><div class="lbl">Nouveau</div><div class="val" style="color:var(--stone-300)">Nouveau mot de passe</div></div>
+          <div class="set-row"><div class="lbl">Confirmer</div><div class="val" style="color:var(--stone-300)">Confirmer</div></div>
+          <button class="form-btn primary" style="margin-top: 10px; font-size: 11px; padding: 8px;">Changer le mot de passe</button>
+        </div>
+
+        <!-- Preferences -->
+        <div class="set-card">
+          <h3>Preferences de notification</h3>
+          <div class="set-row">
+            <div><div class="lbl">Alertes email</div><div style="font-size: 9px; color: var(--stone-400);">Recevoir les nouvelles annonces par email</div></div>
+            <div class="toggle"><div class="k"></div></div>
+          </div>
+          <div style="margin-top: 10px;"><div class="lbl" style="margin-bottom: 6px;">Etats preferes</div>
+            <div class="chips">
+              <div class="chip sel">QLD</div><div class="chip sel">NSW</div><div class="chip">VIC</div><div class="chip">SA</div><div class="chip sel">WA</div><div class="chip">TAS</div><div class="chip">NT</div><div class="chip">ACT</div>
+            </div>
+          </div>
+          <div style="margin-top: 12px;"><div class="lbl" style="margin-bottom: 6px;">Categories preferees</div>
+            <div class="chips">
+              <div class="chip sel">Ferme</div><div class="chip">Hotellerie</div><div class="chip sel">Construction</div><div class="chip">Retail</div><div class="chip">Nettoyage</div><div class="chip">Evenements</div><div class="chip">Animaux</div><div class="chip">Transport</div><div class="chip">Autre</div>
+            </div>
+          </div>
+          <button class="form-btn primary" style="margin-top: 12px; font-size: 11px; padding: 8px;">Enregistrer les preferences</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong>What changed:</strong>
+    <ul class="change-list">
+      <li>Email is <strong>read-only</strong> with explanation — prevents auth confusion</li>
+      <li><strong>Language selector added</strong> — no longer only in the TopBar</li>
+      <li><strong>3 separate save buttons kept</strong> — one per section. Safer: you can change your password without accidentally saving a name change.</li>
+      <li>Each button has a <strong>specific label</strong> ("Enregistrer", "Changer le mot de passe", "Enregistrer les preferences") instead of generic "Save"</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ════════════ 7. MOBILE VIEWS ════════════ -->
+<div id="v-mobile" class="mockup-view">
+  <div class="view-header"><h2>Mobile Views</h2><p>Both admin and client modes on phone — mode switch below topbar, tabs change per mode</p></div>
+  <span class="view-label mobile">Mobile</span>
+
+  <div class="phones-row">
+    <!-- ADMIN MOBILE -->
+    <div class="phone-col">
+      <div class="phone-col-label">Admin Mode — Dashboard</div>
+      <div class="phone">
+        <div class="phone-notch">9:41</div>
+        <div class="phone-topbar">
+          <div class="phone-topbar-logo"><svg viewBox="0 0 40 40" fill="none" style="width:22px;height:22px"><path d="M10 32L18 8 22 20 32 4" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M29 8L32 4 31 12" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Job Club</span></div>
+          <div class="phone-topbar-r"><div class="lang" style="font-size:10px;padding:3px 6px;">FR</div><div class="bell" style="padding:0"><svg viewBox="0 0 24 24" fill="none" stroke="var(--stone-500)" stroke-width="2" style="width:16px;height:16px"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div class="dot" style="width:5px;height:5px;top:-1px;right:-1px;border-width:1px"></div></div></div>
+        </div>
+        <div class="phone-switch"><button class="sb-switch-btn on-admin" style="font-size:10px;padding:6px 0;">Admin</button><button class="sb-switch-btn off" style="font-size:10px;padding:6px 0;">Client</button></div>
+        <div class="phone-body">
+          <div style="font-size:16px;font-weight:800;margin-bottom:2px;">Tableau de bord</div>
+          <div style="font-size:10px;color:var(--stone-500);margin-bottom:12px;">Vue d'ensemble</div>
+          <div class="m-stats">
+            <div class="m-stat"><div class="s-label">Annonces</div><div class="s-val" style="color:var(--purple)">847</div></div>
+            <div class="m-stat"><div class="s-label">Utilisateurs</div><div class="s-val" style="color:var(--green)">12</div></div>
+            <div class="m-stat"><div class="s-label">Abonnes</div><div class="s-val" style="color:var(--orange)">9</div></div>
+            <div class="m-stat"><div class="s-label">88 jours</div><div class="s-val" style="color:var(--blue)">312</div></div>
+          </div>
+          <div style="background:#fff;border:1px solid var(--stone-200);border-radius:8px;overflow:hidden;">
+            <div style="padding:10px 12px;border-bottom:1px solid var(--stone-200);font-size:11px;font-weight:700;">Activite recente</div>
+            <div style="padding:8px 12px;border-bottom:1px solid var(--stone-100);font-size:10px;display:flex;align-items:center;gap:6px;">
+              <div style="width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0"></div><span>Farm Hand — Bundaberg</span><span style="margin-left:auto;color:var(--stone-400);font-size:9px">12m</span>
+            </div>
+            <div style="padding:8px 12px;border-bottom:1px solid var(--stone-100);font-size:10px;display:flex;align-items:center;gap:6px;">
+              <div style="width:5px;height:5px;border-radius:50%;background:var(--orange);flex-shrink:0"></div><span>Marie D. inscrite</span><span style="margin-left:auto;color:var(--stone-400);font-size:9px">2h</span>
+            </div>
+            <div style="padding:8px 12px;font-size:10px;display:flex;align-items:center;gap:6px;">
+              <div style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></div><span>15 annonces expirees</span><span style="margin-left:auto;color:var(--stone-400);font-size:9px">auj.</span>
+            </div>
+          </div>
+        </div>
+        <div class="phone-tabs">
+          <div class="phone-tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Board</div>
+          <div class="phone-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Publier</div>
+          <div class="phone-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/></svg>Annonces</div>
+          <div class="phone-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.38 8.38 0 0113 0"/></svg>Profil</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CLIENT MOBILE -->
+    <div class="phone-col">
+      <div class="phone-col-label">Client Mode — Feed</div>
+      <div class="phone">
+        <div class="phone-notch">9:41</div>
+        <div class="phone-topbar">
+          <div class="phone-topbar-logo"><svg viewBox="0 0 40 40" fill="none" style="width:22px;height:22px"><path d="M10 32L18 8 22 20 32 4" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M29 8L32 4 31 12" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Job Club</span></div>
+          <div class="phone-topbar-r"><div class="lang" style="font-size:10px;padding:3px 6px;">FR</div><div class="bell" style="padding:0"><svg viewBox="0 0 24 24" fill="none" stroke="var(--stone-500)" stroke-width="2" style="width:16px;height:16px"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div></div>
+        </div>
+        <div class="phone-switch"><button class="sb-switch-btn off" style="font-size:10px;padding:6px 0;">Admin</button><button class="sb-switch-btn on-user" style="font-size:10px;padding:6px 0;">Client</button></div>
+        <div class="phone-body">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+            <div style="padding:5px 12px;border-radius:16px;background:var(--orange-bg);color:var(--orange-dark);font-size:10px;font-weight:700;">Toutes</div>
+            <div style="padding:5px 12px;border-radius:16px;background:var(--stone-100);color:var(--stone-500);font-size:10px;font-weight:600;">Ferme</div>
+            <div style="padding:5px 12px;border-radius:16px;background:var(--stone-100);color:var(--stone-500);font-size:10px;font-weight:600;">Hotellerie</div>
+          </div>
+          <div style="display:grid;gap:8px;">
+            <div style="background:#fff;border:1px solid var(--stone-200);border-radius:8px;padding:12px;">
+              <div style="display:flex;justify-content:space-between"><div style="font-size:12px;font-weight:700;">Farm Hand</div><span style="background:var(--orange-bg);color:var(--orange-dark);font-size:8px;font-weight:700;padding:2px 5px;border-radius:4px;">88J</span></div>
+              <div style="font-size:10px;color:var(--stone-500);">Bundaberg, QLD · $28/h</div>
+            </div>
+            <div style="background:#fff;border:1px solid var(--stone-200);border-radius:8px;padding:12px;">
+              <div style="font-size:12px;font-weight:700;">Housekeeping</div>
+              <div style="font-size:10px;color:var(--stone-500);">Byron Bay, NSW · $25/h</div>
+            </div>
+            <div style="background:#fff;border:1px solid var(--stone-200);border-radius:8px;padding:12px;">
+              <div style="font-size:12px;font-weight:700;">Construction Labourer</div>
+              <div style="font-size:10px;color:var(--stone-500);">Melbourne, VIC · $32/h</div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-tabs">
+          <div class="phone-tab on-o"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>Accueil</div>
+          <div class="phone-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Etats</div>
+          <div class="phone-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>Sauv.</div>
+          <div class="phone-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.38 8.38 0 0113 0"/></svg>Profil</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note-box" style="max-width: 760px; margin: 20px auto;">
+    <strong>Mobile fixes:</strong>
+    <ul class="change-list">
+      <li><strong>Mode switch</strong> sits below the topbar — always visible, impossible to miss</li>
+      <li><strong>Admin tabs (4):</strong> Dashboard, Publish, Manage Jobs, Profile — "Users" folded into Dashboard</li>
+      <li><strong>Client tabs (4):</strong> Home, States, Saved, Profile — clean customer experience</li>
+      <li>Tabs swap entirely when you toggle the mode switch</li>
+      <li><strong>Non-admin users</strong> never see the mode switch — it doesn't render for them</li>
+    </ul>
+  </div>
+</div>
+
+</div><!-- /mockup-main -->
+
+<script>
+function show(id) {
+  document.querySelectorAll('.mockup-view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('v-' + id).classList.add('active');
+  event.currentTarget.classList.add('active');
+  window.scrollTo(0, 0);
+}
+</script>
+</body>
+</html>

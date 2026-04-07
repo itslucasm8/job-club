@@ -2,345 +2,383 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { useAdminView } from '@/components/AdminViewContext'
 import { useTranslation } from '@/components/LanguageContext'
 
-type User = {
-  id: string
-  email: string
-  name: string | null
-  role: string
-  createdAt: string
+type DashboardData = {
+  activeJobs: number
+  weeklyJobs: number
+  eligible88: number
+  totalUsers: number
+  adminCount: number
+  memberCount: number
+  activeSubscribers: number
+  stateCounts: Record<string, number>
+  recentJobs: { id: string; title: string; state: string; location: string; createdAt: string }[]
+  adminUsers: { id: string; name: string | null; email: string; role: string; createdAt: string }[]
+  latestSignup: { name: string | null; email: string; createdAt: string } | null
+  expiredToday: number
 }
 
-export default function AdminPage() {
+export default function AdminDashboardPage() {
   const router = useRouter()
   const { data: session } = useSession()
-  const { viewAsUser, toggleViewAsUser } = useAdminView()
   const { t, language } = useTranslation()
-  const [extracting, setExtracting] = useState(false)
-  const [publishing, setPublishing] = useState(false)
-  const [url, setUrl] = useState('')
-  const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set())
-  const [form, setForm] = useState({
-    title: '', company: '', state: '', location: '', category: '', type: 'casual', pay: '', description: '', sourceUrl: '', eligible88Days: false,
-  })
-
-  // User management
-  const [users, setUsers] = useState<User[]>([])
-  const [usersLoading, setUsersLoading] = useState(true)
+  const [data, setData] = useState<DashboardData | null>(null)
+  const [loading, setLoading] = useState(true)
   const [togglingUser, setTogglingUser] = useState<string | null>(null)
+  const [expandedUser, setExpandedUser] = useState<string | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [savingPassword, setSavingPassword] = useState(false)
+  const [addAdminEmail, setAddAdminEmail] = useState('')
+  const [addingAdmin, setAddingAdmin] = useState(false)
 
   useEffect(() => {
-    fetchUsers()
+    fetch('/api/admin/dashboard')
+      .then(res => res.ok ? res.json() : null)
+      .then(d => { if (d) setData(d) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
-  async function fetchUsers() {
-    try {
-      const res = await fetch('/api/admin/users')
-      if (res.ok) {
-        const data = await res.json()
-        setUsers(data)
-      }
-    } catch (err) {
-      console.error('Error loading users:', err)
-    } finally {
-      setUsersLoading(false)
-    }
+  function timeAgo(dateStr: string) {
+    const diff = Date.now() - new Date(dateStr).getTime()
+    if (diff < 60000) return language === 'fr' ? 'à l\'instant' : 'just now'
+    const mins = Math.floor(diff / 60000)
+    if (mins < 0) return language === 'fr' ? 'à l\'instant' : 'just now'
+    if (mins < 60) return `${mins} min`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}h`
+    const days = Math.floor(hours / 24)
+    return language === 'fr' ? `${days}j` : `${days}d`
+  }
+
+  function formatDate(dateString: string) {
+    return new Date(dateString).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-AU', { day: 'numeric', month: 'short' })
   }
 
   async function toggleUserRole(userId: string, currentRole: string) {
-    // Prevent self-demotion
     if (userId === (session?.user as any)?.id && currentRole === 'admin') {
       alert(t.admin.cannotDemoteSelf)
       return
     }
-
     const newRole = currentRole === 'admin' ? 'user' : 'admin'
     setTogglingUser(userId)
-
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, role: newRole }),
       })
-
       if (res.ok) {
-        const updated = await res.json()
-        setUsers(users.map(u => u.id === userId ? { ...u, role: updated.role } : u))
+        setData(prev => prev ? {
+          ...prev,
+          adminUsers: newRole === 'admin'
+            ? prev.adminUsers
+            : prev.adminUsers.filter(u => u.id !== userId),
+          adminCount: newRole === 'admin' ? prev.adminCount : prev.adminCount - 1,
+          memberCount: newRole === 'admin' ? prev.memberCount : prev.memberCount + 1,
+        } : prev)
       } else {
         alert(t.admin.roleUpdateError)
       }
-    } catch (err) {
-      console.error('Error:', err)
-      alert(t.admin.roleUpdateError)
-    } finally {
-      setTogglingUser(null)
-    }
+    } catch { alert(t.admin.roleUpdateError) }
+    finally { setTogglingUser(null) }
   }
 
-  function formatDate(dateString: string) {
-    const date = new Date(dateString)
-    return date.toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-AU', { year: 'numeric', month: 'short', day: 'numeric' })
-  }
-
-  function set(key: string, val: string) { setForm(prev => ({ ...prev, [key]: val })) }
-
-  async function handleExtract() {
-    if (!url) return
-    setExtracting(true)
-    try {
-      const res = await fetch('/api/extract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
-      const data = await res.json()
-
-      // Track which fields were actually populated from extraction
-      const fieldsToHighlight = new Set<string>()
-      const updates: any = {}
-
-      // Update all fields from extracted data
-      if (data.title && data.title !== form.title) {
-        updates.title = data.title
-        fieldsToHighlight.add('title')
-      }
-      if (data.company && data.company !== form.company) {
-        updates.company = data.company
-        fieldsToHighlight.add('company')
-      }
-      if (data.state && data.state !== form.state) {
-        updates.state = data.state
-        fieldsToHighlight.add('state')
-      }
-      if (data.location && data.location !== form.location) {
-        updates.location = data.location
-        fieldsToHighlight.add('location')
-      }
-      if (data.category && data.category !== form.category) {
-        updates.category = data.category
-        fieldsToHighlight.add('category')
-      }
-      if (data.pay && data.pay !== form.pay) {
-        updates.pay = data.pay
-        fieldsToHighlight.add('pay')
-      }
-      if (data.description && data.description !== form.description) {
-        updates.description = data.description
-        fieldsToHighlight.add('description')
-      }
-
-      updates.sourceUrl = url
-
-      setForm(prev => ({ ...prev, ...updates }))
-      setHighlightedFields(fieldsToHighlight)
-
-      // Clear highlight after 2 seconds
-      setTimeout(() => setHighlightedFields(new Set()), 2000)
-    } catch (err) {
-      console.error('Extraction error:', err)
-    }
-    setExtracting(false)
-  }
-
-  async function handlePublish() {
-    if (!form.title || !form.company || !form.state || !form.category || !form.description) {
-      alert(t.admin.fillRequired)
+  async function resetPassword(userId: string) {
+    if (!newPassword || newPassword.length < 6) {
+      alert(language === 'fr' ? 'Mot de passe trop court (min 6 caractères)' : 'Password too short (min 6 characters)')
       return
     }
-    setPublishing(true)
-    const res = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
-    if (res.ok) {
-      router.push('/feed')
-    } else {
-      alert(t.admin.publishError)
-    }
-    setPublishing(false)
+    setSavingPassword(true)
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, newPassword }),
+      })
+      if (res.ok) {
+        setNewPassword('')
+        setExpandedUser(null)
+        alert(language === 'fr' ? 'Mot de passe mis à jour' : 'Password updated')
+      } else {
+        alert(language === 'fr' ? 'Erreur' : 'Error')
+      }
+    } catch { alert(language === 'fr' ? 'Erreur réseau' : 'Network error') }
+    finally { setSavingPassword(false) }
   }
 
-  return (
-    <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-3xl">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900">{t.admin.publishTitle}</h1>
-        <button
-          onClick={toggleViewAsUser}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-            viewAsUser
-              ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-          }`}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-            {viewAsUser ? (
-              <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></>
-            ) : (
-              <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>
-            )}
-          </svg>
-          {viewAsUser ? t.admin.viewAsUserActive : t.admin.viewAsUser}
-        </button>
-      </div>
-      <p className="text-sm text-stone-500 mb-6">{t.admin.publishSubtitle}</p>
+  async function addAdmin() {
+    if (!addAdminEmail.trim()) return
+    setAddingAdmin(true)
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: addAdminEmail.trim(), promoteToAdmin: true }),
+      })
+      if (res.ok) {
+        const newAdmin = await res.json()
+        setData(prev => prev ? {
+          ...prev,
+          adminUsers: [newAdmin, ...prev.adminUsers],
+          adminCount: prev.adminCount + 1,
+          memberCount: prev.memberCount - 1,
+        } : prev)
+        setAddAdminEmail('')
+      } else {
+        const err = await res.json()
+        alert(err.error || 'Erreur')
+      }
+    } catch { alert(language === 'fr' ? 'Erreur réseau' : 'Network error') }
+    finally { setAddingAdmin(false) }
+  }
 
-      {/* URL Extract */}
-      <div className="mb-8">
-        <h2 className="text-base font-bold text-stone-800 mb-2">{t.admin.autoExtract}</h2>
-        <p className="text-[13px] text-stone-500 mb-3">{t.admin.autoExtractHelp}</p>
-        <div className="flex gap-2">
-          <input type="text" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://www.gumtree.com.au/..."
-            className="flex-1 px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400" />
-          <button onClick={handleExtract} disabled={extracting}
-            className={`flex-shrink-0 px-4 py-2.5 rounded-lg text-sm font-bold bg-amber-400 hover:bg-amber-300 text-stone-900 transition ${extracting ? 'animate-pulse' : ''}`}>
-            {extracting ? t.admin.extracting : t.admin.extract}
+  const stateOrder = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT']
+
+  if (!session || (session.user as any)?.role !== 'admin') {
+    return <div className="px-4 sm:px-5 lg:px-7 py-5"><p className="text-stone-500">{t.common.unauthorized}</p></div>
+  }
+
+  if (loading) {
+    return (
+      <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-5xl">
+        <div className="animate-pulse space-y-4">
+          <div className="h-7 bg-stone-200 rounded w-48"></div>
+          <div className="h-4 bg-stone-100 rounded w-64"></div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            {[1,2,3,4].map(i => <div key={i} className="h-24 bg-stone-100 rounded-xl"></div>)}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return <div className="px-4 sm:px-5 lg:px-7 py-5"><p className="text-stone-500">{t.common.networkError}</p></div>
+  }
+
+  const subscriptionRevenue = data.activeSubscribers * 40 // ~$40/month per subscriber
+
+  return (
+    <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-5xl">
+      <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">
+        {(t.admin as any).dashboardTitle || 'Tableau de bord'}
+      </h1>
+      <p className="text-sm text-stone-500 mb-6">
+        {(t.admin as any).dashboardSubtitle || "Vue d'ensemble de votre Job Club"}
+      </p>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <StatCard
+          label={(t.admin as any).activeJobs || 'Annonces actives'}
+          value={data.activeJobs}
+          sub={`+${data.weeklyJobs} ${(t.admin as any).thisWeek || 'cette semaine'}`}
+          color="purple"
+        />
+        <StatCard
+          label={(t.admin as any).users || 'Utilisateurs'}
+          value={data.totalUsers}
+          sub={`${data.adminCount} ${(t.admin as any).adminsCount || 'admins'} · ${data.memberCount} ${(t.admin as any).membersCount || 'membres'}`}
+          color="green"
+        />
+        <StatCard
+          label={(t.admin as any).activeSubscribers || 'Abonnés actifs'}
+          value={data.activeSubscribers}
+          sub={`$${subscriptionRevenue} ${(t.admin as any).monthlyRevenue || 'AUD/mois'}`}
+          color="amber"
+        />
+        <StatCard
+          label={(t.admin as any).eligible88 || 'Annonces 88 jours'}
+          value={data.eligible88}
+          sub={`${data.activeJobs > 0 ? Math.round((data.eligible88 / data.activeJobs) * 100) : 0}% ${(t.admin as any).ofTotal || 'du total'}`}
+          color="blue"
+        />
+      </div>
+
+      {/* Recent Activity */}
+      <div className="bg-white border border-stone-200 rounded-lg overflow-hidden mb-6">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-stone-200">
+          <h2 className="text-base font-bold text-stone-800">
+            {(t.admin as any).recentActivity || 'Activité récente'}
+          </h2>
+          <button onClick={() => router.push('/admin/jobs')} className="text-xs text-purple-600 font-semibold hover:text-purple-800">
+            {(t.admin as any).viewAll || 'Voir tout'} ›
           </button>
         </div>
-      </div>
-
-      {/* Form */}
-      <h2 className="text-base font-bold text-stone-800 mb-4">{t.admin.jobDetails}</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <Field label={t.admin.jobTitle} value={form.title} onChange={v => set('title', v)} placeholder={t.admin.titlePlaceholder} highlighted={highlightedFields.has('title')} />
-        <Field label={t.admin.company} value={form.company} onChange={v => set('company', v)} placeholder={t.admin.companyPlaceholder} highlighted={highlightedFields.has('company')} />
-        <div>
-          <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.state}</label>
-          <select value={form.state} onChange={e => set('state', e.target.value)}
-            className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none bg-white appearance-none transition-all ${
-              highlightedFields.has('state')
-                ? 'border-green-400 bg-green-50 focus:border-green-500'
-                : 'border-stone-200 focus:border-purple-400'
-            }`}>
-            <option value="">{t.common.select}</option>
-            <option value="QLD">Queensland (QLD)</option><option value="NSW">New South Wales (NSW)</option>
-            <option value="VIC">Victoria (VIC)</option><option value="SA">South Australia (SA)</option>
-            <option value="WA">Western Australia (WA)</option><option value="TAS">Tasmania (TAS)</option>
-            <option value="NT">Northern Territory (NT)</option><option value="ACT">ACT</option>
-          </select>
-        </div>
-        <Field label={t.admin.location} value={form.location} onChange={v => set('location', v)} placeholder={t.admin.locationPlaceholder} highlighted={highlightedFields.has('location')} />
-        <div>
-          <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.category}</label>
-          <select value={form.category} onChange={e => set('category', e.target.value)}
-            className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none bg-white appearance-none transition-all ${
-              highlightedFields.has('category')
-                ? 'border-green-400 bg-green-50 focus:border-green-500'
-                : 'border-stone-200 focus:border-purple-400'
-            }`}>
-            <option value="">{t.common.select}</option>
-            <option value="farm">{t.categoryLabels.farm}</option>
-            <option value="hospitality">{t.categoryLabels.hospitality}</option>
-            <option value="construction">{t.categoryLabels.construction}</option>
-            <option value="retail">{t.categoryLabels.retail}</option>
-            <option value="cleaning">{t.categoryLabels.cleaning}</option>
-            <option value="events">{t.categoryLabels.events}</option>
-            <option value="animals">{t.categoryLabels.animals}</option>
-            <option value="transport">{t.categoryLabels.transport}</option>
-            <option value="other">{t.categoryLabels.other}</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.contractType}</label>
-          <select value={form.type} onChange={e => set('type', e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400 bg-white appearance-none">
-            <option value="casual">{t.types.casual}</option><option value="full_time">{t.types.full_time}</option>
-            <option value="part_time">{t.types.part_time}</option><option value="contract">{t.types.contract}</option>
-          </select>
-          <label className="flex items-center gap-2 cursor-pointer mt-3">
-            <input
-              type="checkbox"
-              checked={form.eligible88Days}
-              onChange={e => setForm({ ...form, eligible88Days: e.target.checked })}
-              className="w-4 h-4 rounded border-stone-300 text-yellow-500 focus:ring-yellow-400"
-            />
-            <span className="text-sm font-medium text-stone-700">{t.admin.eligible88Days}</span>
-          </label>
-        </div>
-      </div>
-      <div className="mb-4">
-        <Field label={t.admin.salary} value={form.pay} onChange={v => set('pay', v)} placeholder={t.admin.salaryPlaceholder} highlighted={highlightedFields.has('pay')} />
-      </div>
-      <div className="mb-6">
-        <label className="block text-[13px] font-semibold text-stone-600 mb-1">{t.admin.description}</label>
-        <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={5} placeholder={t.admin.descriptionPlaceholder}
-          className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none resize-y transition-all ${
-            highlightedFields.has('description')
-              ? 'border-green-400 bg-green-50 focus:border-green-500'
-              : 'border-stone-200 focus:border-purple-400'
-          }`} />
-      </div>
-
-      <button onClick={handlePublish} disabled={publishing}
-        className="w-full py-3.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-[15px] transition disabled:opacity-50">
-        {publishing ? t.admin.publishing : t.admin.publish}
-      </button>
-
-      {/* User Management Section */}
-      <div className="mt-12 pt-12 border-t border-stone-200">
-        <h2 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">{t.admin.userManagement}</h2>
-        <p className="text-sm text-stone-500 mb-6">{t.admin.userManagementSubtitle}</p>
-
-        {usersLoading ? (
-          <div className="text-center py-8 text-stone-500">{t.admin.usersLoading}</div>
-        ) : users.length === 0 ? (
-          <div className="text-center py-8 text-stone-500">{t.admin.noUsers}</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b-2 border-stone-200">
-                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">{t.admin.nameCol}</th>
-                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">{t.admin.emailCol}</th>
-                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">{t.admin.roleCol}</th>
-                  <th className="text-left px-4 py-3 font-semibold text-sm text-stone-700">{t.admin.registeredCol}</th>
-                  <th className="text-center px-4 py-3 font-semibold text-sm text-stone-700">{t.admin.actionCol}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(user => (
-                  <tr key={user.id} className="border-b border-stone-100 hover:bg-stone-50 transition">
-                    <td className="px-4 py-3 text-sm text-stone-900">{user.name || 'N/A'}</td>
-                    <td className="px-4 py-3 text-sm text-stone-700">{user.email}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        user.role === 'admin'
-                          ? 'bg-purple-100 text-purple-700'
-                          : 'bg-stone-100 text-stone-700'
-                      }`}>
-                        {user.role === 'admin' ? t.admin.adminRole : t.admin.userRole}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-stone-600">{formatDate(user.createdAt)}</td>
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => toggleUserRole(user.id, user.role)}
-                        disabled={togglingUser === user.id || (user.id === (session?.user as any)?.id && user.role === 'admin')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                          user.role === 'admin'
-                            ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 disabled:opacity-50'
-                            : 'bg-purple-100 hover:bg-purple-200 text-purple-900 disabled:opacity-50'
-                        }`}
-                      >
-                        {togglingUser === user.id ? '...' : (user.role === 'admin' ? t.admin.demote : t.admin.promote)}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {data.recentJobs.slice(0, 4).map(job => (
+          <div key={job.id} className="flex items-center gap-3 px-4 sm:px-5 py-3 border-b border-stone-100 text-xs sm:text-sm">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0"></div>
+            <span className="truncate">
+              <strong>{job.title}</strong> — {job.location ? `${job.location}, ${job.state}` : job.state}
+              {' '}{(t.admin as any).published || 'publiée'}
+            </span>
+            <span className="ml-auto text-stone-400 text-[11px] flex-shrink-0">{timeAgo(job.createdAt)}</span>
+          </div>
+        ))}
+        {data.latestSignup && (
+          <div className="flex items-center gap-3 px-4 sm:px-5 py-3 border-b border-stone-100 text-xs sm:text-sm">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></div>
+            <span>
+              <strong>{data.latestSignup.name || data.latestSignup.email}</strong>
+              {' '}{(t.admin as any).registered || "s'est inscrit(e)"}
+            </span>
+            <span className="ml-auto text-stone-400 text-[11px] flex-shrink-0">{timeAgo(data.latestSignup.createdAt)}</span>
           </div>
         )}
+        {data.expiredToday > 0 && (
+          <div className="flex items-center gap-3 px-4 sm:px-5 py-3 text-xs sm:text-sm">
+            <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></div>
+            <span>
+              <strong>{data.expiredToday} {language === 'fr' ? 'annonces' : 'jobs'}</strong>
+              {' '}{(t.admin as any).expired || 'expirées (30 jours)'}
+            </span>
+            <span className="ml-auto text-stone-400 text-[11px] flex-shrink-0">
+              {(t.admin as any).today || "aujourd'hui"}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Two-column: Jobs by State + Admin Users */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Jobs by State */}
+        <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
+          <div className="px-4 sm:px-5 py-3 border-b border-stone-200">
+            <h2 className="text-base font-bold text-stone-800">
+              {(t.admin as any).jobsByState || 'Annonces par état'}
+            </h2>
+          </div>
+          <div className="p-4 grid grid-cols-4 gap-2">
+            {stateOrder.map(state => (
+              <button key={state} onClick={() => router.push(`/feed?state=${state}`)}
+                className="text-center py-3 px-1 bg-purple-50 hover:bg-purple-100 rounded-lg transition cursor-pointer">
+                <div className="text-lg font-extrabold text-purple-800">{data.stateCounts[state] || 0}</div>
+                <div className="text-[10px] font-semibold text-purple-600">{state}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Admin Users */}
+        <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
+          <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-stone-200">
+            <h2 className="text-base font-bold text-stone-800">
+              Administrateurs
+            </h2>
+            <span className="text-xs text-stone-400">{data.adminCount} {(t.admin as any).adminsCount || 'admins'}</span>
+          </div>
+          <div className="divide-y divide-stone-100">
+            {data.adminUsers.map(user => {
+              const isExpanded = expandedUser === user.id
+              const isSelf = user.id === (session?.user as any)?.id
+              return (
+                <div key={user.id}>
+                  <button
+                    onClick={() => { setExpandedUser(isExpanded ? null : user.id); setNewPassword('') }}
+                    className="flex items-center gap-3 px-4 sm:px-5 py-3 w-full text-left hover:bg-stone-50 transition"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-purple-50 border-2 border-purple-200 flex items-center justify-center text-xs font-bold text-purple-700 flex-shrink-0">
+                      {(user.name || user.email)[0].toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-stone-900 truncate">{user.name || 'N/A'}{isSelf ? ' (toi)' : ''}</div>
+                      <div className="text-xs text-stone-400 truncate">{user.email}</div>
+                    </div>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 text-stone-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                      <path d="M6 9l6 6 6-6"/>
+                    </svg>
+                  </button>
+                  {isExpanded && (
+                    <div className="px-4 sm:px-5 pb-4 pt-1 bg-stone-50 space-y-3">
+                      {/* Email (copyable) */}
+                      <div>
+                        <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1">Email</div>
+                        <div className="text-sm text-stone-800 font-mono bg-white px-3 py-2 rounded-lg border border-stone-200 select-all">
+                          {user.email}
+                        </div>
+                      </div>
+                      {/* Reset password */}
+                      <div>
+                        <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1">
+                          {language === 'fr' ? 'Nouveau mot de passe' : 'New password'}
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newPassword}
+                            onChange={e => setNewPassword(e.target.value)}
+                            placeholder={language === 'fr' ? '6 caractères minimum' : '6 characters minimum'}
+                            className="flex-1 px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400"
+                          />
+                          <button
+                            onClick={() => resetPassword(user.id)}
+                            disabled={savingPassword || !newPassword}
+                            className="px-4 py-2 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition disabled:opacity-50"
+                          >
+                            {savingPassword ? '...' : (language === 'fr' ? 'Changer' : 'Change')}
+                          </button>
+                        </div>
+                      </div>
+                      {/* Demote */}
+                      {!isSelf && (
+                        <button
+                          onClick={() => toggleUserRole(user.id, user.role)}
+                          disabled={togglingUser === user.id}
+                          className="w-full py-2 rounded-lg text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 transition disabled:opacity-50"
+                        >
+                          {togglingUser === user.id ? '...' : (language === 'fr' ? 'Retirer les droits admin' : 'Remove admin rights')}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {/* Add admin */}
+          <div className="px-4 sm:px-5 py-3 border-t border-stone-200 bg-stone-50">
+            <div className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-2">
+              {language === 'fr' ? 'Ajouter un administrateur' : 'Add an administrator'}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={addAdminEmail}
+                onChange={e => setAddAdminEmail(e.target.value)}
+                placeholder={language === 'fr' ? 'Email du membre existant' : 'Existing member email'}
+                className="flex-1 px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:border-purple-400"
+                onKeyDown={e => e.key === 'Enter' && addAdmin()}
+              />
+              <button
+                onClick={addAdmin}
+                disabled={addingAdmin || !addAdminEmail.trim()}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition disabled:opacity-50"
+              >
+                {addingAdmin ? '...' : (language === 'fr' ? 'Promouvoir' : 'Promote')}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
-function Field({ label, value, onChange, placeholder, highlighted = false }: { label: string; value: string; onChange: (v: string) => void; placeholder: string; highlighted?: boolean }) {
+function StatCard({ label, value, sub, color }: { label: string; value: number; sub: string; color: 'purple' | 'green' | 'amber' | 'blue' }) {
+  const styles = {
+    purple: { card: 'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200', value: 'text-purple-700', label: 'text-purple-600', sub: 'text-purple-500' },
+    green: { card: 'bg-gradient-to-br from-green-50 to-green-100 border-green-200', value: 'text-green-700', label: 'text-green-600', sub: 'text-green-500' },
+    amber: { card: 'bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200', value: 'text-amber-700', label: 'text-amber-600', sub: 'text-amber-500' },
+    blue: { card: 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200', value: 'text-blue-700', label: 'text-blue-600', sub: 'text-blue-500' },
+  }
+  const s = styles[color]
   return (
-    <div>
-      <label className="block text-[13px] font-semibold text-stone-600 mb-1">{label}</label>
-      <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className={`w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none transition-all ${
-          highlighted
-            ? 'border-green-400 bg-green-50 focus:border-green-500'
-            : 'border-stone-200 focus:border-purple-400'
-        }`} />
+    <div className={`rounded-lg p-4 border ${s.card}`}>
+      <div className={`text-xs font-medium ${s.label} mb-1`}>{label}</div>
+      <div className={`text-2xl font-bold ${s.value}`}>{value.toLocaleString()}</div>
+      <div className={`text-[11px] ${s.sub} mt-0.5`}>{sub}</div>
     </div>
   )
 }

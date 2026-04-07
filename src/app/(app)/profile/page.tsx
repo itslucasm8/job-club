@@ -54,8 +54,6 @@ export default function ProfilePage() {
         <div className="text-sm opacity-70">{user?.email}</div>
         <div className="flex justify-center gap-8 mt-4">
           <div className="text-center"><div className="text-2xl font-extrabold">{savedCount}</div><div className="text-[11px] opacity-70">{t.profile.savedCount}</div></div>
-          <div className="text-center"><div className="text-2xl font-extrabold">0</div><div className="text-[11px] opacity-70">{t.profile.viewed}</div></div>
-          <div className="text-center"><div className="text-2xl font-extrabold">∞</div><div className="text-[11px] opacity-70">{t.profile.daysLeft}</div></div>
         </div>
       </div>
 
@@ -63,20 +61,26 @@ export default function ProfilePage() {
       {user?.stripeCustomerId && (
         <div className="mb-5 p-4 rounded-lg border border-stone-200 bg-stone-50">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div>
               <div className="text-sm font-medium text-stone-700">{t.profile.subscription}</div>
-              <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                user?.subscriptionStatus === 'active' ? 'bg-green-100 text-green-700' :
-                user?.subscriptionStatus === 'past_due' ? 'bg-amber-100 text-amber-700' :
-                user?.subscriptionStatus === 'canceled' ? 'bg-red-100 text-red-700' :
-                'bg-stone-100 text-stone-700'
-              }`}>
-                {user?.subscriptionStatus === 'active' ? t.profile.active :
-                 user?.subscriptionStatus === 'past_due' ? t.profile.pastDue :
-                 user?.subscriptionStatus === 'canceled' ? t.profile.canceled :
-                 t.profile.inactive}
-              </span>
+              {user?.subscriptionStatus === 'active' && (
+                <div className="text-[11px] text-stone-400 mt-0.5">
+                  {(t.profile as any).renewalDate || 'Renouvellement le'}{' '}
+                  {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </div>
+              )}
             </div>
+            <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+              user?.subscriptionStatus === 'active' ? 'bg-green-100 text-green-700' :
+              user?.subscriptionStatus === 'past_due' ? 'bg-amber-100 text-amber-700' :
+              user?.subscriptionStatus === 'canceled' ? 'bg-red-100 text-red-700' :
+              'bg-stone-100 text-stone-700'
+            }`}>
+              {user?.subscriptionStatus === 'active' ? t.profile.active :
+               user?.subscriptionStatus === 'past_due' ? t.profile.pastDue :
+               user?.subscriptionStatus === 'canceled' ? t.profile.canceled :
+               t.profile.inactive}
+            </span>
           </div>
         </div>
       )}

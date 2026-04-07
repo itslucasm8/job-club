@@ -2,7 +2,6 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
-import { useAdminView } from '@/components/AdminViewContext'
 import { useTranslation } from '@/components/LanguageContext'
 
 interface Notification {
@@ -18,7 +17,6 @@ interface Notification {
 export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) => void }) {
   const { data: session } = useSession()
   const router = useRouter()
-  const { viewAsUser } = useAdminView()
   const { t, language, setLanguage } = useTranslation()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
@@ -95,7 +93,7 @@ export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) =>
   }
 
   return (
-    <header className={`sticky z-40 bg-white border-b border-stone-200 flex items-center justify-between px-4 sm:px-5 h-[60px] ${viewAsUser ? 'top-[34px]' : 'top-0'}`}>
+    <header className="sticky top-0 z-40 bg-white border-b border-stone-200 flex items-center justify-between px-4 sm:px-5 h-[60px]">
       <div className="flex items-center gap-2 lg:invisible">
         <svg viewBox="0 0 40 40" fill="none" className="w-8 h-8">
           <path d="M10 32L18 8 22 20 32 4" stroke="#f59e0b" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
