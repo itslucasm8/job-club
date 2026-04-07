@@ -7,7 +7,7 @@ import { logger } from '@/lib/logger'
  * Call this daily via a cron job or external scheduler.
  *
  * Protected by a shared secret in the Authorization header.
- * Usage: curl -H "Authorization: Bearer YOUR_CRON_SECRET" https://jobclub.mlfrance.dev/api/cron/expire-jobs
+ * Usage: curl -H "Authorization: Bearer YOUR_CRON_SECRET" https://thejobclub.com.au/api/cron/expire-jobs
  */
 export async function POST(req: Request) {
   // Verify cron secret

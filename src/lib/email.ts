@@ -12,7 +12,7 @@ function getResend(): Resend {
   return _resend
 }
 
-const FROM = process.env.EMAIL_FROM || 'Job Club <noreply@jobclub.mlfrance.dev>'
+const FROM = process.env.EMAIL_FROM || 'Job Club <noreply@thejobclub.com.au>'
 
 function getEmailTemplate(subject: string, content: string, lang: Language = 'fr'): string {
   const footerText = lang === 'en'
@@ -112,7 +112,7 @@ function getEmailTemplate(subject: string, content: string, lang: Language = 'fr
 
 export async function sendWelcomeEmail(to: string, name: string, lang: Language = 'fr') {
   const resend = getResend()
-  const baseUrl = process.env.NEXTAUTH_URL || 'https://jobclub.mlfrance.dev'
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://thejobclub.com.au'
   const greeting = name || (lang === 'en' ? 'friend' : 'ami')
 
   const content = lang === 'en'
@@ -214,7 +214,7 @@ export async function sendSubscriptionConfirmation(to: string, name: string, lan
 
 export async function sendPaymentFailedEmail(to: string, name: string, lang: Language = 'fr') {
   const resend = getResend()
-  const baseUrl = process.env.NEXTAUTH_URL || 'https://jobclub.mlfrance.dev'
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://thejobclub.com.au'
   const greeting = name || (lang === 'en' ? 'friend' : 'ami')
 
   const content = lang === 'en'
@@ -252,7 +252,7 @@ export async function sendJobAlertEmail(
   lang: Language = 'fr'
 ) {
   const resend = getResend()
-  const baseUrl = process.env.NEXTAUTH_URL || 'https://jobclub.mlfrance.dev'
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://thejobclub.com.au'
   const greeting = name || (lang === 'en' ? 'friend' : 'ami')
 
   const categoryLabel = catLabel(job.category, lang)

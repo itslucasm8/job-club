@@ -25,7 +25,7 @@ The admin team (Lucas + 1-2 others) manually posts 20-30 jobs/day from Gumtree, 
 | Validation | Zod 4 |
 | Logging | Custom JSON logger (src/lib/logger.ts) |
 | Deploy | Docker Compose on VPS |
-| Domain | jobclub.mlfrance.dev (Cloudflare Tunnel) |
+| Domain | thejobclub.com.au (Cloudflare Tunnel) |
 
 ## Getting Started (Local Dev)
 
@@ -149,7 +149,7 @@ See `.env.example` for the full list. Key groups:
 
 - **VPS path:** `/data/job-club/`
 - **Docker services:** `app` (port 3000) + `db` (PostgreSQL 16)
-- **Tunnel:** Cloudflare Zero Trust → `jobclub.mlfrance.dev`
+- **Tunnel:** Cloudflare Zero Trust → `thejobclub.com.au`
 - **Env file:** `/data/job-club/.env.production`
 - **Backups:** `scripts/backup.sh` — daily pg_dump to `/opt/backups/jobclub/`, 30-day retention
 - **Repo:** `itslucasm8/job-club` on GitHub, `main` branch

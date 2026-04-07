@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Docker and Docker Compose installed on the VPS
-- Cloudflare Tunnel configured and running for `jobclub.mlfrance.dev`
+- Cloudflare Tunnel configured and running for `thejobclub.com.au`
 - Stripe account with production keys
 - Resend account with API key configured
 
@@ -22,7 +22,7 @@
 
    # Auth
    NEXTAUTH_SECRET="$(openssl rand -base64 32)"
-   NEXTAUTH_URL="https://jobclub.mlfrance.dev"
+   NEXTAUTH_URL="https://thejobclub.com.au"
 
    # Stripe (from your dashboard)
    STRIPE_SECRET_KEY="sk_live_..."
@@ -121,7 +121,7 @@ Set up automated daily backups of the PostgreSQL database:
 
 3. **Configure webhook endpoint:**
    - Go to Developers > Webhooks > Add endpoint
-   - Endpoint URL: `https://jobclub.mlfrance.dev/api/stripe/webhook`
+   - Endpoint URL: `https://thejobclub.com.au/api/stripe/webhook`
    - Events to listen for:
      - `checkout.session.completed`
      - `customer.subscription.updated`
@@ -169,11 +169,11 @@ Logs are output as structured JSON for easy parsing:
 
 2. **Check application is responsive:**
    ```bash
-   curl https://jobclub.mlfrance.dev/
+   curl https://thejobclub.com.au/
    ```
 
 3. **Verify admin user can login:**
-   - Go to https://jobclub.mlfrance.dev/login
+   - Go to https://thejobclub.com.au/login
    - Use admin credentials from database
 
 ## Rollback
