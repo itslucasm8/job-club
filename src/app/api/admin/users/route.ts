@@ -28,6 +28,9 @@ export async function POST(req: Request) {
   if (!email || !password) {
     return NextResponse.json({ error: 'Email et mot de passe requis' }, { status: 400 })
   }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: 'Email invalide' }, { status: 400 })
+  }
   if (password.length < 6) {
     return NextResponse.json({ error: 'Mot de passe trop court (min 6 caractères)' }, { status: 400 })
   }

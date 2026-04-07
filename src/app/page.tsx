@@ -33,11 +33,7 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-[clamp(28px,5vw,40px)] font-bold text-purple-50 leading-[1.15] tracking-tight mb-4">
-            {language === 'fr' ? (
-              <>Trouve ton job<br />en Australie.</>
-            ) : (
-              <>Find your job<br />in Australia.</>
-            )}
+            {t.landing.heroTitle1}<br />{t.landing.heroTitle2}
           </h1>
 
           <p className="text-[15px] text-purple-300 leading-relaxed max-w-[340px] mb-8">
@@ -84,7 +80,7 @@ export default function LandingPage() {
 
         <div className="w-full max-w-[340px]">
           <div className="text-base font-semibold text-stone-600 mb-4">
-            {language === 'fr' ? 'Choisis ton plan' : 'Choose your plan'}
+            {t.landing.choosePlan}
           </div>
 
           {/* Monthly option */}
@@ -104,7 +100,7 @@ export default function LandingPage() {
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold text-stone-800">{t.landing.monthly}</div>
               <div className="text-[11px] text-stone-400 mt-0.5">
-                {language === 'fr' ? 'Facturé chaque mois' : 'Billed monthly'}
+                {t.landing.billedMonthly}
               </div>
             </div>
             <div className="flex items-baseline gap-1 flex-shrink-0">
