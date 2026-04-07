@@ -48,7 +48,7 @@ function ResetPasswordContent() {
         return
       }
 
-      setSuccess(data.message)
+      setSuccess(t.resetPassword.requestSuccess)
       setEmail('')
     } catch (e) {
       setError(t.resetPassword.connectionError)
