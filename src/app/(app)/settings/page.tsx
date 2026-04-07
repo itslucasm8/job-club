@@ -11,7 +11,7 @@ type Toast = { type: 'success' | 'error'; message: string } | null
 export default function SettingsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const { t, language } = useTranslation()
+  const { t, language, setLanguage } = useTranslation()
   const categories = getCategories(language)
 
   // Personal info state
