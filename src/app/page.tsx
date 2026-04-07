@@ -1,67 +1,170 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { useTranslation } from '@/components/LanguageContext'
 
 export default function LandingPage() {
   const { t, language, setLanguage } = useTranslation()
+  const [plan, setPlan] = useState<'monthly' | 'yearly'>('monthly')
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-600 flex flex-col items-center justify-center px-6 py-16 text-white text-center relative">
-      <div className="absolute top-4 right-4">
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* ═══════ Left side ═══════ */}
+      <div className="relative flex-[1.1] flex flex-col justify-center px-6 py-12 sm:px-10 lg:px-12 lg:py-0 overflow-hidden"
+        style={{ background: '#1e1145' }}>
+        {/* Dot grid */}
+        <div className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: 'radial-gradient(circle, rgba(167,139,250,0.12) 1px, transparent 1px)',
+            backgroundSize: '28px 28px',
+          }}
+        />
+        {/* Corner brackets */}
+        <div className="absolute top-7 left-7 w-6 h-6 border-t-2 border-l-2 hidden lg:block" style={{ borderColor: 'rgba(245,158,11,0.2)' }} />
+        <div className="absolute bottom-7 right-7 w-6 h-6 border-b-2 border-r-2 hidden lg:block" style={{ borderColor: 'rgba(245,158,11,0.2)' }} />
+
+        {/* Content */}
+        <div className="relative z-[1] max-w-md">
+          {/* Eyebrow */}
+          <div className="flex items-center gap-2 mb-5">
+            <span className="w-6 h-0.5 rounded-sm bg-amber-500" />
+            <span className="text-[11px] font-semibold text-amber-500 uppercase tracking-[1.5px]">Job Club</span>
+          </div>
+
+          <h1 className="text-[clamp(28px,5vw,40px)] font-bold text-purple-50 leading-[1.15] tracking-tight mb-4">
+            {language === 'fr' ? (
+              <>Trouve ton job<br />en Australie.</>
+            ) : (
+              <>Find your job<br />in Australia.</>
+            )}
+          </h1>
+
+          <p className="text-[15px] text-purple-300 leading-relaxed max-w-[340px] mb-8">
+            {t.landing.tagline}
+          </p>
+
+          {/* Stats */}
+          <div className="flex gap-6 sm:gap-8">
+            <div>
+              <div className="text-[28px] font-bold text-white">900+</div>
+              <div className="text-[11px] text-purple-400 uppercase tracking-wider mt-0.5">{t.landing.statsJobs}</div>
+            </div>
+            <div>
+              <div className="text-[28px] font-bold text-white">8</div>
+              <div className="text-[11px] text-purple-400 uppercase tracking-wider mt-0.5">{t.landing.statsStates}</div>
+            </div>
+            <div>
+              <div className="text-[28px] font-bold text-white">9</div>
+              <div className="text-[11px] text-purple-400 uppercase tracking-wider mt-0.5">{t.landing.statsCategories}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Language toggle — mobile only */}
         <button
           onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
-          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white/20 hover:bg-white/30 text-white transition"
+          className="absolute top-4 right-4 lg:hidden px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 text-purple-200 hover:bg-white/20 transition"
         >
           {t.language.label}
         </button>
       </div>
 
-      {/* Logo */}
-      <svg viewBox="0 0 120 120" fill="none" className="w-24 h-24 mb-6">
-        <circle cx="60" cy="60" r="56" fill="#f59e0b" opacity="0.15"/>
-        <path d="M35 85L55 25 65 55 85 15" stroke="#f59e0b" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-        <path d="M78 22L85 15 82 28" stroke="#f59e0b" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      </svg>
+      {/* ═══════ Right side ═══════ */}
+      <div className="flex-[0.9] flex flex-col justify-center items-center px-6 py-10 sm:px-10 lg:px-10 lg:py-0"
+        style={{ background: '#faf9f7' }}>
 
-      <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-3">Job Club</h1>
-      <p className="text-lg opacity-85 mb-10 max-w-md leading-relaxed">
-        {t.landing.tagline}
-      </p>
+        {/* Language toggle — desktop only */}
+        <button
+          onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
+          className="absolute top-4 right-4 hidden lg:block px-3 py-1.5 rounded-full text-xs font-bold bg-stone-200/60 text-stone-500 hover:bg-stone-200 transition"
+        >
+          {t.language.label}
+        </button>
 
-      {/* Features */}
-      <ul className="text-left max-w-sm w-full mb-10 space-y-3">
-        {[
-          t.landing.feature1,
-          t.landing.feature2,
-          t.landing.feature3,
-          t.landing.feature4,
-          t.landing.feature5,
-        ].map((f, i) => (
-          <li key={i} className="flex items-center gap-3 text-[15px] py-2 border-b border-white/10 last:border-0">
-            <span className="text-amber-400 text-xl flex-shrink-0">✓</span>
-            {f}
-          </li>
-        ))}
-      </ul>
+        <div className="w-full max-w-[340px]">
+          <div className="text-base font-semibold text-stone-600 mb-4">
+            {language === 'fr' ? 'Choisis ton plan' : 'Choose your plan'}
+          </div>
 
-      {/* Pricing */}
-      <div className="mb-6">
-        <span className="text-5xl font-extrabold">$39.99</span>
-        <span className="text-lg opacity-70"> {t.common.perMonth}</span>
+          {/* Monthly option */}
+          <button
+            onClick={() => setPlan('monthly')}
+            className={`w-full flex items-center gap-3.5 p-4 rounded-2xl mb-2.5 border-2 transition-all text-left ${
+              plan === 'monthly'
+                ? 'border-brand-purple bg-purple-50/60'
+                : 'border-stone-200 bg-white hover:border-stone-300'
+            }`}
+          >
+            <div className={`w-[22px] h-[22px] rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+              plan === 'monthly' ? 'border-brand-purple' : 'border-stone-300'
+            }`}>
+              {plan === 'monthly' && <div className="w-3 h-3 rounded-full bg-brand-purple" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-stone-800">{t.landing.monthly}</div>
+              <div className="text-[11px] text-stone-400 mt-0.5">
+                {language === 'fr' ? 'Facturé chaque mois' : 'Billed monthly'}
+              </div>
+            </div>
+            <div className="flex items-baseline gap-1 flex-shrink-0">
+              <span className="text-xl font-bold text-stone-900 tracking-tight">$39.99</span>
+              <span className="text-xs text-stone-400">{t.landing.perMonth}</span>
+            </div>
+          </button>
+
+          {/* Yearly option */}
+          <button
+            onClick={() => setPlan('yearly')}
+            className={`w-full flex items-center gap-3.5 p-4 rounded-2xl mb-4 border-2 transition-all text-left ${
+              plan === 'yearly'
+                ? 'border-brand-purple bg-purple-50/60'
+                : 'border-stone-200 bg-white hover:border-stone-300'
+            }`}
+          >
+            <div className={`w-[22px] h-[22px] rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+              plan === 'yearly' ? 'border-brand-purple' : 'border-stone-300'
+            }`}>
+              {plan === 'yearly' && <div className="w-3 h-3 rounded-full bg-brand-purple" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-stone-800">{t.landing.yearly}</span>
+                <span className="text-[9px] font-bold bg-amber-500 text-amber-900 px-1.5 py-0.5 rounded-full uppercase tracking-wide">-17%</span>
+              </div>
+              <div className="text-[11px] text-green-600 font-semibold mt-0.5">
+                {t.landing.yearSavings}
+              </div>
+            </div>
+            <div className="flex items-baseline gap-1 flex-shrink-0">
+              <span className="text-xl font-bold text-stone-900 tracking-tight">$400</span>
+              <span className="text-xs text-stone-400">{t.landing.perYear}</span>
+            </div>
+          </button>
+
+          {/* CTA */}
+          <Link
+            href="/register"
+            className="block w-full text-center py-4 rounded-2xl bg-brand-purple hover:bg-brand-purple-dark text-white text-[15px] font-semibold transition-all hover:-translate-y-0.5"
+            style={{ boxShadow: '0 8px 20px rgba(107,33,168,0.3)' }}
+          >
+            {t.landing.subscribe}
+          </Link>
+
+          {/* Trust */}
+          <p className="text-center text-[11px] text-stone-400 mt-4">
+            {t.landing.securePayment}
+          </p>
+
+          {/* Sign in */}
+          <p className="text-center text-[13px] text-stone-500 mt-3">
+            {t.landing.alreadyMember}{' '}
+            <Link href="/login" className="text-brand-purple font-medium hover:underline">
+              {t.landing.signIn}
+            </Link>
+          </p>
+        </div>
       </div>
-
-      {/* CTAs */}
-      <Link
-        href="/register"
-        className="block w-full max-w-sm bg-amber-400 hover:bg-amber-300 text-stone-900 font-bold text-lg py-4 rounded-full text-center shadow-lg shadow-amber-500/30 transition-all hover:-translate-y-0.5"
-      >
-        {t.landing.subscribe}
-      </Link>
-      <p className="mt-4 text-sm opacity-70">
-        {t.landing.alreadyMember}{' '}
-        <Link href="/login" className="underline opacity-100">{t.landing.signIn}</Link>
-      </p>
     </div>
   )
 }
