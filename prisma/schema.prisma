@@ -20,6 +20,7 @@ model User {
   preferredStates      String?   // Comma-separated state codes e.g. "QLD,NSW"
   preferredCategories  String?   // Comma-separated categories e.g. "Agriculture,Construction"
   emailAlerts          Boolean   @default(true)
+  only88Days           Boolean   @default(false) // Only notify about 88-day eligible jobs
   preferredLanguage    String    @default("fr") // "fr" or "en"
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt

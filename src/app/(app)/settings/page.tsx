@@ -34,6 +34,7 @@ export default function SettingsPage() {
   const [preferredStates, setPreferredStates] = useState<string[]>([])
   const [preferredCategories, setPreferredCategories] = useState<string[]>([])
   const [emailAlerts, setEmailAlerts] = useState(true)
+  const [only88Days, setOnly88Days] = useState(false)
   const [loadingPreferences, setLoadingPreferences] = useState(false)
   const [toastPreferences, setToastPreferences] = useState<Toast>(null)
 
@@ -62,6 +63,7 @@ export default function SettingsPage() {
         setPreferredStates(data.preferredStates || [])
         setPreferredCategories(data.preferredCategories || [])
         setEmailAlerts(data.emailAlerts !== false)
+        setOnly88Days(data.only88Days === true)
       }
     } catch (error) {
       console.error('Failed to fetch preferences:', error)
@@ -168,7 +170,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/user/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ preferredStates, preferredCategories, emailAlerts }),
+        body: JSON.stringify({ preferredStates, preferredCategories, emailAlerts, only88Days }),
       })
 
       const data = await res.json()
@@ -422,6 +424,25 @@ export default function SettingsPage() {
             >
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
                 emailAlerts ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+
+          {/* 88 days only toggle */}
+          <div className="flex items-center justify-between py-3 mb-4 border-b border-stone-100">
+            <div>
+              <div className="text-sm font-semibold text-stone-900">{t.settings.only88Days}</div>
+              <div className="text-xs text-stone-500">{t.settings.only88DaysHelp}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOnly88Days(!only88Days)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                only88Days ? 'bg-purple-600' : 'bg-stone-300'
+              }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                only88Days ? 'translate-x-5' : 'translate-x-0'
               }`} />
             </button>
           </div>

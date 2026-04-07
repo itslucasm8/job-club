@@ -9,6 +9,7 @@ export interface JobData {
   company: string
   state: string
   category: string
+  eligible88Days?: boolean
 }
 
 export async function createJobNotifications(job: JobData): Promise<void> {
@@ -23,6 +24,7 @@ export async function createJobNotifications(job: JobData): Promise<void> {
         name: true,
         email: true,
         emailAlerts: true,
+        only88Days: true,
         preferredStates: true,
         preferredCategories: true,
         preferredLanguage: true,
@@ -44,6 +46,11 @@ export async function createJobNotifications(job: JobData): Promise<void> {
       // Determine if user should be notified
       const hasStatePreference = preferredStates.length > 0
       const hasCategoryPreference = preferredCategories.length > 0
+
+      // Skip if user only wants 88-day jobs and this job isn't one
+      if (user.only88Days && !job.eligible88Days) {
+        continue
+      }
 
       let shouldNotify = false
 
