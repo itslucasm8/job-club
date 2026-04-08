@@ -9,7 +9,9 @@ import { logger } from '@/lib/logger'
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
     const job = await prisma.job.findUnique({ where: { id: params.id } })
-    if (!job) return NextResponse.json({ error: 'Offre introuvable' }, { status: 404 })
+    if (!job || !job.active || (job.expiresAt && job.expiresAt < new Date())) {
+      return NextResponse.json({ error: 'Offre introuvable' }, { status: 404 })
+    }
     return NextResponse.json(job)
   } catch (e) {
     Sentry.captureException(e, { tags: { route: 'jobs-id' } })
