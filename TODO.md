@@ -16,13 +16,7 @@
 
 ## Should Do (Important, not blocking)
 
-| # | Item | Effort | Status |
-|---|------|--------|--------|
-| 18 | **OG meta tags** — og:title, og:image, twitter:card for social sharing | 30 min | Not started |
-| 19 | **robots.txt + sitemap** — so search engines can crawl properly | 30 min | Not started |
-| 20 | **Subscription cancellation email** — confirm when users cancel | 30 min | Not started |
-| 21 | **Cookie consent banner** — GDPR compliance for PostHog/Sentry | 1 hr | Not started |
-| 22 | **Link privacy/terms pages** — add footer links on landing + subscribe pages | 15 min | Not started |
+All completed on 2026-04-08. Moved to Completed section below.
 
 ---
 
@@ -83,6 +77,11 @@
 | — | Stripe webhook returns 500 on critical failures (enables retry) | **Done** |
 | — | `past_due` subscription grace period + warning banner | **Done** |
 | — | Bcrypt rounds standardized to 12 everywhere | **Done** |
+| — | OG meta tags + dynamic opengraph image for social sharing | **Done** |
+| — | robots.txt + dynamic sitemap.xml | **Done** |
+| — | Subscription cancellation confirmation email | **Done** |
+| — | Cookie consent banner (GDPR, PostHog opt-out) | **Done** |
+| — | Legal footer links on landing + subscribe pages | **Done** |
 
 ### Cleanup (Earlier)
 
