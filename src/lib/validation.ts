@@ -19,7 +19,7 @@ export function getFirstValidationError(error: ZodError): string {
 export const registerSchema = z.object({
   name: z.string().min(1, 'Le prénom est requis').max(100),
   email: z.string().email('Email invalide'),
-  password: z.string().min(6, 'Mot de passe: 6 caractères minimum').max(100),
+  password: z.string().min(8, 'Mot de passe: 8 caractères minimum').max(100),
 })
 
 export const createJobSchema = z.object({

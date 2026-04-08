@@ -86,7 +86,7 @@ export default function RegisterPage() {
           <div>
             <label className="block text-sm font-semibold text-stone-600 mb-1">{t.register.passwordLabel}</label>
             <div className="relative">
-              <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={6}
+              <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={8}
                 className="w-full px-4 py-3 pr-10 rounded-lg border border-stone-200 bg-stone-50 text-sm focus:outline-none focus:border-purple-400 transition" placeholder={t.register.passwordPlaceholder} />
               <button
                 type="button"

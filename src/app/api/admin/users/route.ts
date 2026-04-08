@@ -38,8 +38,8 @@ export async function POST(req: Request) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: 'Email invalide' }, { status: 400 })
     }
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Mot de passe trop court (min 6 caractères)' }, { status: 400 })
+    if (password.length < 8) {
+      return NextResponse.json({ error: 'Mot de passe trop court (min 8 caractères)' }, { status: 400 })
     }
 
     const existing = await prisma.user.findUnique({ where: { email } })
@@ -77,8 +77,8 @@ export async function PATCH(req: Request) {
 
     // Reset password for a user
     if (body.userId && body.newPassword) {
-      if (body.newPassword.length < 6) {
-        return NextResponse.json({ error: 'Mot de passe trop court (min 6 caractères)' }, { status: 400 })
+      if (body.newPassword.length < 8) {
+        return NextResponse.json({ error: 'Mot de passe trop court (min 8 caractères)' }, { status: 400 })
       }
       const passwordHash = await bcrypt.hash(body.newPassword, 12)
       await prisma.user.update({
