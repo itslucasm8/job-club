@@ -13,6 +13,11 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { id: (session.user as any).id } })
     if (!user) return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 })
 
+    // Prevent double-subscribe
+    if (user.subscriptionStatus === 'active') {
+      return NextResponse.json({ error: 'Déjà abonné' }, { status: 400 })
+    }
+
     // Determine which plan was selected (monthly or yearly)
     let plan = 'monthly'
     try {
