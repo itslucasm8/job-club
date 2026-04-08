@@ -126,7 +126,7 @@ export default function EditJobPage() {
     )
   }
 
-  if (error && loading) {
+  if (error && !loading) {
     return (
       <div className="px-4 sm:px-5 lg:px-7 py-5 max-w-3xl">
         <p className="text-red-600">{error}</p>
