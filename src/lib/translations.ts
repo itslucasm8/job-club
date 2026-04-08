@@ -122,6 +122,8 @@ const fr = {
     signOut: 'Se déconnecter',
     portalError: "Erreur lors de l'accès au portail d'abonnement",
     renewalDate: 'Renouvellement le',
+    needHelp: 'Besoin d\'aide ?',
+    contactUs: 'Contacte-nous à',
   },
 
   // Settings page
@@ -677,6 +679,8 @@ const en: typeof fr = {
     signOut: 'Sign out',
     portalError: 'Error accessing subscription portal',
     renewalDate: 'Renews on',
+    needHelp: 'Need help?',
+    contactUs: 'Contact us at',
   },
 
   settings: {

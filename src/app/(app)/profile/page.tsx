@@ -104,6 +104,16 @@ export default function ProfilePage() {
         className="w-full py-3.5 rounded-xl border-2 border-red-500 text-red-500 font-bold text-[15px] hover:bg-red-50 transition">
         {t.profile.signOut}
       </button>
+
+      {/* Support contact */}
+      <div className="mt-5 text-center">
+        <p className="text-xs text-stone-400">
+          {t.profile.needHelp}{' '}
+          <a href="mailto:contact@thejobclub.com.au" className="text-purple-600 hover:underline font-medium">
+            contact@thejobclub.com.au
+          </a>
+        </p>
+      </div>
     </div>
   )
 }
