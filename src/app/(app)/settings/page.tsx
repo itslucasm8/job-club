@@ -139,7 +139,7 @@ export default function SettingsPage() {
       return
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       setToastPassword({ type: 'error', message: t.settings.passwordTooShort })
       return
     }
