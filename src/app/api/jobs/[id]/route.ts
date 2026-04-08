@@ -52,6 +52,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       )
     }
 
+    // Reject empty strings on required fields
+    const d = result.data
+    if (d.title !== undefined && !d.title.trim()) {
+      return NextResponse.json({ error: 'Le titre ne peut pas être vide' }, { status: 400 })
+    }
+    if (d.company !== undefined && !d.company.trim()) {
+      return NextResponse.json({ error: 'L\'entreprise ne peut pas être vide' }, { status: 400 })
+    }
+
     const job = await prisma.job.update({
       where: { id: params.id },
       data: result.data,
