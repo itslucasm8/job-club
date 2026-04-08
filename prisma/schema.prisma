@@ -48,6 +48,7 @@ model Job {
   savedBy     SavedJob[]
   @@index([active, expiresAt])
   @@index([eligible88Days])
+  @@index([active, expiresAt, state, category])
 }
 
 model SavedJob {
