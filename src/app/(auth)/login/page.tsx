@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslation, translateApiError } from '@/components/LanguageContext'
+import posthog from 'posthog-js'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -39,6 +40,7 @@ export default function LoginPage() {
     if (res?.error) {
       setError(t.login.connectionError)
     } else {
+      posthog.capture('user_logged_in')
       router.push('/feed')
     }
   }

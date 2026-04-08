@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Club — Split Screen Finals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; }
+
+  /* ── Selector ── */
+  #sel {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+    background: #111; padding: 8px 12px;
+    display: flex; gap: 6px; align-items: center; justify-content: center;
+    border-bottom: 1px solid #2a2a2a; flex-wrap: wrap;
+  }
+  #sel span { color: #555; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin-right: 4px; }
+  #sel button {
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #333;
+    background: transparent; color: #888; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all .15s; font-family: inherit;
+  }
+  #sel button:hover { background: #1a1a1a; color: #ccc; }
+  #sel button.on { background: #6b21a8; color: #fff; border-color: #6b21a8; }
+
+  .page { display: none; min-height: 100vh; padding-top: 44px; flex-direction: row; }
+  .page.on { display: flex; }
+
+  /* ════════════════════════════
+     SHARED RIGHT SIDE
+     ════════════════════════════ */
+  .rt {
+    flex: 0.9; background: #faf9f7; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; padding: 40px 28px;
+  }
+  .rt .chooser { width: 100%; max-width: 320px; }
+  .rt .chooser .title { font-size: 16px; font-weight: 600; color: #44403c; margin-bottom: 16px; }
+  .rt .opt {
+    width: 100%; padding: 18px 16px; border-radius: 14px; margin-bottom: 10px;
+    border: 2px solid #e7e5e4; background: #fff; cursor: pointer;
+    transition: all .2s; display: flex; align-items: center; gap: 14px;
+  }
+  .rt .opt:hover { border-color: #d6d3d1; }
+  .rt .opt.on { border-color: #6b21a8; background: #faf5ff; }
+  .rt .opt .dot {
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid #d6d3d1;
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    transition: all .2s;
+  }
+  .rt .opt.on .dot { border-color: #6b21a8; }
+  .rt .opt.on .dot::after { content: ''; width: 12px; height: 12px; border-radius: 50%; background: #6b21a8; }
+  .rt .opt .info { flex: 1; }
+  .rt .opt .info .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .rt .opt .pn { font-size: 14px; font-weight: 600; color: #292524; }
+  .rt .opt .pp { font-size: 20px; font-weight: 700; color: #1c1917; letter-spacing: -0.5px; }
+  .rt .opt .meta { font-size: 11px; color: #a8a29e; margin-top: 2px; }
+  .rt .opt .sv { font-size: 11px; color: #16a34a; font-weight: 600; }
+  .rt .opt .tag {
+    font-size: 9px; font-weight: 700; background: #f59e0b; color: #78350f;
+    padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .rt .go {
+    display: block; width: 100%; max-width: 320px; padding: 15px; border-radius: 14px;
+    border: none; background: #6b21a8; color: #fff; font-family: inherit;
+    font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 6px;
+    transition: all .2s; text-align: center; text-decoration: none;
+  }
+  .rt .go:hover { background: #581c87; transform: translateY(-1px); box-shadow: 0 8px 20px rgba(107,33,168,0.3); }
+  .rt .foot { margin-top: 20px; text-align: center; }
+  .rt .foot .sec { font-size: 11px; color: #a8a29e; }
+  .rt .foot a { display: block; margin-top: 8px; font-size: 13px; color: #6b21a8; font-weight: 500; text-decoration: none; }
+  .rt .foot a:hover { text-decoration: underline; }
+
+  @media (max-width: 700px) {
+    .page { flex-direction: column; }
+    .page .lt { min-height: auto !important; padding: 32px 24px !important; }
+    .page .lt h1 { font-size: 26px !important; }
+    .page .lt .stats { gap: 16px !important; }
+    .page .lt .stats .stat .n { font-size: 22px !important; }
+    .rt { padding: 28px 20px; }
+  }
+
+  /* ════════════════════════════
+     A — Reference (with circles)
+     ════════════════════════════ */
+  .pa .lt {
+    flex: 1.1; background: #2e1065; display: flex; flex-direction: column;
+    justify-content: center; padding: 48px 40px;
+    position: relative; overflow: hidden;
+  }
+  .pa .lt::before {
+    content: ''; position: absolute; top: -80px; left: -80px;
+    width: 300px; height: 300px; border-radius: 50%;
+    background: rgba(147,51,234,0.25);
+  }
+  .pa .lt::after {
+    content: ''; position: absolute; bottom: -40px; right: -40px;
+    width: 200px; height: 200px; border-radius: 50%;
+    background: rgba(245,158,11,0.06);
+  }
+  .pa .lt > * { position: relative; z-index: 1; }
+
+  /* ════════════════════════════
+     B — Clean & Confident
+     No decorations, grain texture
+     ════════════════════════════ */
+  .pb .lt {
+    flex: 1.1; background: #1a0a2e; display: flex; flex-direction: column;
+    justify-content: center; padding: 48px 44px;
+    position: relative; overflow: hidden;
+  }
+  .pb .lt::before {
+    content: ''; position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    opacity: 1; pointer-events: none;
+  }
+  .pb .lt > * { position: relative; z-index: 1; }
+
+  /* ════════════════════════════
+     C — Geometric Dot Grid
+     ════════════════════════════ */
+  .pc .lt {
+    flex: 1.1; background: #1e1145; display: flex; flex-direction: column;
+    justify-content: center; padding: 48px 44px;
+    position: relative; overflow: hidden;
+  }
+  .pc .lt::before {
+    content: ''; position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(167,139,250,0.12) 1px, transparent 1px);
+    background-size: 28px 28px;
+    pointer-events: none;
+  }
+  .pc .lt > * { position: relative; z-index: 1; }
+
+  /* ════════════════════════════
+     D — Stacked Job Cards
+     ════════════════════════════ */
+  .pd .lt {
+    flex: 1.1; background: #2e1065; display: flex; flex-direction: column;
+    justify-content: center; padding: 48px 44px;
+    position: relative; overflow: hidden;
+  }
+  .pd .lt .ghost-cards {
+    position: absolute; right: -20px; top: 50%; transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 8px; opacity: 0.08;
+    pointer-events: none;
+  }
+  .pd .lt .ghost-card {
+    background: #fff; border-radius: 12px; padding: 14px 18px; width: 260px;
+  }
+  .pd .lt .ghost-card .gc-title { height: 10px; width: 70%; background: #6b21a8; border-radius: 5px; margin-bottom: 8px; }
+  .pd .lt .ghost-card .gc-sub { height: 8px; width: 50%; background: #a78bfa; border-radius: 4px; margin-bottom: 6px; }
+  .pd .lt .ghost-card .gc-tag { display: inline-block; height: 8px; width: 40px; background: #f59e0b; border-radius: 4px; }
+  .pd .lt > *:not(.ghost-cards) { position: relative; z-index: 1; }
+
+  /* ════════════════════════════
+     E — Topographic Lines
+     ════════════════════════════ */
+  .pe .lt {
+    flex: 1.1; background: #1e0a3c; display: flex; flex-direction: column;
+    justify-content: center; padding: 48px 44px;
+    position: relative; overflow: hidden;
+  }
+  .pe .lt .topo {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0.06;
+  }
+  .pe .lt > *:not(.topo) { position: relative; z-index: 1; }
+
+  /* ════════════════════════════
+     SHARED LEFT CONTENT
+     ════════════════════════════ */
+  .lt .eyebrow {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 600; color: #f59e0b; text-transform: uppercase;
+    letter-spacing: 1.5px; margin-bottom: 16px;
+  }
+  .lt .eyebrow .line { width: 24px; height: 2px; background: #f59e0b; border-radius: 1px; }
+  .lt h1 {
+    font-size: clamp(28px, 4vw, 40px); font-weight: 700; color: #faf5ff;
+    line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 16px;
+  }
+  .lt .desc {
+    font-size: 15px; color: #c4b5fd; line-height: 1.65; max-width: 340px; margin-bottom: 32px;
+  }
+  .lt .stats { display: flex; gap: 24px; }
+  .lt .stats .stat .n { font-size: 28px; font-weight: 700; color: #fff; }
+  .lt .stats .stat .l { font-size: 11px; color: #a78bfa; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+
+  /* ── B variant: amber accent border ── */
+  .pb .lt .accent-bar {
+    position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: 4px; height: 100px; background: #f59e0b; border-radius: 0 2px 2px 0;
+  }
+
+  /* ── C variant: corner marks ── */
+  .pc .lt .corner {
+    position: absolute; width: 24px; height: 24px; border-color: rgba(245,158,11,0.2); border-style: solid;
+  }
+  .pc .lt .corner.tl { top: 28px; left: 28px; border-width: 2px 0 0 2px; }
+  .pc .lt .corner.br { bottom: 28px; right: 28px; border-width: 0 2px 2px 0; }
+</style>
+</head>
+<body>
+
+<div id="sel">
+  <span>Left side</span>
+  <button class="on" onclick="pick('a')">A — Reference</button>
+  <button onclick="pick('b')">B — Clean</button>
+  <button onclick="pick('c')">C — Grid</button>
+  <button onclick="pick('d')">D — Cards</button>
+  <button onclick="pick('e')">E — Topo</button>
+</div>
+
+<!-- ═══ A — Reference ═══ -->
+<div class="page pa on" id="pa">
+  <div class="lt">
+    <div class="eyebrow"><span class="line"></span> Job Club</div>
+    <h1>Trouve ton job<br>en Australie.</h1>
+    <p class="desc">Des centaines d'offres chaque semaine. Farm, hospo, construction et plus dans tous les states.</p>
+    <div class="stats">
+      <div class="stat"><div class="n">900+</div><div class="l">Offres</div></div>
+      <div class="stat"><div class="n">8</div><div class="l">States</div></div>
+      <div class="stat"><div class="n">9</div><div class="l">Catégories</div></div>
+    </div>
+  </div>
+  <div class="rt"><div class="chooser"><div class="title">Choisis ton plan</div><div class="opt on" onclick="sel(this)"><div class="dot"></div><div class="info"><div class="row"><span class="pn">Mensuel</span><span class="pp">$39.99</span></div><div class="meta">Facturé chaque mois</div></div></div><div class="opt" onclick="sel(this)"><div class="dot"></div><div class="info"><div class="row"><span class="pn">Annuel <span class="tag">-17%</span></span><span class="pp">$400</span></div><div class="row" style="margin-top:2px"><span class="sv">Économise $79.88</span><span class="meta">/ an</span></div></div></div><a href="/register" class="go">S'abonner maintenant</a></div><div class="foot"><div class="sec">Paiement sécurisé via Stripe. Annulation en 1 clic.</div><a href="/login">Déjà membre ? Se connecter</a></div></div>
+</div>
+
+<!-- ═══ B — Clean & Confident ═══ -->
+<div class="page pb" id="pb">
+  <div class="lt">
+    <div class="accent-bar"></div>
+    <div class="eyebrow"><span class="line"></span> Job Club</div>
+    <h1>Trouve ton job<br>en Australie.</h1>
+    <p class="desc">Des centaines d'offres chaque semaine. Farm, hospo, construction et plus dans tous les states.</p>
+    <div class="stats">
+      <div class="stat"><div class="n">900+</div><div class="l">Offres</div></div>
+      <div class="stat"><div class="n">8</div><div class="l">States</div></div>
+      <div class="stat"><div class="n">9</div><div class="l">Catégories</div></div>
+    </div>
+  </div>
+  <div class="rt"><div class="chooser"><div class="title">Choisis ton plan</div><div class="opt on" onclick="sel(this)"><div class="dot"></div><div class="info"><div class="row"><span class="pn">Mensuel</span><span class="pp">$39.99</span></div><div class="meta">Facturé chaque mois</div></div></div><div class="opt" onclick="sel(this)"><div class="dot"></div><div class="info"><div class="row"><span class="pn">Annuel <span class="tag">-17%</span></span><span class="pp">$400</span></div><div class="row" style="margin-top:2px"><span class="sv">Économise $79.88</span><span class="meta">/ an</span></div></div></div><a href="/register" class="go">S'abonner maintenant</a></div><div class="foot"><div class="sec">Paiement sécurisé via Stripe. Annulation en 1 clic.</div><a href="/login">Déjà membre ? Se connecter</a></div></div>
+</div>
+
+<!-- ═══ C — Geometric Grid ═══ -->
+<div class="page pc" id="pc">
+  <div class="lt">
+    <div class="corner tl"></div>
+    <div class="corner br"></div>
+    <div class="eyebrow"><span class="line"></span> Job Club</div>
+    <h1>Trouve ton job<br>en Australie.</h1>
+    <p class="desc">Des centaines d'offres chaque semaine. Farm, hospo, construction et plus dans tous les states.</p>
+    <div class="stats">
+      <div class="stat"><div class="n">900+</div><div class="l">Offres</div></div>
+      <div class="stat"><div class="n">8</div><div class="l">States</div></div>
+      <div class="stat"><div class="n">9</div><div class="l">Catégories</div></div>
+    </div>
+  </div>
+  <div class="rt"><div class="chooser"><div class="title">Choisis ton plan</div><div class="opt on" onclick="sel(this)"><div class="dot"></div><div class="info"><div class="row"><span class="pn">Mensuel</span><span class="pp">$39.99</span></div><div class="meta">Facturé chaque mois</div></div></div><div class="opt" onclick="sel(this)"><div class="dot"></div><div class="info"><div class="row"><span class="pn">Annuel <span class="tag">-17%</span></span><span class="pp">$400</span></div><div class="row" style="margin-top:2px"><span class="sv">Économise $79.88</span><span class="meta">/ an</span></div></div></div><a href="/register" class="go">S'abonner maintenant</a></div><div class="foot"><div class="sec">Paiement sécurisé via Stripe. Annulation en 1 clic.</div><a href="/login">Déjà membre ? Se connecter</a></div></div>
+</div>
+
+<!-- ═══ D — Stacked Job Cards ═══ -->
+<div class="page pd" id="pd">
+  <div class="lt">
+    <div class="ghost-cards">
+      <div class="ghost-card"><div class="gc-title"></div><div class="gc-sub"></div><div class="gc-tag"></div></div>
+      <div class="ghost-card"><div class="gc-title" style="width:85%"></div><div class="gc-sub" style="width:40%"></div><div class="gc-tag"></div><div class="gc-tag" style="width:30px;margin-left:4px"></div></div>
+      <div class="ghost-card"><div class="gc-title" style="width:60%"></div><div class="gc-sub" style="width:55%"></div><div class="gc-tag"></div></div>
+      <div class="ghost-card"><div class="gc-title" style="width:75%"></div><div class="gc-sub" style="width:35%"></div><div class="gc-tag" style="width:50px"></div></div>
+      <div class="ghost-card"><div class="gc-title" style="width:65%"></div><div class="gc-sub" style="width:45%"></div><div class="gc-tag"></div></div>
+    </div>
+    <div class="eyebrow"><span class="line"></span> Job Club</div>
+    <h1>Trouve ton job<br>en Australie.</h1>
+    <p class="desc">Des centaines d'offres chaque semaine. Farm, hospo, construction et plus dans tous les states.</p>
+    <div class="stats">
+      <div class="stat"><div class="n">900+</div><div class="l">Offres</div></div>
+      <div class="stat"><div class="n">8</div><div class="l">States</div></div>
+      <div class="stat"><div class="n">9</div><div class="l">Catégories</div></div>
+    </div>
+  </div>
+  <div class="rt"><div class="chooser"><div class="title">Choisis ton plan</div><div class="opt on" onclick="sel(this)"><div class="dot"></div><div class="info"><div class="row"><span class="pn">Mensuel</span><span class="pp">$39.99</span></div><div class="meta">Facturé chaque mois</div></div></div><div class="opt" onclick="sel(this)"><div class="dot"></div><div class="info"><div class="row"><span class="pn">Annuel <span class="tag">-17%</span></span><span class="pp">$400</span></div><div class="row" style="margin-top:2px"><span class="sv">Économise $79.88</span><span class="meta">/ an</span></div></div></div><a href="/register" class="go">S'abonner maintenant</a></div><div class="foot"><div class="sec">Paiement sécurisé via Stripe. Annulation en 1 clic.</div><a href="/login">Déjà membre ? Se connecter</a></div></div>
+</div>
+
+<!-- ═══ E — Topographic Lines ═══ -->
+<div class="page pe" id="pe">
+  <div class="lt">
+    <svg class="topo" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice" fill="none" stroke="rgba(167,139,250,0.6)" stroke-width="1">
+      <ellipse cx="400" cy="400" rx="380" ry="350"/>
+      <ellipse cx="400" cy="400" rx="330" ry="300"/>
+      <ellipse cx="400" cy="400" rx="280" ry="250"/>
+      <ellipse cx="400" cy="400" rx="230" ry="200"/>
+      <ellipse cx="400" cy="400" rx="180" ry="155"/>
+      <ellipse cx="400" cy="400" rx="130" ry="110"/>
+      <ellipse cx="400" cy="400" rx="80" ry="70"/>
+      <ellipse cx="420" cy="380" rx="360" ry="330" transform="rotate(8 400 400)"/>
+      <ellipse cx="380" cy="420" rx="310" ry="280" transform="rotate(-5 400 400)"/>
+      <ellipse cx="410" cy="390" rx="260" ry="230" transform="rotate(12 400 400)"/>
+      <ellipse cx="390" cy="410" rx="210" ry="185" transform="rotate(-8 400 400)"/>
+      <ellipse cx="405" cy="395" rx="160" ry="140" transform="rotate(6 400 400)"/>
+    </svg>
+    <div class="eyebrow"><span class="line"></span> Job Club</div>
+    <h1>Trouve ton job<br>en Australie.</h1>
+    <p class="desc">Des centaines d'offres chaque semaine. Farm, hospo, construction et plus dans tous les states.</p>
+    <div class="stats">
+      <div class="stat"><div class="n">900+</div><div class="l">Offres</div></div>
+      <div class="stat"><div class="n">8</div><div class="l">States</div></div>
+      <div class="stat"><div class="n">9</div><div class="l">Catégories</div></div>
+    </div>
+  </div>
+  <div class="rt"><div class="chooser"><div class="title">Choisis ton plan</div><div class="opt on" onclick="sel(this)"><div class="dot"></div><div class="info"><div class="row"><span class="pn">Mensuel</span><span class="pp">$39.99</span></div><div class="meta">Facturé chaque mois</div></div></div><div class="opt" onclick="sel(this)"><div class="dot"></div><div class="info"><div class="row"><span class="pn">Annuel <span class="tag">-17%</span></span><span class="pp">$400</span></div><div class="row" style="margin-top:2px"><span class="sv">Économise $79.88</span><span class="meta">/ an</span></div></div></div><a href="/register" class="go">S'abonner maintenant</a></div><div class="foot"><div class="sec">Paiement sécurisé via Stripe. Annulation en 1 clic.</div><a href="/login">Déjà membre ? Se connecter</a></div></div>
+</div>
+
+<script>
+function pick(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('#sel button').forEach(b => b.classList.remove('on'));
+  document.getElementById('p'+id).classList.add('on');
+  event.target.classList.add('on');
+}
+function sel(el) {
+  el.closest('.rt').querySelectorAll('.opt').forEach(o => o.classList.remove('on'));
+  el.classList.add('on');
+}
+</script>
+</body>
+</html>

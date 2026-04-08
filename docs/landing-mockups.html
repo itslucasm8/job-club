@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Club — Landing Page Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400&family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* ── Selector bar ── */
+  #selector {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+    background: #1a1a1a; padding: 10px 16px;
+    display: flex; gap: 8px; align-items: center; justify-content: center;
+    font-family: 'DM Sans', sans-serif; border-bottom: 2px solid #333;
+  }
+  #selector button {
+    padding: 6px 16px; border-radius: 6px; border: 1px solid #444;
+    background: transparent; color: #999; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all .15s;
+  }
+  #selector button:hover { background: #2a2a2a; color: #ddd; }
+  #selector button.active { background: #6b21a8; color: #fff; border-color: #6b21a8; }
+  #selector span { color: #666; font-size: 12px; margin-right: 8px; }
+
+  .version { display: none; min-height: 100vh; padding-top: 52px; }
+  .version.active { display: flex; }
+
+  /* ═══════════════════════════════════════════
+     VERSION 1: Toggle Card
+     Purple bg, centered white card, plan toggle
+     ═══════════════════════════════════════════ */
+  .v1 {
+    font-family: 'Outfit', sans-serif;
+    background: #581c87;
+    align-items: center; justify-content: center;
+    flex-direction: column; padding: 20px;
+  }
+  .v1 .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .v1 .brand h1 { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+  .v1 .tagline { color: #c4b5fd; font-size: 14px; margin-bottom: 24px; text-align: center; max-width: 320px; line-height: 1.5; }
+  .v1 .card {
+    background: #fefdfb; border-radius: 20px; padding: 28px 24px;
+    width: 100%; max-width: 380px;
+  }
+  .v1 .toggle {
+    display: flex; background: #f0eeeb; border-radius: 12px; padding: 4px; margin-bottom: 24px;
+  }
+  .v1 .toggle button {
+    flex: 1; padding: 10px; border: none; border-radius: 10px; font-family: inherit;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: all .2s;
+    background: transparent; color: #78716c; position: relative;
+  }
+  .v1 .toggle button.on { background: #fff; color: #1c1917; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .v1 .toggle .badge {
+    position: absolute; top: -8px; right: -4px;
+    background: #16a34a; color: #fff; font-size: 9px; font-weight: 700;
+    padding: 2px 6px; border-radius: 20px;
+  }
+  .v1 .price { text-align: center; margin-bottom: 20px; }
+  .v1 .price .amount { font-size: 44px; font-weight: 800; color: #1c1917; letter-spacing: -2px; }
+  .v1 .price .period { font-size: 15px; color: #a8a29e; font-weight: 400; }
+  .v1 .price .saving { font-size: 12px; color: #16a34a; font-weight: 600; margin-top: 4px; }
+  .v1 .features { list-style: none; margin-bottom: 24px; }
+  .v1 .features li {
+    font-size: 13px; color: #57534e; padding: 7px 0;
+    border-bottom: 1px solid #f0eeeb; display: flex; align-items: center; gap: 10px;
+  }
+  .v1 .features li:last-child { border: none; }
+  .v1 .features .check { color: #f59e0b; font-weight: 700; font-size: 15px; }
+  .v1 .cta {
+    display: block; width: 100%; padding: 14px; border-radius: 14px; border: none;
+    background: #f59e0b; color: #1c1917; font-size: 16px; font-weight: 700;
+    font-family: inherit; cursor: pointer; transition: all .15s; text-align: center;
+    text-decoration: none;
+  }
+  .v1 .cta:hover { background: #fbbf24; transform: translateY(-1px); }
+  .v1 .secure { text-align: center; font-size: 11px; color: #a8a29e; margin-top: 12px; }
+  .v1 .signin { color: #c4b5fd; font-size: 13px; margin-top: 20px; text-align: center; }
+  .v1 .signin a { color: #e9d5ff; font-weight: 600; text-decoration: underline; }
+
+  /* ═══════════════════════════════════════════
+     VERSION 2: Side by Side
+     Purple bg, two cards, minimal
+     ═══════════════════════════════════════════ */
+  .v2 {
+    font-family: 'Space Grotesk', sans-serif;
+    background: linear-gradient(160deg, #4c1d95 0%, #6b21a8 50%, #7e22ce 100%);
+    flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+  }
+  .v2 .top { text-align: center; margin-bottom: 28px; }
+  .v2 .top h1 { font-size: 32px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .v2 .top p { font-size: 14px; color: #d8b4fe; max-width: 300px; margin: 0 auto; line-height: 1.5; }
+  .v2 .plans { display: flex; gap: 12px; width: 100%; max-width: 440px; }
+  .v2 .plan {
+    flex: 1; border-radius: 16px; padding: 24px 18px; display: flex;
+    flex-direction: column;
+  }
+  .v2 .plan.mo { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); }
+  .v2 .plan.yr { background: #fefce8; border: 2px solid #fbbf24; }
+  .v2 .plan .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+  .v2 .plan.mo .label { color: #d8b4fe; }
+  .v2 .plan.yr .label { color: #92400e; }
+  .v2 .plan .amt { font-size: 36px; font-weight: 700; letter-spacing: -1.5px; }
+  .v2 .plan.mo .amt { color: #fff; }
+  .v2 .plan.yr .amt { color: #1c1917; }
+  .v2 .plan .per { font-size: 13px; margin-bottom: 4px; }
+  .v2 .plan.mo .per { color: #a78bfa; }
+  .v2 .plan.yr .per { color: #78716c; }
+  .v2 .plan.yr .save { font-size: 11px; color: #16a34a; font-weight: 600; }
+  .v2 .plan .btn {
+    display: block; margin-top: auto; padding: 12px; border-radius: 10px;
+    text-align: center; font-family: inherit; font-size: 14px; font-weight: 600;
+    text-decoration: none; transition: all .15s; border: none; cursor: pointer;
+  }
+  .v2 .plan.mo .btn { background: rgba(255,255,255,0.15); color: #fff; margin-top: 20px; }
+  .v2 .plan.mo .btn:hover { background: rgba(255,255,255,0.25); }
+  .v2 .plan.yr .btn { background: #f59e0b; color: #1c1917; margin-top: 20px; }
+  .v2 .plan.yr .btn:hover { background: #fbbf24; }
+  .v2 .yr-tag {
+    display: inline-block; background: #f59e0b; color: #78350f; font-size: 10px;
+    font-weight: 700; padding: 3px 8px; border-radius: 20px; margin-bottom: 12px;
+  }
+  .v2 .foot { text-align: center; margin-top: 24px; }
+  .v2 .foot .sec { font-size: 11px; color: #a78bfa; margin-bottom: 6px; }
+  .v2 .foot a { color: #e9d5ff; font-size: 13px; font-weight: 500; }
+
+  /* ═══════════════════════════════════════════
+     VERSION 3: Split Screen
+     Left: dark brand. Right: pricing
+     ═══════════════════════════════════════════ */
+  .v3 {
+    font-family: 'DM Sans', sans-serif;
+    flex-direction: row; min-height: 100vh;
+  }
+  .v3 .left {
+    flex: 1; background: #3b0764; display: flex; flex-direction: column;
+    justify-content: center; padding: 40px 36px; position: relative; overflow: hidden;
+  }
+  .v3 .left::after {
+    content: ''; position: absolute; bottom: -60px; right: -60px;
+    width: 200px; height: 200px; border-radius: 50%;
+    background: #6b21a8; opacity: 0.4;
+  }
+  .v3 .left h1 { font-size: 36px; font-weight: 700; color: #fff; margin-bottom: 12px; line-height: 1.1; }
+  .v3 .left p { font-size: 15px; color: #c4b5fd; line-height: 1.6; max-width: 280px; margin-bottom: 28px; }
+  .v3 .left .feats { list-style: none; }
+  .v3 .left .feats li { font-size: 13px; color: #ddd6fe; padding: 6px 0; display: flex; gap: 8px; align-items: center; }
+  .v3 .left .feats .dot { width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; }
+  .v3 .right {
+    flex: 1; background: #faf9f7; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; padding: 40px 28px;
+  }
+  .v3 .right .plan-card {
+    width: 100%; max-width: 300px; padding: 24px; border-radius: 16px;
+    margin-bottom: 12px; cursor: pointer; transition: all .2s; border: 2px solid transparent;
+  }
+  .v3 .right .plan-card.selected { border-color: #6b21a8; background: #fff; }
+  .v3 .right .plan-card:not(.selected) { border-color: #e7e5e4; background: #fff; }
+  .v3 .right .plan-card .row { display: flex; justify-content: space-between; align-items: center; }
+  .v3 .right .plan-card .pname { font-size: 14px; font-weight: 600; color: #44403c; }
+  .v3 .right .plan-card .pprice { font-size: 24px; font-weight: 700; color: #1c1917; }
+  .v3 .right .plan-card .pper { font-size: 12px; color: #a8a29e; }
+  .v3 .right .plan-card .psave { font-size: 11px; color: #16a34a; font-weight: 600; text-align: right; }
+  .v3 .right .plan-card .radio {
+    width: 20px; height: 20px; border-radius: 50%; border: 2px solid #d6d3d1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .v3 .right .plan-card.selected .radio { border-color: #6b21a8; }
+  .v3 .right .plan-card.selected .radio::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: #6b21a8; }
+  .v3 .right .go-btn {
+    display: block; width: 100%; max-width: 300px; padding: 14px; border-radius: 12px;
+    border: none; background: #6b21a8; color: #fff; font-family: inherit;
+    font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px;
+    transition: all .15s; text-align: center; text-decoration: none;
+  }
+  .v3 .right .go-btn:hover { background: #581c87; }
+  .v3 .right .meta { margin-top: 16px; text-align: center; }
+  .v3 .right .meta .sec { font-size: 11px; color: #a8a29e; }
+  .v3 .right .meta a { display: block; margin-top: 8px; font-size: 13px; color: #6b21a8; font-weight: 500; }
+  @media (max-width: 640px) {
+    .v3 { flex-direction: column; }
+    .v3 .left { padding: 28px 24px; min-height: auto; }
+    .v3 .left h1 { font-size: 26px; }
+    .v3 .left .feats { display: none; }
+    .v3 .right { padding: 24px 20px; }
+  }
+
+  /* ═══════════════════════════════════════════
+     VERSION 4: Bold Typography
+     Oversized type, pricing inline
+     ═══════════════════════════════════════════ */
+  .v4 {
+    font-family: 'Fraunces', serif;
+    background: #1c1017; flex-direction: column;
+    align-items: center; justify-content: center; padding: 20px; text-align: center;
+  }
+  .v4 h1 {
+    font-size: clamp(48px, 12vw, 80px); font-weight: 800; color: #faf5ff;
+    line-height: 0.95; letter-spacing: -2px; margin-bottom: 8px;
+    font-style: italic;
+  }
+  .v4 h1 span { color: #f59e0b; font-style: normal; }
+  .v4 .sub { font-family: 'DM Sans', sans-serif; font-size: 14px; color: #a78bfa; margin-bottom: 32px; max-width: 300px; line-height: 1.5; }
+  .v4 .prices {
+    display: flex; gap: 32px; align-items: baseline; margin-bottom: 8px;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .v4 .prices .option { cursor: pointer; transition: opacity .2s; }
+  .v4 .prices .option.dim { opacity: 0.35; }
+  .v4 .prices .option .val { font-size: 40px; font-weight: 700; color: #fff; letter-spacing: -1px; }
+  .v4 .prices .option .per { font-size: 13px; color: #78716c; display: block; }
+  .v4 .prices .option .sv { font-size: 11px; color: #4ade80; font-weight: 600; }
+  .v4 .prices .divider { color: #3f3f46; font-size: 24px; font-weight: 300; }
+  .v4 .go {
+    display: inline-block; padding: 14px 48px; border-radius: 60px; border: none;
+    background: #f59e0b; color: #1c1917; font-family: 'DM Sans', sans-serif;
+    font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 28px;
+    transition: all .15s; text-decoration: none;
+  }
+  .v4 .go:hover { background: #fbbf24; transform: scale(1.03); }
+  .v4 .bot { font-family: 'DM Sans', sans-serif; margin-top: 20px; }
+  .v4 .bot .sec { font-size: 11px; color: #52525b; }
+  .v4 .bot a { display: block; margin-top: 6px; font-size: 13px; color: #a78bfa; }
+
+  /* ═══════════════════════════════════════════
+     VERSION 5: Warm Minimal
+     Light/cream bg, purple accents, toggle
+     ═══════════════════════════════════════════ */
+  .v5 {
+    font-family: 'Sora', sans-serif;
+    background: #f8f5f1; flex-direction: column;
+    align-items: center; justify-content: center; padding: 24px;
+  }
+  .v5 .mark {
+    width: 48px; height: 48px; background: #6b21a8; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
+  }
+  .v5 h1 { font-size: 26px; font-weight: 700; color: #1c1917; margin-bottom: 6px; letter-spacing: -0.5px; }
+  .v5 .sub { font-size: 14px; color: #78716c; margin-bottom: 28px; text-align: center; max-width: 320px; line-height: 1.5; }
+  .v5 .card {
+    background: #fff; border-radius: 20px; padding: 28px 24px;
+    width: 100%; max-width: 380px; box-shadow: 0 4px 24px rgba(0,0,0,0.05);
+  }
+  .v5 .pill-toggle {
+    display: flex; background: #f0eeeb; border-radius: 10px; padding: 3px; margin-bottom: 24px;
+  }
+  .v5 .pill-toggle button {
+    flex: 1; padding: 10px; border: none; border-radius: 8px; font-family: inherit;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s;
+    background: transparent; color: #a8a29e;
+  }
+  .v5 .pill-toggle button.on { background: #6b21a8; color: #fff; }
+  .v5 .price-area { text-align: center; margin-bottom: 20px; }
+  .v5 .price-area .big { font-size: 48px; font-weight: 800; color: #1c1917; letter-spacing: -2px; }
+  .v5 .price-area .per { font-size: 14px; color: #a8a29e; }
+  .v5 .price-area .sv { font-size: 12px; color: #16a34a; font-weight: 600; margin-top: 4px; }
+  .v5 .feat-row {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 24px; justify-content: center;
+  }
+  .v5 .feat-row span {
+    font-size: 11px; font-weight: 500; color: #6b21a8; background: #f3e8ff;
+    padding: 5px 10px; border-radius: 20px;
+  }
+  .v5 .go {
+    display: block; width: 100%; padding: 14px; border: none; border-radius: 14px;
+    background: #6b21a8; color: #fff; font-family: inherit; font-size: 15px;
+    font-weight: 600; cursor: pointer; transition: all .15s; text-align: center; text-decoration: none;
+  }
+  .v5 .go:hover { background: #581c87; }
+  .v5 .sec { text-align: center; font-size: 11px; color: #a8a29e; margin-top: 10px; }
+  .v5 .bot { margin-top: 20px; text-align: center; font-size: 13px; color: #78716c; }
+  .v5 .bot a { color: #6b21a8; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ── Version selector ── -->
+<div id="selector">
+  <span>Version:</span>
+  <button class="active" onclick="show(1)">1 — Toggle Card</button>
+  <button onclick="show(2)">2 — Side by Side</button>
+  <button onclick="show(3)">3 — Split Screen</button>
+  <button onclick="show(4)">4 — Bold Type</button>
+  <button onclick="show(5)">5 — Warm Minimal</button>
+</div>
+
+<!-- ═══════ VERSION 1 ═══════ -->
+<div class="version v1 active" id="v1">
+  <div class="brand">
+    <svg viewBox="0 0 40 40" fill="none" width="32" height="32">
+      <path d="M10 32L18 8 22 20 32 4" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M29 8L32 4 31 12" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h1>Job Club</h1>
+  </div>
+  <p class="tagline">Trouve ton job en Australie. Des centaines d'offres chaque semaine.</p>
+  <div class="card">
+    <div class="toggle">
+      <button class="on" onclick="v1toggle('mo')">Mensuel</button>
+      <button onclick="v1toggle('yr')">Annuel <span class="badge">-17%</span></button>
+    </div>
+    <div class="price" id="v1price">
+      <div class="amount">$39.99</div>
+      <div class="period">/ mois</div>
+    </div>
+    <ul class="features">
+      <li><span class="check">&#10003;</span> 20-30 nouvelles offres par jour</li>
+      <li><span class="check">&#10003;</span> Tous les states & catégories</li>
+      <li><span class="check">&#10003;</span> Recherche & favoris</li>
+      <li><span class="check">&#10003;</span> Annulation à tout moment</li>
+    </ul>
+    <a href="/register" class="cta">S'abonner maintenant</a>
+    <div class="secure">Paiement sécurisé via Stripe</div>
+  </div>
+  <p class="signin">Déjà membre ? <a href="/login">Se connecter</a></p>
+</div>
+
+<!-- ═══════ VERSION 2 ═══════ -->
+<div class="version v2" id="v2">
+  <div class="top">
+    <h1>Job Club</h1>
+    <p>Trouve ton job en Australie. Des centaines d'offres dans tous les states.</p>
+  </div>
+  <div class="plans">
+    <div class="plan mo">
+      <div class="label">Mensuel</div>
+      <div class="amt">$39.99</div>
+      <div class="per">/ mois</div>
+      <div style="height:16px"></div>
+      <a href="/register" class="btn">Choisir</a>
+    </div>
+    <div class="plan yr">
+      <span class="yr-tag">Meilleur prix</span>
+      <div class="label">Annuel</div>
+      <div class="amt">$400</div>
+      <div class="per">/ an</div>
+      <div class="save">Économise $79.88</div>
+      <a href="/register" class="btn">Choisir</a>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="sec">Paiement sécurisé via Stripe. Annulation en 1 clic.</div>
+    <a href="/login">Déjà membre ? Se connecter</a>
+  </div>
+</div>
+
+<!-- ═══════ VERSION 3 ═══════ -->
+<div class="version v3" id="v3">
+  <div class="left">
+    <h1>Trouve ton<br>job en<br>Australie.</h1>
+    <p>Des centaines d'offres chaque semaine dans tous les states. Farm, hospo, construction et plus.</p>
+    <ul class="feats">
+      <li><span class="dot"></span>20-30 nouvelles offres par jour</li>
+      <li><span class="dot"></span>8 states couverts</li>
+      <li><span class="dot"></span>Recherche & favoris</li>
+      <li><span class="dot"></span>Annulation à tout moment</li>
+    </ul>
+  </div>
+  <div class="right">
+    <div class="plan-card selected" onclick="v3pick(this)">
+      <div class="row">
+        <div>
+          <div class="pname">Mensuel</div>
+          <div class="pprice">$39.99 <span class="pper">/ mois</span></div>
+        </div>
+        <div class="radio"></div>
+      </div>
+    </div>
+    <div class="plan-card" onclick="v3pick(this)">
+      <div class="row">
+        <div>
+          <div class="pname">Annuel</div>
+          <div class="pprice">$400 <span class="pper">/ an</span></div>
+          <div class="psave">Économise $79.88</div>
+        </div>
+        <div class="radio"></div>
+      </div>
+    </div>
+    <a href="/register" class="go-btn">S'abonner maintenant</a>
+    <div class="meta">
+      <div class="sec">Paiement sécurisé via Stripe</div>
+      <a href="/login">Déjà membre ? Se connecter</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ VERSION 4 ═══════ -->
+<div class="version v4" id="v4">
+  <h1>Job<br><span>Club</span></h1>
+  <p class="sub">Trouve ton job en Australie. Des centaines d'offres dans tous les states.</p>
+  <div class="prices">
+    <div class="option" onclick="v4pick(0)" id="v4o0">
+      <div class="val">$39.99</div>
+      <span class="per">/ mois</span>
+    </div>
+    <div class="divider">ou</div>
+    <div class="option dim" onclick="v4pick(1)" id="v4o1">
+      <div class="val">$400</div>
+      <span class="per">/ an</span>
+      <div class="sv">Économise $79.88</div>
+    </div>
+  </div>
+  <a href="/register" class="go">S'abonner</a>
+  <div class="bot">
+    <div class="sec">Paiement sécurisé. Annulation en 1 clic.</div>
+    <a href="/login">Déjà membre ? Se connecter</a>
+  </div>
+</div>
+
+<!-- ═══════ VERSION 5 ═══════ -->
+<div class="version v5" id="v5">
+  <div class="mark">
+    <svg viewBox="0 0 40 40" fill="none" width="28" height="28">
+      <path d="M10 32L18 8 22 20 32 4" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M29 8L32 4 31 12" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+  <h1>Job Club</h1>
+  <p class="sub">Trouve ton job en Australie. Des centaines d'offres chaque semaine.</p>
+  <div class="card">
+    <div class="pill-toggle">
+      <button class="on" onclick="v5toggle('mo')">Mensuel</button>
+      <button onclick="v5toggle('yr')">Annuel — Économise $80</button>
+    </div>
+    <div class="price-area" id="v5price">
+      <div class="big">$39.99</div>
+      <div class="per">/ mois</div>
+    </div>
+    <div class="feat-row">
+      <span>900+ offres</span>
+      <span>8 states</span>
+      <span>Farm & 88j</span>
+      <span>Hospo</span>
+      <span>Favoris</span>
+    </div>
+    <a href="/register" class="go">S'abonner maintenant</a>
+    <div class="sec">Paiement sécurisé. Annulation à tout moment.</div>
+  </div>
+  <div class="bot">Déjà membre ? <a href="/login">Se connecter</a></div>
+</div>
+
+<script>
+function show(n) {
+  document.querySelectorAll('.version').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('#selector button').forEach(b => b.classList.remove('active'));
+  document.getElementById('v'+n).classList.add('active');
+  document.querySelectorAll('#selector button')[n-1].classList.add('active');
+}
+
+// V1 toggle
+function v1toggle(plan) {
+  const btns = document.querySelectorAll('.v1 .toggle button');
+  btns.forEach(b => b.classList.remove('on'));
+  const el = document.getElementById('v1price');
+  if (plan === 'yr') {
+    btns[1].classList.add('on');
+    el.innerHTML = '<div class="amount">$400</div><div class="period">/ an</div><div class="saving">~$33.33/mois — Économise $79.88</div>';
+  } else {
+    btns[0].classList.add('on');
+    el.innerHTML = '<div class="amount">$39.99</div><div class="period">/ mois</div>';
+  }
+}
+
+// V3 radio select
+function v3pick(card) {
+  document.querySelectorAll('.v3 .plan-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+}
+
+// V4 option select
+function v4pick(n) {
+  document.getElementById('v4o0').classList.toggle('dim', n !== 0);
+  document.getElementById('v4o1').classList.toggle('dim', n !== 1);
+}
+
+// V5 toggle
+function v5toggle(plan) {
+  const btns = document.querySelectorAll('.v5 .pill-toggle button');
+  btns.forEach(b => b.classList.remove('on'));
+  const el = document.getElementById('v5price');
+  if (plan === 'yr') {
+    btns[1].classList.add('on');
+    el.innerHTML = '<div class="big">$400</div><div class="per">/ an</div><div class="sv">~$33.33/mois</div>';
+  } else {
+    btns[0].classList.add('on');
+    el.innerHTML = '<div class="big">$39.99</div><div class="per">/ mois</div>';
+  }
+}
+</script>
+</body>
+</html>

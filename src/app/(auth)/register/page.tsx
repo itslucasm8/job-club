@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslation, translateApiError } from '@/components/LanguageContext'
+import posthog from 'posthog-js'
 
 export default function RegisterPage() {
   const [name, setName] = useState('')
@@ -33,6 +34,9 @@ export default function RegisterPage() {
       setLoading(false)
       return
     }
+
+    // Track registration
+    posthog.capture('user_registered')
 
     // Auto sign in
     const signInRes = await signIn('credentials', { email, password, redirect: false })
