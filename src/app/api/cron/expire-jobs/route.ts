@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
       count: result.count,
     })
   } catch (e) {
+    Sentry.captureException(e, { tags: { route: 'cron-expire-jobs' } })
     logger.error('Cron expire-jobs failed', {
       route: '/api/cron/expire-jobs',
       error: String(e),

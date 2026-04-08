@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import * as Sentry from '@sentry/nextjs'
 import { authOptions } from '@/lib/auth'
 import { extractSchema, getFirstValidationError } from '@/lib/validation'
 
@@ -191,6 +192,7 @@ export async function POST(req: Request) {
     if (e instanceof Error && e.name === 'AbortError') {
       return NextResponse.json({ error: 'Délai d\'attente dépassé' }, { status: 500 })
     }
+    Sentry.captureException(e, { tags: { route: 'extract' } })
     return NextResponse.json({ error: "Impossible de lire cette URL" }, { status: 500 })
   }
 }

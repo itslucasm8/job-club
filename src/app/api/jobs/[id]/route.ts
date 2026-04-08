@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import * as Sentry from '@sentry/nextjs'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createJobSchema, getFirstValidationError } from '@/lib/validation'
@@ -11,6 +12,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     if (!job) return NextResponse.json({ error: 'Offre introuvable' }, { status: 404 })
     return NextResponse.json(job)
   } catch (e) {
+    Sentry.captureException(e, { tags: { route: 'jobs-id' } })
     logger.error('GET /api/jobs/[id] failed', { route: '/api/jobs/[id]', jobId: params.id, error: String(e) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
@@ -25,6 +27,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     await prisma.job.update({ where: { id: params.id }, data: { active: false } })
     return NextResponse.json({ ok: true })
   } catch (e) {
+    Sentry.captureException(e, { tags: { route: 'jobs-id' } })
     logger.error('DELETE /api/jobs/[id] failed', { route: '/api/jobs/[id]', jobId: params.id, error: String(e) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
@@ -53,6 +56,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     })
     return NextResponse.json(job)
   } catch (e) {
+    Sentry.captureException(e, { tags: { route: 'jobs-id' } })
     logger.error('PUT /api/jobs/[id] failed', { route: '/api/jobs/[id]', jobId: params.id, error: String(e) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
@@ -71,6 +75,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     })
     return NextResponse.json(job)
   } catch (e) {
+    Sentry.captureException(e, { tags: { route: 'jobs-id' } })
     logger.error('PATCH /api/jobs/[id] failed', { route: '/api/jobs/[id]', jobId: params.id, error: String(e) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import * as Sentry from '@sentry/nextjs'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
@@ -53,6 +54,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ notifications: notificationsWithJobs, total })
   } catch (e) {
+    Sentry.captureException(e, { tags: { route: 'notifications', method: 'GET' } })
     logger.error('GET /api/notifications failed', {
       route: '/api/notifications',
       error: String(e),
@@ -119,6 +121,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ marked: updated.count })
     }
   } catch (e) {
+    Sentry.captureException(e, { tags: { route: 'notifications', method: 'PATCH' } })
     logger.error('PATCH /api/notifications failed', {
       route: '/api/notifications',
       error: String(e),

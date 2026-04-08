@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import * as Sentry from '@sentry/nextjs'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
@@ -50,6 +51,7 @@ export async function GET() {
       stateCounts,
     })
   } catch (e) {
+    Sentry.captureException(e, { tags: { route: 'feed-stats' } })
     logger.error('GET /api/feed/stats failed', { route: '/api/feed/stats', error: String(e) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }

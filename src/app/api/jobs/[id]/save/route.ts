@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import * as Sentry from '@sentry/nextjs'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
@@ -21,7 +22,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ saved: true })
     }
   } catch (e) {
-    console.error('POST /api/jobs/[id]/save error:', e)
+    Sentry.captureException(e, { tags: { route: 'jobs-save' } })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

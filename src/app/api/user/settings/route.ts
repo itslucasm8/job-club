@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import * as Sentry from '@sentry/nextjs'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
       preferredLanguage: user.preferredLanguage,
     })
   } catch (e) {
-    console.error('GET /api/user/settings failed', e)
+    Sentry.captureException(e, { tags: { route: 'user-settings', method: 'GET' } })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -186,7 +187,7 @@ export async function PATCH(req: Request) {
       preferredLanguage: updatedUser.preferredLanguage,
     })
   } catch (e) {
-    console.error('PATCH /api/user/settings failed', e)
+    Sentry.captureException(e, { tags: { route: 'user-settings', method: 'PATCH' } })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
