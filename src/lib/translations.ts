@@ -18,6 +18,8 @@ const fr = {
     unauthorized: 'Accès non autorisé',
     perMonth: '/ mois',
     perYear: '/ an',
+    pastDueWarning: 'Ton paiement a échoué. Mets à jour ton moyen de paiement pour garder ton accès.',
+    updatePayment: 'Mettre à jour',
   },
 
   // Navigation
@@ -529,6 +531,8 @@ const en: typeof fr = {
     unauthorized: 'Unauthorized access',
     perMonth: '/ month',
     perYear: '/ year',
+    pastDueWarning: 'Your payment failed. Please update your payment method to keep your access.',
+    updatePayment: 'Update payment',
   },
 
   nav: {

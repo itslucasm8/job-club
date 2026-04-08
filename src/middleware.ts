@@ -18,7 +18,7 @@ const prodMiddleware = withAuth(
       return NextResponse.redirect(new URL('/feed', req.url))
     }
 
-    if (token?.subscriptionStatus !== 'active' && token?.role !== 'admin') {
+    if (token?.subscriptionStatus !== 'active' && token?.subscriptionStatus !== 'past_due' && token?.role !== 'admin') {
       return NextResponse.redirect(new URL('/subscribe', req.url))
     }
 

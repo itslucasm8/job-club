@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar'
 import TopBar from '@/components/TopBar'
 import BottomTabs from '@/components/BottomTabs'
 import UserIdentifier from '@/components/UserIdentifier'
+import PastDueBanner from '@/components/PastDueBanner'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -14,6 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <SessionProvider session={session}>
       <UserIdentifier />
+      <PastDueBanner />
       <AdminViewProvider>
         <ToastProvider>
           <div className="flex min-h-screen">
