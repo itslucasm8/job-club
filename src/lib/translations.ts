@@ -20,6 +20,9 @@ const fr = {
     perYear: '/ an',
     pastDueWarning: 'Ton paiement a échoué. Mets à jour ton moyen de paiement pour garder ton accès.',
     updatePayment: 'Mettre à jour',
+    cookieText: 'Nous utilisons des outils d\'analyse pour améliorer notre service.',
+    accept: 'Accepter',
+    decline: 'Refuser',
   },
 
   // Navigation
@@ -580,6 +583,9 @@ const en: typeof fr = {
     perYear: '/ year',
     pastDueWarning: 'Your payment failed. Please update your payment method to keep your access.',
     updatePayment: 'Update payment',
+    cookieText: 'We use analytics tools to improve our service.',
+    accept: 'Accept',
+    decline: 'Decline',
   },
 
   nav: {

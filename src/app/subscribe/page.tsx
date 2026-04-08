@@ -177,6 +177,12 @@ function SubscribeContent() {
 
           <p className="mt-4 text-xs text-stone-400">{t.subscribe.securePayment}</p>
         </div>
+
+        <p className="text-center text-[11px] text-white/40 mt-6">
+          <a href="/privacy" className="hover:text-white/60">{t.legal.privacyTitle}</a>
+          {' · '}
+          <a href="/terms" className="hover:text-white/60">{t.legal.termsTitle}</a>
+        </p>
       </div>
     </div>
   )

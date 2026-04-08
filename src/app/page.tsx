@@ -161,6 +161,13 @@ export default function LandingPage() {
           </p>
         </div>
       </div>
+
+      {/* Footer */}
+      <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-4 text-[11px] text-stone-400 lg:text-purple-400/60">
+        <Link href="/privacy">{t.legal.privacyTitle}</Link>
+        <span>·</span>
+        <Link href="/terms">{t.legal.termsTitle}</Link>
+      </div>
     </div>
   )
 }
