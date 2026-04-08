@@ -105,7 +105,7 @@ export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) =>
         {/* Language toggle */}
         <button
           onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
-          className="px-2 py-1 rounded-lg text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-600 transition"
+          className="px-2.5 py-2 rounded-lg text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-600 transition"
         >
           {t.language.label}
         </button>
@@ -113,7 +113,7 @@ export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) =>
         {/* Notification bell */}
         <div className="relative" ref={dropdownRef}>
           <button
-            className="relative p-1.5"
+            className="relative p-2.5"
             title={t.notifications.title}
             onClick={() => setShowDropdown(!showDropdown)}
           >
@@ -175,7 +175,7 @@ export default function TopBar({ onJobClick }: { onJobClick?: (jobId: string) =>
         </div>
 
         <button onClick={() => router.push('/profile')}
-          className="w-8 h-8 rounded-full bg-purple-50 border-2 border-purple-300 flex items-center justify-center text-xs font-bold text-purple-700">
+          className="w-10 h-10 rounded-full bg-purple-50 border-2 border-purple-300 flex items-center justify-center text-xs font-bold text-purple-700">
           {session?.user?.name?.[0]?.toUpperCase() || '?'}
         </button>
       </div>
