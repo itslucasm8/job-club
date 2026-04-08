@@ -14,20 +14,12 @@
 
 ---
 
-## Should Do (Important, not blocking)
+## Remaining Items
 
-All completed on 2026-04-08. Moved to Completed section below.
-
----
-
-## Nice to Have (After launch)
-
-| # | Item | Effort | Status |
-|---|------|--------|--------|
-| 25 | JSON-LD JobPosting schema (Google job search) | 30 min | Not started — skipped, don't want jobs in Google |
-| 27 | ~~Subscription status sync cron~~ | — | **Done** — runs daily at 4:30 AM |
-| 28 | Rate limit on /api/extract endpoint | 15 min | Not started |
-| 29 | **Enable `invoice.created` in Stripe webhook** — required for renewal reminder emails to work | 1 min | Not started — do in [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks) |
+| # | Item | Effort | Type | Status |
+|---|------|--------|------|--------|
+| 29 | **Enable `invoice.created` in Stripe webhook** | 1 min | Ops (manual) | Not started — do in [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks) |
+| 28 | Rate limit on /api/extract endpoint | 15 min | Code | Not started (low priority — admin-only endpoint) |
 
 ---
 
@@ -38,67 +30,100 @@ All completed on 2026-04-08. Moved to Completed section below.
 | # | Workstream | Status |
 |---|-----------|--------|
 | 0 | Local Dev Environment Setup | **Done** |
-| 1 | Stripe Production Setup | **Done** — Live keys, price IDs, webhook on VPS. Shared Stripe account with MLF. |
+| 1 | Stripe Production Setup | **Done** — Live keys, price IDs, webhook on VPS. |
 | 2 | Resend Email Setup | **Done** — Sending from `noreply@thejobclub.com.au`, delivered to inbox. |
 | 3 | Production Database Hardening | **Done** — Backups, security, PostgreSQL 16. |
-| 4 | DNS & Domain | **Done** — `thejobclub.com.au` via Cloudflare Tunnel. Old `mlfrance.dev` route removed. |
+| 4 | DNS & Domain | **Done** — `thejobclub.com.au` via Cloudflare Tunnel. |
 | 6 | Seed Real Jobs | **Done** — 905 jobs live on production across all 8 states. |
 
 ### Features
 
 | # | Workstream | Status |
 |---|-----------|--------|
-| 7 | Observability (Sentry) | **Done** — SDK, source maps, alerts, MCP connected. Dev errors disabled. |
+| 7 | Observability (Sentry) | **Done** — SDK, source maps, alerts, MCP, env tagging, user context. |
 | 8 | Product Analytics (PostHog) | **Done** — SDK, pageviews, user identification, 7 custom events. |
 | 9 | Category Redesign + 88 Days Flag | **Done** — 9 categories, 88-day badge + filter + notification preference. |
 | 10 | i18n / Language Support | **Done** — Full EN/FR translations, bilingual emails, API error codes. |
 | 11 | Admin Redesign | **Done** — Dashboard, mode switch, create-admin flow. |
 | 12 | Landing Page | **Done** — Split-screen layout with both pricing plans. |
 
-### Hardening (2026-04-08)
+### Observability & Analytics Hardening (2026-04-08)
 
-| # | Item | Status |
-|---|------|--------|
-| 13 | Sentry error capture on all API routes (19/20) | **Done** |
-| 14 | Sentry environment tagging | **Done** |
-| 15 | PostHog user identification (`posthog.identify`) | **Done** |
-| 16 | Sentry user context (`Sentry.setUser`) | **Done** |
-| 17 | PostHog events: register, login, subscribe, search, filter | **Done** |
+| Item | Status |
+|------|--------|
+| Sentry error capture on all API routes (19/20) | **Done** |
+| Sentry environment tagging (production/development) | **Done** |
+| PostHog user identification (`posthog.identify`) | **Done** |
+| Sentry user context (`Sentry.setUser`) | **Done** |
+| PostHog events: register, login, subscribe, search, filter | **Done** |
 
-### Production Fixes (2026-04-08)
+### Security & Production Hardening (2026-04-08)
 
-| # | Item | Status |
-|---|------|--------|
-| — | Security headers (X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy) | **Done** |
-| — | Favicon (SVG, brand colors) | **Done** |
-| — | Privacy policy + Terms of service (bilingual) | **Done** |
-| — | Stripe webhook returns 500 on critical failures (enables retry) | **Done** |
-| — | `past_due` subscription grace period + warning banner | **Done** |
-| — | Bcrypt rounds standardized to 12 everywhere | **Done** |
-| — | OG meta tags + dynamic opengraph image for social sharing | **Done** |
-| — | robots.txt + dynamic sitemap.xml | **Done** |
-| — | Subscription cancellation confirmation email | **Done** |
-| — | Cookie consent banner (GDPR, PostHog opt-out) | **Done** |
-| — | Legal footer links on landing + subscribe pages | **Done** |
-| — | PWA manifest (home screen installation) | **Done** |
-| — | Loading skeletons (feed, saved, notifications, settings) | **Done** |
-| — | Renewal reminder email (on `invoice.created` webhook) | **Done** |
+| Item | Status |
+|------|--------|
+| Security headers (X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy) | **Done** |
+| Favicon (SVG, brand colors) | **Done** |
+| Privacy policy + Terms of service (bilingual) | **Done** |
+| Stripe webhook returns 500 on critical failures (enables retry) | **Done** |
+| `past_due` subscription grace period + warning banner | **Done** |
+| Bcrypt rounds standardized to 12 everywhere | **Done** |
+| Expired/inactive jobs return 404 on direct access | **Done** |
 
-### Cleanup (Earlier)
+### SEO & Social (2026-04-08)
 
-| # | Item | Status |
-|---|------|--------|
-| — | Sentry DSN + source maps + alerts in production | **Done** |
-| — | Remove old Cloudflare tunnel route | **Done** |
-| — | Resend domain verification (email deliverability) | **Done** |
-| — | Translate hardcoded French API errors | **Done** |
-| — | 88-day preference toggle in notification settings | **Done** |
+| Item | Status |
+|------|--------|
+| OG meta tags + dynamic opengraph image | **Done** |
+| robots.txt + dynamic sitemap.xml | **Done** |
+| Cookie consent banner (GDPR, PostHog opt-out) | **Done** |
+| Legal footer links on landing + subscribe pages | **Done** |
+
+### Email (2026-04-08)
+
+| Item | Status |
+|------|--------|
+| Subscription cancellation confirmation email | **Done** |
+| Renewal reminder email (on `invoice.created` webhook) | **Done** |
+
+### UX & Performance (2026-04-08/09)
+
+| Item | Status |
+|------|--------|
+| PWA manifest (home screen installation) | **Done** |
+| Loading skeletons (feed, saved, notifications, settings) | **Done** |
+| N+1 notification query → single batch query | **Done** |
+| Support contact email on profile page | **Done** |
+
+### Ops & Reliability (2026-04-08/09)
+
+| Item | Status |
+|------|--------|
+| Health check endpoint (`/api/health`) + Docker healthcheck | **Done** |
+| Subscription status sync cron (daily 4:30 AM) | **Done** |
+| Expire-jobs cron configured on VPS (daily 4:00 AM) | **Done** |
+| Password reset token cleanup in daily cron | **Done** |
+
+### Earlier Cleanup
+
+| Item | Status |
+|------|--------|
+| Sentry DSN + source maps + alerts in production | **Done** |
+| Remove old Cloudflare tunnel route | **Done** |
+| Resend domain verification (email deliverability) | **Done** |
+| Translate hardcoded French API errors | **Done** |
+| 88-day preference toggle in notification settings | **Done** |
+
+---
+
+## Decided Against
+
+| Item | Reason |
+|------|--------|
+| JSON-LD JobPosting schema | Don't want jobs appearing in Google search results |
 
 ---
 
 ## Reference Plans
-
-Older plans with completed context:
 
 - [`docs/plans/stripe-production-setup.md`](docs/plans/stripe-production-setup.md) — Stripe config (completed)
 - [`docs/plans/resend-email-setup.md`](docs/plans/resend-email-setup.md) — Email setup (completed)
@@ -112,4 +137,4 @@ Older plans with completed context:
 
 ---
 
-*Last updated: 2026-04-08*
+*Last updated: 2026-04-09*
