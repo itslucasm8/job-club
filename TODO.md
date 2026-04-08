@@ -24,12 +24,10 @@ All completed on 2026-04-08. Moved to Completed section below.
 
 | # | Item | Effort | Status |
 |---|------|--------|--------|
-| 23 | PWA manifest (install on home screen) | 15 min | Not started |
-| 24 | Loading skeletons (loading.tsx files) | 20 min | Not started |
-| 25 | JSON-LD JobPosting schema (Google job search) | 30 min | Not started |
-| 26 | Renewal reminder email (before auto-charge) | 30 min | Not started |
+| 25 | JSON-LD JobPosting schema (Google job search) | 30 min | Not started — skipped, don't want jobs in Google |
 | 27 | Subscription status sync cron (safety net for missed webhooks) | 1 hr | Not started |
 | 28 | Rate limit on /api/extract endpoint | 15 min | Not started |
+| 29 | **Enable `invoice.created` in Stripe webhook** — required for renewal reminder emails to work | 1 min | Not started — do in [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks) |
 
 ---
 
@@ -82,6 +80,9 @@ All completed on 2026-04-08. Moved to Completed section below.
 | — | Subscription cancellation confirmation email | **Done** |
 | — | Cookie consent banner (GDPR, PostHog opt-out) | **Done** |
 | — | Legal footer links on landing + subscribe pages | **Done** |
+| — | PWA manifest (home screen installation) | **Done** |
+| — | Loading skeletons (feed, saved, notifications, settings) | **Done** |
+| — | Renewal reminder email (on `invoice.created` webhook) | **Done** |
 
 ### Cleanup (Earlier)
 
