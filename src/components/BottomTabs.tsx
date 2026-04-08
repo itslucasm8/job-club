@@ -38,7 +38,7 @@ export default function BottomTabs() {
           <div className="bg-stone-100 rounded-lg p-0.5 flex gap-0.5">
             <button
               onClick={() => { if (inUserMode) toggleViewAsUser() }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-bold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[11px] font-bold transition-all ${
                 !inUserMode
                   ? 'bg-purple-700 text-white shadow-sm'
                   : 'text-stone-500'
@@ -51,7 +51,7 @@ export default function BottomTabs() {
             </button>
             <button
               onClick={() => { if (!inUserMode) toggleViewAsUser() }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-bold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[11px] font-bold transition-all ${
                 inUserMode
                   ? 'bg-amber-400 text-stone-900 shadow-sm'
                   : 'text-stone-500'
@@ -78,7 +78,7 @@ export default function BottomTabs() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
                 {tab.icon.split(' M').map((d, i) => <path key={i} d={i === 0 ? d : 'M' + d} />)}
               </svg>
-              <span className="text-[10px] font-semibold">{tab.label}</span>
+              <span className="text-[11px] font-semibold">{tab.label}</span>
             </button>
           )
         })}
