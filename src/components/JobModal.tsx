@@ -71,10 +71,10 @@ export default function JobModal({ job, saved, onSave, onClose }: { job: Job | n
           </div>
 
           <div className="flex flex-wrap gap-2 mb-5">
-            {job.eligible88Days && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">{t.jobModal.days88}</span>}
-            <span className={`text-[11px] lg:text-xs font-semibold px-2.5 py-1 rounded-full ${tagColor[job.category] || tagColor.other}`}>{catLabel(job.category, language)}</span>
-            <span className="text-[11px] lg:text-xs font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{typeLabel(job.type, language)}</span>
-            <span className="text-[11px] lg:text-xs font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">{job.state}</span>
+            {job.eligible88Days && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">{t.jobModal.days88}</span>}
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${tagColor[job.category] || tagColor.other}`}>{catLabel(job.category, language)}</span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{typeLabel(job.type, language)}</span>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">{job.state}</span>
           </div>
 
           {/* Details grid — stacked on mobile, 2x2 grid on desktop */}
