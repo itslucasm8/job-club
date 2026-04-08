@@ -34,23 +34,20 @@ export async function GET(req: Request) {
       prisma.notification.count({ where: { userId } }),
     ])
 
-    // Fetch job titles for notifications that have jobId
-    const notificationsWithJobs = await Promise.all(
-      notifications.map(async (notif) => {
-        let jobTitle = null
-        if (notif.jobId) {
-          const job = await prisma.job.findUnique({
-            where: { id: notif.jobId },
-            select: { title: true },
-          })
-          jobTitle = job?.title || null
-        }
-        return {
-          ...notif,
-          jobTitle,
-        }
-      })
-    )
+    // Batch-fetch job titles for notifications
+    const jobIds = notifications.filter(n => n.jobId).map(n => n.jobId!)
+    const jobs = jobIds.length > 0
+      ? await prisma.job.findMany({
+          where: { id: { in: jobIds } },
+          select: { id: true, title: true },
+        })
+      : []
+    const jobMap = new Map(jobs.map(j => [j.id, j.title]))
+
+    const notificationsWithJobs = notifications.map(notif => ({
+      ...notif,
+      jobTitle: notif.jobId ? jobMap.get(notif.jobId) || null : null,
+    }))
 
     return NextResponse.json({ notifications: notificationsWithJobs, total })
   } catch (e) {
