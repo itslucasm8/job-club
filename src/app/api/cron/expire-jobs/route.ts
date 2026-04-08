@@ -35,9 +35,26 @@ export async function POST(req: Request) {
       count: result.count,
     })
 
+    // Clean up old password reset tokens (expired + used, or older than 7 days)
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const tokenCleanup = await prisma.passwordReset.deleteMany({
+      where: {
+        OR: [
+          { used: true, expiresAt: { lt: now } },
+          { createdAt: { lt: sevenDaysAgo } },
+        ],
+      },
+    })
+
+    logger.info('Old password reset tokens cleaned up', {
+      route: '/api/cron/expire-jobs',
+      count: tokenCleanup.count,
+    })
+
     return NextResponse.json({
-      message: `Deactivated ${result.count} expired jobs`,
-      count: result.count,
+      message: `Deactivated ${result.count} expired jobs, cleaned ${tokenCleanup.count} tokens`,
+      expiredJobs: result.count,
+      cleanedTokens: tokenCleanup.count,
     })
   } catch (e) {
     Sentry.captureException(e, { tags: { route: 'cron-expire-jobs' } })
