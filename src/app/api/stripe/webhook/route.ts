@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
-import { sendSubscriptionConfirmation, sendPaymentFailedEmail, sendSubscriptionCancellationEmail } from '@/lib/email'
+import { sendSubscriptionConfirmation, sendPaymentFailedEmail, sendSubscriptionCancellationEmail, sendRenewalReminderEmail } from '@/lib/email'
 import { normalizeLanguage } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 
@@ -108,6 +108,26 @@ export async function POST(req: Request) {
         Sentry.captureException(e, { tags: { webhook: 'invoice.paid' } })
         logger.error('invoice.paid event failed', { route: '/api/stripe/webhook', error: String(e) })
         return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
+      }
+      break
+    }
+    case 'invoice.created': {
+      try {
+        const invoice = event.data.object as any
+        // Only send reminder for renewal invoices, not first-time subscriptions
+        if (invoice.billing_reason === 'subscription_cycle') {
+          const user = await prisma.user.findFirst({
+            where: { stripeCustomerId: invoice.customer as string },
+            select: { email: true, name: true, preferredLanguage: true },
+          })
+          if (user) {
+            const lang = normalizeLanguage(user.preferredLanguage)
+            sendRenewalReminderEmail(user.email, user.name ?? "", lang).catch(console.error)
+          }
+        }
+      } catch (e) {
+        Sentry.captureException(e, { tags: { webhook: 'invoice.created' } })
+        logger.error('invoice.created event failed', { route: '/api/stripe/webhook', error: String(e) })
       }
       break
     }

@@ -295,6 +295,39 @@ export async function sendJobAlertEmail(
   })
 }
 
+export async function sendRenewalReminderEmail(to: string, name: string, lang: Language = 'fr') {
+  const resend = getResend()
+  const baseUrl = process.env.NEXTAUTH_URL || 'https://thejobclub.com.au'
+  const greeting = name || (lang === 'en' ? 'friend' : 'ami')
+
+  const content = lang === 'en'
+    ? `<div class="content">
+        <p>Hi ${greeting},</p>
+        <p>Just a heads up — your Job Club subscription will renew soon.</p>
+        <p>No action needed if you'd like to keep your access. If you want to manage your subscription or update your payment method, you can do so anytime.</p>
+        <div style="text-align: center;">
+          <a href="${baseUrl}/profile" class="button">Manage my subscription</a>
+        </div>
+        <p style="font-size: 13px; color: #6b7280;">Thanks for being part of Job Club!</p>
+      </div>`
+    : `<div class="content">
+        <p>Salut ${greeting},</p>
+        <p>Petit rappel — ton abonnement Job Club sera renouvelé prochainement.</p>
+        <p>Aucune action nécessaire si tu souhaites garder ton accès. Si tu veux gérer ton abonnement ou mettre à jour ton moyen de paiement, tu peux le faire à tout moment.</p>
+        <div style="text-align: center;">
+          <a href="${baseUrl}/profile" class="button">Gérer mon abonnement</a>
+        </div>
+        <p style="font-size: 13px; color: #6b7280;">Merci de faire partie de Job Club !</p>
+      </div>`
+
+  return resend.emails.send({
+    from: FROM,
+    to,
+    subject: lang === 'en' ? 'Your Job Club subscription renews soon' : 'Ton abonnement Job Club sera renouvelé bientôt',
+    html: getEmailTemplate(lang === 'en' ? 'Renewal reminder' : 'Rappel de renouvellement', content, lang),
+  })
+}
+
 export async function sendSubscriptionCancellationEmail(to: string, name: string, lang: Language = 'fr') {
   const resend = getResend()
   const greeting = name || (lang === 'en' ? 'friend' : 'ami')
