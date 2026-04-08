@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /login
+Disallow: /register
+Disallow: /reset-password
+Disallow: /subscribe
+Disallow: /settings
+Disallow: /profile
+Disallow: /notifications
+
+Sitemap: https://thejobclub.com.au/sitemap.xml
