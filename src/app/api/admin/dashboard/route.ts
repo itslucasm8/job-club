@@ -34,7 +34,7 @@ export async function GET() {
     prisma.job.count({ where: { AND: [...activeConditions, { eligible88Days: true }] } }),
     prisma.user.count(),
     prisma.user.count({ where: { role: 'admin' } }),
-    prisma.user.count({ where: { subscriptionStatus: 'active' } }),
+    prisma.user.count({ where: { subscriptionStatus: 'active', role: 'user' } }),
     prisma.job.groupBy({
       by: ['state'],
       where: { AND: activeConditions },

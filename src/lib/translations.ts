@@ -177,7 +177,6 @@ const fr = {
     title: 'Tous les States',
     subtitle: 'Choisis un state pour voir les offres',
     jobs: 'offres',
-    subscribers: 'abonnés',
   },
 
   // Admin page
@@ -678,7 +677,6 @@ const en: typeof fr = {
     title: 'All States',
     subtitle: 'Choose a state to see job listings',
     jobs: 'jobs',
-    subscribers: 'subscribers',
   },
 
   admin: {

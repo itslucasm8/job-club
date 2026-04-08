@@ -13,11 +13,10 @@ export default function StatesPage() {
 
   useEffect(() => {
     async function fetchCounts() {
-      const res = await fetch('/api/jobs')
+      const res = await fetch('/api/feed/stats')
+      if (!res.ok) return
       const data = await res.json()
-      const c: Record<string, number> = {}
-      ;(data.jobs || []).forEach((j: any) => { c[j.state] = (c[j.state] || 0) + 1 })
-      setCounts(c)
+      setCounts(data.stateCounts || {})
     }
     fetchCounts()
   }, [])
@@ -40,7 +39,7 @@ export default function StatesPage() {
             <div className="p-3">
               <div className="text-sm font-bold text-stone-800">{s.code}</div>
               <div className="text-xs text-stone-500">
-                <strong className="text-purple-700">{counts[s.code] || 0}</strong> {t.statesPage.jobs} · {s.followers} {t.statesPage.subscribers}
+                <strong className="text-purple-700">{counts[s.code] || 0}</strong> {t.statesPage.jobs}
               </div>
             </div>
           </div>

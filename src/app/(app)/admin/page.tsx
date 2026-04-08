@@ -167,7 +167,9 @@ export default function AdminDashboardPage() {
     return <div className="px-4 sm:px-5 lg:px-7 py-5"><p className="text-stone-500">{t.common.networkError}</p></div>
   }
 
-  const subscriptionRevenue = data.activeSubscribers * 40 // ~$40/month per subscriber
+  const subscriberLabel = data.activeSubscribers === 1
+    ? (language === 'fr' ? 'abonné payant' : 'paying subscriber')
+    : (language === 'fr' ? 'abonnés payants' : 'paying subscribers')
 
   return (
     <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-5xl">
@@ -195,7 +197,7 @@ export default function AdminDashboardPage() {
         <StatCard
           label={t.admin.activeSubscribers || 'Abonnés actifs'}
           value={data.activeSubscribers}
-          sub={`$${subscriptionRevenue} ${t.admin.monthlyRevenue || 'AUD/mois'}`}
+          sub={`${data.activeSubscribers} ${subscriberLabel}`}
           color="amber"
         />
         <StatCard

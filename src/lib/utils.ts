@@ -8,14 +8,14 @@ export function normalizeLanguage(lang: string | null | undefined): Language {
 }
 
 export const STATES = [
-  { code: 'QLD', name: 'Queensland', followers: 141 },
-  { code: 'NSW', name: 'New South Wales', followers: 261 },
-  { code: 'VIC', name: 'Victoria', followers: 69 },
-  { code: 'SA', name: 'South Australia', followers: 45 },
-  { code: 'WA', name: 'Western Australia', followers: 88 },
-  { code: 'TAS', name: 'Tasmania', followers: 39 },
-  { code: 'NT', name: 'Northern Territory', followers: 52 },
-  { code: 'ACT', name: 'Australian Capital Territory', followers: 35 },
+  { code: 'QLD', name: 'Queensland' },
+  { code: 'NSW', name: 'New South Wales' },
+  { code: 'VIC', name: 'Victoria' },
+  { code: 'SA', name: 'South Australia' },
+  { code: 'WA', name: 'Western Australia' },
+  { code: 'TAS', name: 'Tasmania' },
+  { code: 'NT', name: 'Northern Territory' },
+  { code: 'ACT', name: 'Australian Capital Territory' },
 ] as const
 
 export function getCategories(lang: Language = 'fr') {
