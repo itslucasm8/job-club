@@ -102,6 +102,24 @@ function FeedContent() {
     fetchJobs(1, false)
   }, [fetchJobs])
 
+  // Infinite scroll: observe sentinel to load next page
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && page < pages && !loadingMore) {
+          fetchJobs(page + 1, true)
+        }
+      },
+      { rootMargin: '200px' }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [page, pages, loadingMore, fetchJobs])
+
   function updateFilter(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString())
     if (value === 'all') params.delete(key)
@@ -230,6 +248,25 @@ function FeedContent() {
           ))
         )}
       </div>
+
+      {/* Infinite scroll sentinel + loading more indicator */}
+      {!loading && jobs.length > 0 && (
+        <>
+          {loadingMore && (
+            <div className="px-4 sm:px-5 lg:px-7 pb-4 grid gap-[18px] grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <JobCardSkeleton key={`more-${i}`} />
+              ))}
+            </div>
+          )}
+          {page >= pages && !loadingMore && (
+            <div className="text-center py-6 pb-24 lg:pb-10">
+              <p className="text-sm text-stone-400">{t.feed.allLoaded}</p>
+            </div>
+          )}
+          <div ref={sentinelRef} className="h-1" />
+        </>
+      )}
 
       <JobModal job={selectedJob} saved={selectedJob ? savedIds.has(selectedJob.id) : false}
         onSave={() => { if (selectedJob) toggleSave(selectedJob.id) }}
