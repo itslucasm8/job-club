@@ -2,64 +2,67 @@
 
 > **Status:** Phase 1 — Go-live & Podia migration. Target: mid-April to mid-May 2026.
 >
-> Each workstream below has a dedicated plan in `docs/plans/`. Plans are executable — tell Claude to run them with `feature-dev` (for feature work) or follow the ops steps directly.
+> Almost everything is done. **One blocker remains: Podia user migration.**
 
 ---
 
-## Immediate (do first)
+## Last Blocker Before Go-Live
 
 | # | Workstream | Plan | Type | Status |
 |---|-----------|------|------|--------|
-| 0 | **Local Dev Environment Setup** | See [Getting Started](CLAUDE.md#getting-started-local-dev) | Setup | **Done** |
-
-> Lucas: set up your local dev environment so you can test changes before they go to production. See CLAUDE.md for instructions (Docker, `.env`, `npm install`, `prisma db push`, `db:seed`).
-
-## Critical Path (must complete before go-live)
-
-| # | Workstream | Plan | Type | Status |
-|---|-----------|------|------|--------|
-| 1 | **Stripe Production Setup** | [plan](docs/plans/stripe-production-setup.md) | Ops + Config | **Done** — Live keys, price IDs, webhook configured on VPS. Shared Stripe account with MLF. |
-| 2 | **Resend Email Setup** | [plan](docs/plans/resend-email-setup.md) | Ops + Config | **Done** — API key configured, sending from `noreply@thejobclub.com.au`. Verify DKIM/SPF/DMARC if email deliverability issues arise. |
-| 3 | **Production Database Hardening** | [plan](docs/plans/production-database.md) | Ops | **Done** |
-| 4 | **DNS & Domain** | [plan](docs/plans/dns-domain.md) | Ops | **Done** — `thejobclub.com.au` live via Cloudflare Tunnel. Nameservers pointed from VentraIP. |
 | 5 | **Podia User Migration** | [plan](docs/plans/podia-user-migration.md) | Script + Ops | Not started — needs Podia CSV export + subscription strategy decision |
-| 6 | **Seed Real Jobs** | [plan](docs/plans/seed-real-jobs.md) | Script + Ops | **Done** — 905 jobs live on production across all 8 states. |
 
-## Important (should complete before or shortly after go-live)
+---
 
-| # | Workstream | Plan | Type | Status |
-|---|-----------|------|------|--------|
-| 7 | **Observability (Sentry)** | [plan](docs/plans/observability-sentry.md) | Feature | **Done** |
-| 8 | **Product Analytics** | [plan](docs/plans/product-analytics.md) | Feature | **Done** |
-| 9 | **Category Redesign + 88 Days Flag** | [spec](docs/superpowers/specs/2026-04-07-categories-88days-design.md) | Feature | **Done** — PR #1 merged. 9 categories, 88-day badge + filter. |
+## Completed
 
-## Cleanup / Small Items
+### Critical Path
+
+| # | Workstream | Status |
+|---|-----------|--------|
+| 0 | Local Dev Environment Setup | **Done** |
+| 1 | Stripe Production Setup | **Done** — Live keys, price IDs, webhook on VPS. Shared Stripe account with MLF. |
+| 2 | Resend Email Setup | **Done** — Sending from `noreply@thejobclub.com.au`, delivered to inbox. |
+| 3 | Production Database Hardening | **Done** — Backups, security, PostgreSQL 16. |
+| 4 | DNS & Domain | **Done** — `thejobclub.com.au` via Cloudflare Tunnel. Old `mlfrance.dev` route removed. |
+| 6 | Seed Real Jobs | **Done** — 905 jobs live on production across all 8 states. |
+
+### Features
+
+| # | Workstream | Status |
+|---|-----------|--------|
+| 7 | Observability (Sentry) | **Done** — SDK, source maps, alerts, MCP connected. Dev errors disabled. |
+| 8 | Product Analytics (PostHog) | **Done** |
+| 9 | Category Redesign + 88 Days Flag | **Done** — 9 categories, 88-day badge + filter + notification preference. |
+| 10 | i18n / Language Support | **Done** — Full EN/FR translations, bilingual emails, API error codes. |
+| 11 | Admin Redesign | **Done** — Dashboard, mode switch, create-admin flow. |
+| 12 | Landing Page | **Done** — Split-screen layout with both pricing plans. |
+
+### Cleanup
 
 | # | Item | Status |
 |---|------|--------|
-| 10 | **Sentry DSN in production** — DSN configured and active in running container. | **Done** |
-| 13 | **Sentry source maps** — Auth token configured, source map uploads enabled in `next.config.js`. Deployed to VPS. | **Done** |
-| 14 | **Sentry alerts** — High-priority issue alerts + new bug alerts configured and actively firing. | **Done** |
-| 11 | **Remove old Cloudflare tunnel route** — Old `jobclub.mlfrance.dev` route removed from Cloudflare Zero Trust. | **Done** |
-| 12 | **Resend domain verification check** — Email delivered to inbox (not spam). DKIM/SPF/DMARC likely passing. | **Done** |
-| 15 | **Translate hardcoded French API errors** — Several API routes (`/api/register`, `/api/auth/check`, `/api/auth/reset-password`) return French error strings that display on the frontend regardless of user language. | Not started |
-
-## Already Planned (existing detailed plans)
-
-These older plans cover work that's partially done. Refer to them for completed context:
-
-- [`2026-03-30-production-launch-plan.md`](docs/plans/2026-03-30-production-launch-plan.md) — Foundation hardening (PostgreSQL, Zod, auth fixes, admin roles, saved jobs, Stripe, emails, backups, logging). Many tasks here are **already completed**.
-- [`2026-03-31-phase1-functional-phase2-ux-plan.md`](docs/plans/2026-03-31-phase1-functional-phase2-ux-plan.md) — Email alerts, notifications page, toast system, animations, responsive polish. Many tasks here are **already completed**.
+| 13 | Sentry DSN + source maps + alerts in production | **Done** |
+| 14 | Remove old Cloudflare tunnel route | **Done** |
+| 15 | Resend domain verification (email deliverability) | **Done** |
+| 16 | Translate hardcoded French API errors | **Done** |
+| 17 | 88-day preference toggle in notification settings | **Done** |
 
 ---
 
-## How to Execute a Plan
+## Reference Plans
 
-1. Open the plan doc (e.g., `docs/plans/stripe-production-setup.md`)
-2. For **feature-related plans** (Observability, Analytics): tell Claude to use `feature-dev`
-3. For **ops plans** (Stripe, Resend, DNS, Database): follow the steps — some require manual actions (dashboard logins, DNS changes) that Claude will guide you through
-4. For **script plans** (Migration, Seeding): Claude writes and runs the scripts
+Older plans with completed context:
+
+- [`docs/plans/stripe-production-setup.md`](docs/plans/stripe-production-setup.md) — Stripe config (completed)
+- [`docs/plans/resend-email-setup.md`](docs/plans/resend-email-setup.md) — Email setup (completed)
+- [`docs/plans/production-database.md`](docs/plans/production-database.md) — DB hardening (completed)
+- [`docs/plans/dns-domain.md`](docs/plans/dns-domain.md) — Domain setup (completed)
+- [`docs/plans/observability-sentry.md`](docs/plans/observability-sentry.md) — Sentry (completed)
+- [`docs/plans/product-analytics.md`](docs/plans/product-analytics.md) — PostHog (completed)
+- [`docs/plans/seed-real-jobs.md`](docs/plans/seed-real-jobs.md) — Job seeding (completed)
+- [`docs/plans/podia-user-migration.md`](docs/plans/podia-user-migration.md) — **Next up**
 
 ---
 
-*Last updated: 2026-04-07*
+*Last updated: 2026-04-08*
