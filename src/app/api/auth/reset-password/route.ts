@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { sendPasswordResetEmail } from '@/lib/email'
 import { normalizeLanguage } from '@/lib/utils'
@@ -54,7 +55,7 @@ export async function POST(req: Request) {
       { status: 200 }
     )
   } catch (e) {
-    console.error('POST /api/auth/reset-password error:', e)
+    Sentry.captureException(e, { tags: { route: 'reset-password' } })
     return NextResponse.json(
       { error: 'SERVER_ERROR' },
       { status: 500 }
