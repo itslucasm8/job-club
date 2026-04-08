@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import * as Sentry from '@sentry/nextjs'
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
@@ -15,7 +16,7 @@ export async function GET(req: Request) {
     })
     return NextResponse.json(jobs)
   } catch (e) {
-    console.error('GET /api/admin/jobs error:', e)
+    Sentry.captureException(e, { tags: { route: 'admin-jobs' } })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
