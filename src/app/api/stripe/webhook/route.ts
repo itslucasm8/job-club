@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
-import { sendSubscriptionConfirmation, sendPaymentFailedEmail } from '@/lib/email'
+import { sendSubscriptionConfirmation, sendPaymentFailedEmail, sendSubscriptionCancellationEmail } from '@/lib/email'
 import { normalizeLanguage } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 
@@ -59,6 +59,15 @@ export async function POST(req: Request) {
       try {
         const sub = event.data.object as any
         await prisma.user.updateMany({ where: { subscriptionId: sub.id }, data: { subscriptionStatus: 'canceled', subscriptionId: null } })
+        // Send cancellation confirmation email
+        const user = await prisma.user.findFirst({
+          where: { stripeCustomerId: sub.customer as string },
+          select: { email: true, name: true, preferredLanguage: true },
+        })
+        if (user) {
+          const lang = normalizeLanguage(user.preferredLanguage)
+          sendSubscriptionCancellationEmail(user.email, user.name ?? "", lang).catch(console.error)
+        }
       } catch (e) {
         Sentry.captureException(e, { tags: { webhook: 'customer.subscription.deleted' } })
         logger.error('customer.subscription.deleted event failed', { route: '/api/stripe/webhook', error: String(e) })

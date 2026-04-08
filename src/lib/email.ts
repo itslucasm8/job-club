@@ -294,3 +294,31 @@ export async function sendJobAlertEmail(
     html: getEmailTemplate('Nouvelle offre', content, lang),
   })
 }
+
+export async function sendSubscriptionCancellationEmail(to: string, name: string, lang: Language = 'fr') {
+  const resend = getResend()
+  const greeting = name || (lang === 'en' ? 'friend' : 'ami')
+
+  const content = lang === 'en'
+    ? `<div class="content">
+        <p>Hi ${greeting},</p>
+        <p>Your Job Club subscription has been cancelled.</p>
+        <p>You will no longer have access to job listings. If you change your mind, you can resubscribe at any time.</p>
+        <p>We hope Job Club helped you in your Australian adventure. Good luck!</p>
+        <p style="font-size: 13px; color: #6b7280;">If you didn't cancel your subscription, please contact us immediately.</p>
+      </div>`
+    : `<div class="content">
+        <p>Salut ${greeting},</p>
+        <p>Ton abonnement Job Club a bien été annulé.</p>
+        <p>Tu n'auras plus accès aux offres d'emploi. Si tu changes d'avis, tu peux te réabonner à tout moment.</p>
+        <p>On espère que Job Club t'a aidé dans ton aventure australienne. Bonne chance !</p>
+        <p style="font-size: 13px; color: #6b7280;">Si tu n'as pas annulé ton abonnement, contacte-nous immédiatement.</p>
+      </div>`
+
+  return resend.emails.send({
+    from: FROM,
+    to,
+    subject: lang === 'en' ? 'Your Job Club subscription has been cancelled' : 'Ton abonnement Job Club a été annulé',
+    html: getEmailTemplate(lang === 'en' ? 'Subscription cancelled' : 'Abonnement annulé', content, lang),
+  })
+}
