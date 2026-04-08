@@ -14,6 +14,31 @@
 
 ---
 
+## Should Do (Important, not blocking)
+
+| # | Item | Effort | Status |
+|---|------|--------|--------|
+| 18 | **OG meta tags** — og:title, og:image, twitter:card for social sharing | 30 min | Not started |
+| 19 | **robots.txt + sitemap** — so search engines can crawl properly | 30 min | Not started |
+| 20 | **Subscription cancellation email** — confirm when users cancel | 30 min | Not started |
+| 21 | **Cookie consent banner** — GDPR compliance for PostHog/Sentry | 1 hr | Not started |
+| 22 | **Link privacy/terms pages** — add footer links on landing + subscribe pages | 15 min | Not started |
+
+---
+
+## Nice to Have (After launch)
+
+| # | Item | Effort | Status |
+|---|------|--------|--------|
+| 23 | PWA manifest (install on home screen) | 15 min | Not started |
+| 24 | Loading skeletons (loading.tsx files) | 20 min | Not started |
+| 25 | JSON-LD JobPosting schema (Google job search) | 30 min | Not started |
+| 26 | Renewal reminder email (before auto-charge) | 30 min | Not started |
+| 27 | Subscription status sync cron (safety net for missed webhooks) | 1 hr | Not started |
+| 28 | Rate limit on /api/extract endpoint | 15 min | Not started |
+
+---
+
 ## Completed
 
 ### Critical Path
@@ -32,21 +57,42 @@
 | # | Workstream | Status |
 |---|-----------|--------|
 | 7 | Observability (Sentry) | **Done** — SDK, source maps, alerts, MCP connected. Dev errors disabled. |
-| 8 | Product Analytics (PostHog) | **Done** |
+| 8 | Product Analytics (PostHog) | **Done** — SDK, pageviews, user identification, 7 custom events. |
 | 9 | Category Redesign + 88 Days Flag | **Done** — 9 categories, 88-day badge + filter + notification preference. |
 | 10 | i18n / Language Support | **Done** — Full EN/FR translations, bilingual emails, API error codes. |
 | 11 | Admin Redesign | **Done** — Dashboard, mode switch, create-admin flow. |
 | 12 | Landing Page | **Done** — Split-screen layout with both pricing plans. |
 
-### Cleanup
+### Hardening (2026-04-08)
 
 | # | Item | Status |
 |---|------|--------|
-| 13 | Sentry DSN + source maps + alerts in production | **Done** |
-| 14 | Remove old Cloudflare tunnel route | **Done** |
-| 15 | Resend domain verification (email deliverability) | **Done** |
-| 16 | Translate hardcoded French API errors | **Done** |
-| 17 | 88-day preference toggle in notification settings | **Done** |
+| 13 | Sentry error capture on all API routes (19/20) | **Done** |
+| 14 | Sentry environment tagging | **Done** |
+| 15 | PostHog user identification (`posthog.identify`) | **Done** |
+| 16 | Sentry user context (`Sentry.setUser`) | **Done** |
+| 17 | PostHog events: register, login, subscribe, search, filter | **Done** |
+
+### Production Fixes (2026-04-08)
+
+| # | Item | Status |
+|---|------|--------|
+| — | Security headers (X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy) | **Done** |
+| — | Favicon (SVG, brand colors) | **Done** |
+| — | Privacy policy + Terms of service (bilingual) | **Done** |
+| — | Stripe webhook returns 500 on critical failures (enables retry) | **Done** |
+| — | `past_due` subscription grace period + warning banner | **Done** |
+| — | Bcrypt rounds standardized to 12 everywhere | **Done** |
+
+### Cleanup (Earlier)
+
+| # | Item | Status |
+|---|------|--------|
+| — | Sentry DSN + source maps + alerts in production | **Done** |
+| — | Remove old Cloudflare tunnel route | **Done** |
+| — | Resend domain verification (email deliverability) | **Done** |
+| — | Translate hardcoded French API errors | **Done** |
+| — | 88-day preference toggle in notification settings | **Done** |
 
 ---
 
@@ -61,6 +107,7 @@ Older plans with completed context:
 - [`docs/plans/observability-sentry.md`](docs/plans/observability-sentry.md) — Sentry (completed)
 - [`docs/plans/product-analytics.md`](docs/plans/product-analytics.md) — PostHog (completed)
 - [`docs/plans/seed-real-jobs.md`](docs/plans/seed-real-jobs.md) — Job seeding (completed)
+- [`docs/plans/observability-analytics-completion.md`](docs/plans/observability-analytics-completion.md) — Analytics hardening (completed)
 - [`docs/plans/podia-user-migration.md`](docs/plans/podia-user-migration.md) — **Next up**
 
 ---
