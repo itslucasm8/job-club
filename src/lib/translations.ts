@@ -162,6 +162,12 @@ const fr = {
     savePassword: 'Changer le mot de passe',
     savePreferences: 'Enregistrer les préférences',
     languageTitle: 'Langue / Language',
+    deleteAccount: 'Supprimer mon compte',
+    deleteAccountWarning: 'Cette action est irréversible. Ton compte, tes sauvegardes et ton abonnement seront supprimés définitivement.',
+    deleteConfirmPassword: 'Entre ton mot de passe pour confirmer',
+    deleteConfirm: 'Supprimer définitivement',
+    deleteSuccess: 'Ton compte a été supprimé.',
+    deleteError: 'Erreur lors de la suppression. Vérifie ton mot de passe.',
   },
 
   // Notifications page
@@ -718,6 +724,12 @@ const en: typeof fr = {
     savePassword: 'Change password',
     savePreferences: 'Save preferences',
     languageTitle: 'Language',
+    deleteAccount: 'Delete my account',
+    deleteAccountWarning: 'This action is irreversible. Your account, saved jobs, and subscription will be permanently deleted.',
+    deleteConfirmPassword: 'Enter your password to confirm',
+    deleteConfirm: 'Delete permanently',
+    deleteSuccess: 'Your account has been deleted.',
+    deleteError: 'Deletion failed. Check your password.',
   },
 
   notifications: {

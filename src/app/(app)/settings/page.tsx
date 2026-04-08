@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { STATES, getCategories } from '@/lib/utils'
 import { useTranslation } from '@/components/LanguageContext'
@@ -29,6 +29,12 @@ export default function SettingsPage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
+  // Delete account state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [loadingDelete, setLoadingDelete] = useState(false)
+  const [toastDelete, setToastDelete] = useState<Toast>(null)
 
   // Preferences state
   const [preferredStates, setPreferredStates] = useState<string[]>([])
@@ -185,6 +191,28 @@ export default function SettingsPage() {
     } finally {
       setLoadingPreferences(false)
     }
+  }
+
+  // Handle account deletion
+  async function handleDeleteAccount() {
+    if (!deletePassword) return
+    setLoadingDelete(true)
+    setToastDelete(null)
+    try {
+      const res = await fetch('/api/user/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: deletePassword }),
+      })
+      if (res.ok) {
+        signOut({ callbackUrl: '/' })
+      } else {
+        setToastDelete({ type: 'error', message: t.settings.deleteError })
+      }
+    } catch {
+      setToastDelete({ type: 'error', message: t.settings.deleteError })
+    }
+    setLoadingDelete(false)
   }
 
   // Toggle state selection
@@ -498,6 +526,52 @@ export default function SettingsPage() {
               : 'bg-red-100 text-red-700'
           }`}>
             {toastPreferences.message}
+          </div>
+        )}
+      </section>
+
+      {/* Delete Account */}
+      <section className="mb-8">
+        <h2 className="text-lg font-bold text-red-600 mb-4">{t.settings.deleteAccount}</h2>
+        <div className="bg-white p-5 rounded-lg border border-red-200">
+          <p className="text-sm text-stone-600 mb-4">{t.settings.deleteAccountWarning}</p>
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full py-2.5 border-2 border-red-500 text-red-500 font-bold rounded-lg hover:bg-red-50 transition"
+            >
+              {t.settings.deleteAccount}
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder={t.settings.deleteConfirmPassword}
+                className="w-full px-4 py-2.5 rounded-lg border border-red-300 text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-red-400"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setToastDelete(null) }}
+                  className="flex-1 py-2.5 border border-stone-300 text-stone-600 font-bold rounded-lg hover:bg-stone-50 transition"
+                >
+                  {t.common.cancel}
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={loadingDelete || !deletePassword}
+                  className="flex-1 py-2.5 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+                >
+                  {loadingDelete ? t.common.loading : t.settings.deleteConfirm}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        {toastDelete && (
+          <div className="mt-3 p-3 rounded-lg text-sm font-medium bg-red-100 text-red-700">
+            {toastDelete.message}
           </div>
         )}
       </section>
