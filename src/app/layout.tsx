@@ -1,3 +1,4 @@
+import type { Viewport } from 'next'
 import './globals.css'
 import { Inter } from 'next/font/google'
 import PostHogProvider from '@/components/PostHogProvider'
@@ -7,6 +8,12 @@ import { LanguageProvider } from '@/components/LanguageContext'
 export const dynamic = 'force-dynamic'
 
 const inter = Inter({ subsets: ['latin'] })
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+}
 
 export const metadata = {
   title: 'Job Club — Jobs for Backpackers in Australia',
