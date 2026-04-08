@@ -44,6 +44,7 @@ function FeedContent() {
   const [total, setTotal] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const loadingMoreRef = useRef(false)
 
   const state = searchParams.get('state') || 'all'
   const category = searchParams.get('category') || 'all'
@@ -63,7 +64,7 @@ function FeedContent() {
 
   const fetchJobs = useCallback(async (pageNum: number, append = false) => {
     if (pageNum === 1) setLoading(true)
-    else setLoadingMore(true)
+    else { setLoadingMore(true); loadingMoreRef.current = true }
 
     try {
       const params = new URLSearchParams()
@@ -89,8 +90,8 @@ function FeedContent() {
       if (!append) setJobs([])
     }
 
-    setLoading(false)
-    setLoadingMore(false)
+    if (pageNum === 1) setLoading(false)
+    else { setLoadingMore(false); loadingMoreRef.current = false }
   }, [state, category, query, only88Days])
 
   useEffect(() => {
@@ -109,7 +110,7 @@ function FeedContent() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && page < pages && !loadingMore) {
+        if (entries[0].isIntersecting && page < pages && !loadingMoreRef.current) {
           fetchJobs(page + 1, true)
         }
       },
@@ -118,7 +119,7 @@ function FeedContent() {
 
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [page, pages, loadingMore, fetchJobs])
+  }, [page, pages, fetchJobs])
 
   function updateFilter(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -258,7 +259,7 @@ function FeedContent() {
 
       {/* Infinite scroll sentinel + loading more indicator */}
       {!loading && jobs.length > 0 && (
-        <>
+        <div className="pb-24 lg:pb-10">
           {loadingMore && (
             <div className="px-4 sm:px-5 lg:px-7 pb-4 grid gap-[18px] grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -267,12 +268,12 @@ function FeedContent() {
             </div>
           )}
           {page >= pages && !loadingMore && (
-            <div className="text-center py-6 pb-24 lg:pb-10">
+            <div className="text-center py-6">
               <p className="text-sm text-stone-400">{t.feed.allLoaded}</p>
             </div>
           )}
-          <div ref={sentinelRef} className="h-1" />
-        </>
+          {page < pages && <div ref={sentinelRef} className="h-1" />}
+        </div>
       )}
 
       <JobModal job={selectedJob} saved={selectedJob ? savedIds.has(selectedJob.id) : false}
