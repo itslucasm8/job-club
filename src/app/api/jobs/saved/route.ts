@@ -10,7 +10,13 @@ export async function GET() {
     if (!session) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
     const savedJobs = await prisma.savedJob.findMany({
-      where: { userId: (session.user as any).id },
+      where: {
+        userId: (session.user as any).id,
+        job: {
+          active: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      },
       include: { job: true },
       orderBy: { createdAt: 'desc' },
     })
