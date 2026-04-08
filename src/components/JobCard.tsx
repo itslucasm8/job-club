@@ -34,7 +34,7 @@ export default function JobCard({ job, saved, onSave, onClick }: { job: Job; sav
       {/* Heart save button */}
       <button
         onClick={e => { e.stopPropagation(); onSave() }}
-        className={`absolute top-4 right-4 p-1.5 rounded-full transition-colors ${saved ? 'text-red-500 bg-red-50' : 'text-stone-300 hover:text-purple-500 hover:bg-purple-50'}`}
+        className={`absolute top-2 right-2 p-2.5 rounded-full transition-colors ${saved ? 'text-red-500 bg-red-50' : 'text-stone-300 hover:text-purple-500 hover:bg-purple-50'}`}
         aria-label={saved ? t.jobCard.removeFavorite : t.jobCard.addFavorite}
       >
         <svg viewBox="0 0 24 24" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" className="w-5 h-5">
@@ -52,7 +52,7 @@ export default function JobCard({ job, saved, onSave, onClick }: { job: Job; sav
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] text-stone-400">{language === 'fr' ? `Il y a ${timeAgo(new Date(job.createdAt), language)}` : `${timeAgo(new Date(job.createdAt), language)} ago`}</span>
             {isNewJob(job.createdAt) && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-400 text-white uppercase tracking-wide leading-none">
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-orange-400 text-white uppercase tracking-wide leading-none">
                 NEW
               </span>
             )}
@@ -77,11 +77,11 @@ export default function JobCard({ job, saved, onSave, onClick }: { job: Job; sav
 
       {/* Tags row: category + state + type + pay */}
       <div className="flex flex-wrap gap-1.5 mt-3">
-        {job.eligible88Days && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">{t.jobCard.days88}</span>}
-        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${tagColor[job.category] || tagColor.other}`}>{catLabel(job.category, language)}</span>
-        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">{job.state}</span>
-        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{typeLabel(job.type, language)}</span>
-        {job.pay && <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{job.pay}</span>}
+        {job.eligible88Days && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">{t.jobCard.days88}</span>}
+        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${tagColor[job.category] || tagColor.other}`}>{catLabel(job.category, language)}</span>
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">{job.state}</span>
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{typeLabel(job.type, language)}</span>
+        {job.pay && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{job.pay}</span>}
       </div>
     </div>
   )
