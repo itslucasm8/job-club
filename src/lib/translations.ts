@@ -90,6 +90,8 @@ const fr = {
     jobSaved: 'Offre sauvegardée',
     jobRemoved: 'Offre retirée',
     days88: '88 jours',
+    jobCount: (count: number) => `${count} offre${count !== 1 ? 's' : ''}`,
+    allLoaded: 'Toutes les offres sont affichées',
   },
 
   // Saved page
@@ -594,6 +596,8 @@ const en: typeof fr = {
     jobSaved: 'Job saved',
     jobRemoved: 'Job removed',
     days88: '88 days',
+    jobCount: (count: number) => `${count} job${count !== 1 ? 's' : ''}`,
+    allLoaded: 'All jobs displayed',
   },
 
   saved: {
