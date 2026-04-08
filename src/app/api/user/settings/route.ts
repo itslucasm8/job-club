@@ -108,6 +108,13 @@ export async function PATCH(req: Request) {
         )
       }
 
+      if (typeof newPassword !== 'string' || newPassword.length < 8) {
+        return NextResponse.json(
+          { error: 'PASSWORD_TOO_SHORT' },
+          { status: 400 }
+        )
+      }
+
       // Verify current password
       const isValidPassword = await bcrypt.compare(
         currentPassword,
