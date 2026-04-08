@@ -39,6 +39,7 @@ export async function POST(req: Request) {
       } catch (e) {
         Sentry.captureException(e, { tags: { webhook: 'checkout.session.completed' } })
         logger.error('checkout.session.completed event failed', { route: '/api/stripe/webhook', error: String(e) })
+        return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
       }
       break
     }
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
       } catch (e) {
         Sentry.captureException(e, { tags: { webhook: 'customer.subscription.updated' } })
         logger.error('customer.subscription.updated event failed', { route: '/api/stripe/webhook', error: String(e) })
+        return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
       }
       break
     }
@@ -60,6 +62,7 @@ export async function POST(req: Request) {
       } catch (e) {
         Sentry.captureException(e, { tags: { webhook: 'customer.subscription.deleted' } })
         logger.error('customer.subscription.deleted event failed', { route: '/api/stripe/webhook', error: String(e) })
+        return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
       }
       break
     }
@@ -95,6 +98,7 @@ export async function POST(req: Request) {
       } catch (e) {
         Sentry.captureException(e, { tags: { webhook: 'invoice.paid' } })
         logger.error('invoice.paid event failed', { route: '/api/stripe/webhook', error: String(e) })
+        return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
       }
       break
     }
