@@ -240,7 +240,7 @@ function FeedContent() {
       )}
 
       {/* Job Grid */}
-      <div className="px-4 sm:px-5 lg:px-7 py-4 pb-24 lg:pb-10 grid gap-[18px] grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+      <div className="px-4 sm:px-5 lg:px-7 py-4 grid gap-[18px] grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
             <JobCardSkeleton key={i} />
