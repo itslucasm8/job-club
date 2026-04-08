@@ -45,7 +45,7 @@ export default function JobModal({ job, saved, onSave, onClose }: { job: Job | n
     <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/50 animate-fade-in"
       onClick={onClose}>
       <div
-        className="w-full max-w-xl lg:max-w-2xl max-h-[88vh] lg:max-h-[85vh] bg-white rounded-t-2xl lg:rounded-2xl overflow-y-auto animate-slide-up-modal lg:animate-fade-in relative"
+        className="w-full max-w-xl lg:max-w-2xl max-h-[88vh] lg:max-h-[85vh] bg-white rounded-t-2xl lg:rounded-2xl overflow-y-auto overflow-x-hidden animate-slide-up-modal lg:animate-fade-in relative"
         onClick={e => e.stopPropagation()}
         onTouchStart={e => { startY.current = e.touches[0].clientY }}
         onTouchMove={e => { if (e.touches[0].clientY - startY.current > 80) onClose() }}
@@ -63,7 +63,7 @@ export default function JobModal({ job, saved, onSave, onClose }: { job: Job | n
           </svg>
         </button>
 
-        <div className="px-5 sm:px-6 lg:px-8 pb-8 lg:pt-6">
+        <div className="px-5 sm:px-6 lg:px-8 pb-[calc(2rem+env(safe-area-inset-bottom))] lg:pb-8 lg:pt-6">
           {/* Header */}
           <div className="lg:pr-10">
             <h2 className="text-xl lg:text-2xl font-extrabold text-stone-900 leading-snug mb-1">{job.title}</h2>
