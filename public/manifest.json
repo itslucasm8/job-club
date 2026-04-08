@@ -1,0 +1,17 @@
+{
+  "name": "Job Club — Jobs for Backpackers",
+  "short_name": "Job Club",
+  "description": "Find your next job in Australia. 900+ curated listings across all states.",
+  "start_url": "/feed",
+  "display": "standalone",
+  "background_color": "#faf9f7",
+  "theme_color": "#6b21a8",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

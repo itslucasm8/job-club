@@ -19,6 +19,7 @@ export const viewport: Viewport = {
 export const metadata = {
   title: 'Job Club — Jobs for Backpackers in Australia',
   description: 'Find your next job in Australia. Hundreds of backpacker-friendly job listings updated weekly.',
+  manifest: '/manifest.json',
   icons: {
     icon: '/favicon.svg',
     apple: '/favicon.svg',
