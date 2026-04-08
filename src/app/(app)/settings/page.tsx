@@ -238,7 +238,7 @@ export default function SettingsPage() {
           <button
             onClick={handleSavePersonal}
             disabled={loadingPersonal}
-            className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loadingPersonal ? t.common.saving : t.common.save}
           </button>
