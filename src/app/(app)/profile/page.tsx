@@ -7,7 +7,7 @@ import { useTranslation } from '@/components/LanguageContext'
 export default function ProfilePage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
   const user = session?.user as any
   const [savedCount, setSavedCount] = useState(0)
   const [portalLoading, setPortalLoading] = useState(false)
@@ -63,10 +63,10 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-stone-700">{t.profile.subscription}</div>
-              {user?.subscriptionStatus === 'active' && (
+              {user?.subscriptionStatus === 'active' && user?.currentPeriodEnd && (
                 <div className="text-[11px] text-stone-400 mt-0.5">
                   {t.profile.renewalDate}{' '}
-                  {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  {new Date(user.currentPeriodEnd).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </div>
               )}
             </div>

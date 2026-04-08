@@ -17,6 +17,7 @@ model User {
   stripeCustomerId     String?
   subscriptionStatus   String    @default("inactive")
   subscriptionId       String?
+  currentPeriodEnd     DateTime?
   preferredStates      String?   // Comma-separated state codes e.g. "QLD,NSW"
   preferredCategories  String?   // Comma-separated categories e.g. "Agriculture,Construction"
   emailAlerts          Boolean   @default(true)

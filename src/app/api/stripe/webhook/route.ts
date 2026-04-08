@@ -23,9 +23,15 @@ export async function POST(req: Request) {
     case 'checkout.session.completed': {
       try {
         const s = event.data.object as any
+        // Fetch subscription details to get currentPeriodEnd
+        const subscription = await stripe.subscriptions.retrieve(s.subscription as string)
         await prisma.user.updateMany({
           where: { stripeCustomerId: s.customer as string },
-          data: { subscriptionStatus: 'active', subscriptionId: s.subscription as string },
+          data: {
+            subscriptionStatus: 'active',
+            subscriptionId: s.subscription as string,
+            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+          },
         })
         // Send confirmation email
         const user = await prisma.user.findFirst({
@@ -47,7 +53,13 @@ export async function POST(req: Request) {
       try {
         const sub = event.data.object as any
         const status = sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : 'inactive'
-        await prisma.user.updateMany({ where: { subscriptionId: sub.id }, data: { subscriptionStatus: status } })
+        await prisma.user.updateMany({
+          where: { subscriptionId: sub.id },
+          data: {
+            subscriptionStatus: status,
+            currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : undefined,
+          },
+        })
       } catch (e) {
         Sentry.captureException(e, { tags: { webhook: 'customer.subscription.updated' } })
         logger.error('customer.subscription.updated event failed', { route: '/api/stripe/webhook', error: String(e) })
@@ -98,9 +110,14 @@ export async function POST(req: Request) {
         const invoice = event.data.object as any
         // Ensure subscription stays active on successful renewal payments
         if (invoice.subscription) {
+          const updateData: any = { subscriptionStatus: 'active' }
+          // Update period end if available
+          if (invoice.lines?.data?.[0]?.period?.end) {
+            updateData.currentPeriodEnd = new Date(invoice.lines.data[0].period.end * 1000)
+          }
           await prisma.user.updateMany({
             where: { stripeCustomerId: invoice.customer as string },
-            data: { subscriptionStatus: 'active' },
+            data: updateData,
           })
         }
         logger.info('Invoice paid successfully', { route: '/api/stripe/webhook', invoiceId: invoice.id, amount: invoice.amount_paid })
