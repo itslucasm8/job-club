@@ -25,7 +25,7 @@ All completed on 2026-04-08. Moved to Completed section below.
 | # | Item | Effort | Status |
 |---|------|--------|--------|
 | 25 | JSON-LD JobPosting schema (Google job search) | 30 min | Not started — skipped, don't want jobs in Google |
-| 27 | Subscription status sync cron (safety net for missed webhooks) | 1 hr | Not started |
+| 27 | ~~Subscription status sync cron~~ | — | **Done** — runs daily at 4:30 AM |
 | 28 | Rate limit on /api/extract endpoint | 15 min | Not started |
 | 29 | **Enable `invoice.created` in Stripe webhook** — required for renewal reminder emails to work | 1 min | Not started — do in [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks) |
 
