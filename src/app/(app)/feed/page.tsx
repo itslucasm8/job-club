@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { STATES, getCategories } from '@/lib/utils'
 import { useTranslation } from '@/components/LanguageContext'
 import { useToast } from '@/components/Toast'
+import { usePostHog } from 'posthog-js/react'
 import JobCard from '@/components/JobCard'
 import JobModal from '@/components/JobModal'
 import JobCardSkeleton from '@/components/JobCardSkeleton'
@@ -45,6 +46,7 @@ function FeedContent() {
   const [loadingMore, setLoadingMore] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const loadingMoreRef = useRef(false)
+  const posthog = usePostHog()
 
   const state = searchParams.get('state') || 'all'
   const category = searchParams.get('category') || 'all'
@@ -62,6 +64,15 @@ function FeedContent() {
       .catch(() => {})
   }, [])
 
+  // Track successful subscription from Stripe redirect
+  const subscribedTracked = useRef(false)
+  useEffect(() => {
+    if (searchParams.get('subscribed') === 'true' && posthog && !subscribedTracked.current) {
+      subscribedTracked.current = true
+      posthog.capture('subscription_started')
+    }
+  }, [searchParams, posthog])
+
   const fetchJobs = useCallback(async (pageNum: number, append = false) => {
     if (pageNum === 1) setLoading(true)
     else { setLoadingMore(true); loadingMoreRef.current = true }
@@ -78,6 +89,18 @@ function FeedContent() {
       if (!res.ok) throw new Error('Fetch failed')
       const data = await res.json()
 
+      // Track search/filter usage (only on fresh searches, not pagination)
+      if (pageNum === 1 && posthog) {
+        if (query) posthog.capture('search_performed', { query })
+        if (state !== 'all' || category !== 'all' || only88Days) {
+          posthog.capture('filter_applied', {
+            state: state !== 'all' ? state : undefined,
+            category: category !== 'all' ? category : undefined,
+            only88Days: only88Days || undefined,
+          })
+        }
+      }
+
       if (append) {
         setJobs(prev => [...prev, ...(data.jobs || [])])
       } else {
@@ -92,7 +115,7 @@ function FeedContent() {
 
     if (pageNum === 1) setLoading(false)
     else { setLoadingMore(false); loadingMoreRef.current = false }
-  }, [state, category, query, only88Days])
+  }, [state, category, query, only88Days, posthog])
 
   useEffect(() => {
     setJobs([])
