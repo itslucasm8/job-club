@@ -24,13 +24,15 @@ export async function POST(req: Request) {
       try {
         const s = event.data.object as any
         // Fetch subscription details to get currentPeriodEnd
-        const subscription = await stripe.subscriptions.retrieve(s.subscription as string)
+        const subscription = await stripe.subscriptions.retrieve(s.subscription as string) as any
         await prisma.user.updateMany({
           where: { stripeCustomerId: s.customer as string },
           data: {
             subscriptionStatus: 'active',
             subscriptionId: s.subscription as string,
-            currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+            currentPeriodEnd: subscription.current_period_end
+              ? new Date(subscription.current_period_end * 1000)
+              : undefined,
           },
         })
         // Send confirmation email
