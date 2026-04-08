@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { STATES, getCategories } from '@/lib/utils'
@@ -39,6 +39,11 @@ function FeedContent() {
   const [query, setQuery] = useState(searchParams.get('q') || '')
   const [stats, setStats] = useState<FeedStats | null>(null)
   const [only88Days, setOnly88Days] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pages, setPages] = useState(0)
+  const [total, setTotal] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
   const state = searchParams.get('state') || 'all'
   const category = searchParams.get('category') || 'all'
@@ -56,25 +61,46 @@ function FeedContent() {
       .catch(() => {})
   }, [])
 
-  const fetchJobs = useCallback(async () => {
-    setLoading(true)
+  const fetchJobs = useCallback(async (pageNum: number, append = false) => {
+    if (pageNum === 1) setLoading(true)
+    else setLoadingMore(true)
+
     try {
       const params = new URLSearchParams()
       if (state !== 'all') params.set('state', state)
       if (category !== 'all') params.set('category', category)
       if (query) params.set('q', query)
       if (only88Days) params.set('eligible88Days', 'true')
+      params.set('page', String(pageNum))
+
       const res = await fetch(`/api/jobs?${params}`)
       if (!res.ok) throw new Error('Fetch failed')
       const data = await res.json()
-      setJobs(data.jobs || [])
+
+      if (append) {
+        setJobs(prev => [...prev, ...(data.jobs || [])])
+      } else {
+        setJobs(data.jobs || [])
+      }
+      setPage(data.page || pageNum)
+      setPages(data.pages || 0)
+      setTotal(data.total || 0)
     } catch {
-      setJobs([])
+      if (!append) setJobs([])
     }
+
     setLoading(false)
+    setLoadingMore(false)
   }, [state, category, query, only88Days])
 
-  useEffect(() => { fetchJobs() }, [fetchJobs])
+  useEffect(() => {
+    setJobs([])
+    setPage(1)
+    setPages(0)
+    setTotal(0)
+    window.scrollTo(0, 0)
+    fetchJobs(1, false)
+  }, [fetchJobs])
 
   function updateFilter(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString())
