@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import * as Sentry from '@sentry/nextjs'
 import { authOptions } from '@/lib/auth'
 import { extractSchema, getFirstValidationError } from '@/lib/validation'
+import { extractLimiter, getClientIP } from '@/lib/rate-limit'
 
 // Australian states mapping
 const AU_STATES: Record<string, string> = {
@@ -130,6 +131,11 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as any).role !== 'admin') {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+  }
+
+  const ip = getClientIP(req)
+  if (!extractLimiter.check(ip)) {
+    return NextResponse.json({ error: 'Trop de requêtes, réessayez plus tard' }, { status: 429 })
   }
 
   const body = await req.json()

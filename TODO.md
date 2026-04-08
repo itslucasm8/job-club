@@ -20,7 +20,7 @@
 |---|------|--------|------|--------|
 | 2 | **Enable `invoice.created` in Stripe webhook** | 1 min | Ops (manual) | Not started — do in [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks) |
 | 3 | **Uptime monitoring** — get alerted if VPS/app goes down | 15 min | Ops (manual) | Not started — set up a free external monitor (e.g. UptimeRobot) |
-| 4 | Rate limit on /api/extract endpoint | 15 min | Code | Not started (low priority — admin-only endpoint) |
+| 4 | Rate limit on /api/extract endpoint | 15 min | Code | **Done** — 30 req/15min per IP |
 
 ---
 

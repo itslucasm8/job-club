@@ -78,6 +78,11 @@ export const passwordResetLimiter = createRateLimiter({
   max: 3, // 3 reset requests per 15 min
 })
 
+export const extractLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // 30 extractions per 15 min per IP
+})
+
 /** Extract client IP from request headers */
 export function getClientIP(req: Request): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
