@@ -6,12 +6,14 @@ import { AdminViewProvider } from '@/components/AdminViewContext'
 import Sidebar from '@/components/Sidebar'
 import TopBar from '@/components/TopBar'
 import BottomTabs from '@/components/BottomTabs'
+import UserIdentifier from '@/components/UserIdentifier'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
 
   return (
     <SessionProvider session={session}>
+      <UserIdentifier />
       <AdminViewProvider>
         <ToastProvider>
           <div className="flex min-h-screen">
