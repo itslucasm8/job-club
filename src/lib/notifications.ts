@@ -1,7 +1,5 @@
 import { prisma } from './prisma'
 import { logger } from './logger'
-import { sendJobAlertEmail } from './email'
-import { normalizeLanguage, type Language } from './utils'
 
 export interface JobData {
   id: string
@@ -21,18 +19,13 @@ export async function createJobNotifications(job: JobData): Promise<void> {
       },
       select: {
         id: true,
-        name: true,
-        email: true,
-        emailAlerts: true,
         only88Days: true,
         preferredStates: true,
         preferredCategories: true,
-        preferredLanguage: true,
       },
     })
 
     const notificationsToCreate = []
-    const emailsToSend: { to: string; name: string; lang: Language }[] = []
 
     for (const user of users) {
       // Parse preferences
@@ -74,12 +67,6 @@ export async function createJobNotifications(job: JobData): Promise<void> {
           message: `${job.company} — ${job.state}`,
           jobId: job.id,
         })
-
-        // Queue email if user has email alerts enabled
-        if (user.emailAlerts) {
-          const lang = normalizeLanguage(user.preferredLanguage)
-          emailsToSend.push({ to: user.email, name: user.name || '', lang })
-        }
       }
     }
 
@@ -94,23 +81,6 @@ export async function createJobNotifications(job: JobData): Promise<void> {
       })
     }
 
-    // Send emails (fire-and-forget each one)
-    if (emailsToSend.length > 0) {
-      const emailPromises = emailsToSend.map(({ to, name, lang }) =>
-        sendJobAlertEmail(to, name, job, lang).catch((err) => {
-          logger.error('Failed to send job alert email', {
-            jobId: job.id,
-            to,
-            error: String(err),
-          })
-        })
-      )
-      await Promise.allSettled(emailPromises)
-      logger.info('Job alert emails sent', {
-        jobId: job.id,
-        attempted: emailsToSend.length,
-      })
-    }
   } catch (error) {
     logger.error('Failed to create job notifications', {
       jobId: job.id,

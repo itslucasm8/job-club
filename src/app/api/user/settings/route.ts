@@ -20,7 +20,6 @@ export async function GET(req: Request) {
         email: true,
         preferredStates: true,
         preferredCategories: true,
-        emailAlerts: true,
         only88Days: true,
         preferredLanguage: true,
       },
@@ -35,7 +34,6 @@ export async function GET(req: Request) {
       email: user.email,
       preferredStates: user.preferredStates ? user.preferredStates.split(',') : [],
       preferredCategories: user.preferredCategories ? user.preferredCategories.split(',') : [],
-      emailAlerts: user.emailAlerts,
       only88Days: user.only88Days,
       preferredLanguage: user.preferredLanguage,
     })
@@ -62,7 +60,6 @@ export async function PATCH(req: Request) {
       newPassword,
       preferredStates,
       preferredCategories,
-      emailAlerts,
       only88Days,
     } = body
 
@@ -147,11 +144,6 @@ export async function PATCH(req: Request) {
       }
     }
 
-    // Handle emailAlerts toggle
-    if (emailAlerts !== undefined) {
-      updateData.emailAlerts = Boolean(emailAlerts)
-    }
-
     // Handle only88Days toggle
     if (only88Days !== undefined) {
       updateData.only88Days = Boolean(only88Days)
@@ -174,7 +166,6 @@ export async function PATCH(req: Request) {
         email: true,
         preferredStates: true,
         preferredCategories: true,
-        emailAlerts: true,
         only88Days: true,
         preferredLanguage: true,
       },
@@ -189,7 +180,6 @@ export async function PATCH(req: Request) {
       preferredCategories: updatedUser.preferredCategories
         ? updatedUser.preferredCategories.split(',')
         : [],
-      emailAlerts: updatedUser.emailAlerts,
       only88Days: updatedUser.only88Days,
       preferredLanguage: updatedUser.preferredLanguage,
     })
