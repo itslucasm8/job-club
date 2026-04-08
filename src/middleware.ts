@@ -30,5 +30,5 @@ const prodMiddleware = withAuth(
 export default process.env.NODE_ENV === 'development' ? devMiddleware : prodMiddleware
 
 export const config = {
-  matcher: ['/feed/:path*', '/states/:path*', '/job/:path*', '/profile/:path*', '/admin/:path*', '/saved/:path*', '/settings/:path*', '/guide/:path*', '/notifications/:path*'],
+  matcher: ['/feed/:path*', '/states/:path*', '/job/:path*', '/profile/:path*', '/admin/:path*', '/saved/:path*', '/settings/:path*', '/guide/:path*', '/notifications/:path*', '/privacy', '/terms'],
 }
