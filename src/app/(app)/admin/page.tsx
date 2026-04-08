@@ -261,7 +261,7 @@ export default function AdminDashboardPage() {
               {t.admin.jobsByState || 'Annonces par état'}
             </h2>
           </div>
-          <div className="p-4 grid grid-cols-4 gap-2">
+          <div className="p-4 grid grid-cols-3 sm:grid-cols-4 gap-2">
             {stateOrder.map(state => (
               <button key={state} onClick={() => router.push(`/feed?state=${state}`)}
                 className="text-center py-3 px-1 bg-purple-50 hover:bg-purple-100 rounded-lg transition cursor-pointer">

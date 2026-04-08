@@ -36,7 +36,7 @@ export default function LandingPage() {
             {t.landing.heroTitle1}<br />{t.landing.heroTitle2}
           </h1>
 
-          <p className="text-[15px] text-purple-300 leading-relaxed max-w-[340px] mb-8">
+          <p className="text-[15px] text-purple-300 leading-relaxed max-w-xs sm:max-w-[340px] mb-8">
             {t.landing.tagline}
           </p>
 
