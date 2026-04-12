@@ -149,7 +149,7 @@ const fr = {
     passwordTooShort: 'Le nouveau mot de passe doit contenir au moins 6 caractères',
     passwordUpdated: 'Mot de passe mis à jour',
     notificationPreferences: 'Préférences de notification',
-    notificationHelp: 'Tu recevras des notifications pour les nouvelles offres correspondant à tes préférences. Si aucune sélection, tu recevras toutes les notifications.',
+    notificationHelp: 'Tu recevras des notifications pour les nouvelles offres correspondant à tes préférences. Si aucune sélection, tu ne recevras aucune notification d\'offre.',
     only88Days: 'Uniquement les offres 88 jours',
     only88DaysHelp: 'Ne recevoir que les offres éligibles aux 88 jours',
     statesLabel: 'États',
@@ -522,6 +522,20 @@ const fr = {
     client: 'Client',
   },
 
+  onboarding: {
+    title: 'Bienvenue !',
+    subtitle: 'Choisis tes préférences pour recevoir les offres qui te correspondent.',
+    statesLabel: 'Dans quels états cherches-tu ?',
+    statesRequired: 'Sélectionne au moins un état',
+    categoriesLabel: 'Quel type de travail ?',
+    categoriesRequired: 'Sélectionne au moins une catégorie',
+    only88Days: 'Uniquement les offres 88 jours',
+    only88DaysHelp: 'Ne recevoir que les offres éligibles aux 88 jours',
+    submit: 'C\'est parti !',
+    saving: 'Enregistrement...',
+    error: 'Erreur lors de l\'enregistrement. Réessaie.',
+  },
+
   legal: {
     privacyTitle: 'Politique de confidentialité',
     termsTitle: 'Conditions d\'utilisation',
@@ -709,7 +723,7 @@ const en: typeof fr = {
     passwordTooShort: 'New password must be at least 6 characters',
     passwordUpdated: 'Password updated',
     notificationPreferences: 'Notification Preferences',
-    notificationHelp: "You'll receive notifications for new jobs matching your preferences. If none selected, you'll receive all notifications.",
+    notificationHelp: "You'll receive notifications for new jobs matching your preferences. If none selected, you won't receive any job notifications.",
     only88Days: '88-day eligible jobs only',
     only88DaysHelp: 'Only receive notifications for 88-day qualifying jobs',
     statesLabel: 'States',
@@ -1060,6 +1074,20 @@ const en: typeof fr = {
   modeSwitch: {
     admin: 'Admin',
     client: 'Client',
+  },
+
+  onboarding: {
+    title: 'Welcome!',
+    subtitle: 'Choose your preferences to receive jobs that match what you\'re looking for.',
+    statesLabel: 'Which states are you looking in?',
+    statesRequired: 'Select at least one state',
+    categoriesLabel: 'What type of work?',
+    categoriesRequired: 'Select at least one category',
+    only88Days: '88-day eligible jobs only',
+    only88DaysHelp: 'Only receive notifications for 88-day qualifying jobs',
+    submit: 'Let\'s go!',
+    saving: 'Saving...',
+    error: 'Error saving preferences. Please try again.',
   },
 
   legal: {
