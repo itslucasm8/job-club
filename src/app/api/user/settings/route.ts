@@ -158,11 +158,29 @@ export async function PATCH(req: Request) {
     }
 
     // Handle onboarding completion
-    if (onboardingCompleted === true && !currentUser.onboardingCompleted) {
+    const isCompletingOnboarding = onboardingCompleted === true && !currentUser.onboardingCompleted
+    if (isCompletingOnboarding) {
       updateData.onboardingCompleted = true
+    }
 
-      // Create welcome notifications
-      const lang = currentUser.preferredLanguage === 'en' ? 'en' : 'fr'
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        preferredStates: true,
+        preferredCategories: true,
+        only88Days: true,
+        preferredLanguage: true,
+      },
+    })
+
+    // Create welcome notifications after user is saved
+    if (isCompletingOnboarding) {
+      const lang = updatedUser.preferredLanguage === 'en' ? 'en' : 'fr'
       const welcomeNotifications = lang === 'fr'
         ? [
             {
@@ -199,21 +217,6 @@ export async function PATCH(req: Request) {
 
       await prisma.notification.createMany({ data: welcomeNotifications })
     }
-
-    // Update user
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        preferredStates: true,
-        preferredCategories: true,
-        only88Days: true,
-        preferredLanguage: true,
-      },
-    })
 
     return NextResponse.json({
       name: updatedUser.name,
