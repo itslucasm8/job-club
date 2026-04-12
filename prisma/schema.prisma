@@ -23,6 +23,7 @@ model User {
   emailAlerts          Boolean   @default(true)
   only88Days           Boolean   @default(false) // Only notify about 88-day eligible jobs
   preferredLanguage    String    @default("fr") // "fr" or "en"
+  onboardingCompleted  Boolean   @default(false)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   savedJobs            SavedJob[]
@@ -69,6 +70,7 @@ model Notification {
   title     String
   message   String
   jobId     String?
+  linkUrl   String?
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
