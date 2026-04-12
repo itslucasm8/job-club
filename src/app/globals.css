@@ -55,10 +55,17 @@ html {
   display: none; /* Chrome, Safari, Opera */
 }
 
-/* Fade-out right edge on scrollable chip rows */
+/* Fade-out right edge on scrollable chip rows + hide scrollbar */
 .chip-fade {
   mask-image: linear-gradient(to right, black 85%, transparent 100%);
   -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+}
+.chip-fade > div {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.chip-fade > div::-webkit-scrollbar {
+  display: none;
 }
 
 /* Snap chips into place after scrolling */
