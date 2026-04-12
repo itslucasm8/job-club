@@ -10,6 +10,7 @@ interface Notification {
   title: string
   message: string
   jobId: string | null
+  linkUrl: string | null
   read: boolean
   createdAt: string
 }
@@ -69,7 +70,9 @@ export default function NotificationsPage() {
         )
       } catch {}
     }
-    if (notif.jobId) {
+    if (notif.linkUrl) {
+      router.push(notif.linkUrl)
+    } else if (notif.jobId) {
       router.push('/feed')
     }
   }
