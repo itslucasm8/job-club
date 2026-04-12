@@ -61,6 +61,7 @@ export async function PATCH(req: Request) {
       preferredStates,
       preferredCategories,
       only88Days,
+      onboardingCompleted,
     } = body
 
     // Get current user from DB
@@ -154,6 +155,49 @@ export async function PATCH(req: Request) {
       if (body.preferredLanguage === 'fr' || body.preferredLanguage === 'en') {
         updateData.preferredLanguage = body.preferredLanguage
       }
+    }
+
+    // Handle onboarding completion
+    if (onboardingCompleted === true && !currentUser.onboardingCompleted) {
+      updateData.onboardingCompleted = true
+
+      // Create welcome notifications
+      const lang = currentUser.preferredLanguage === 'en' ? 'en' : 'fr'
+      const welcomeNotifications = lang === 'fr'
+        ? [
+            {
+              userId,
+              type: 'welcome',
+              title: 'Bienvenue sur Job Club !',
+              message: 'Merci pour ton abonnement ! Tu recevras des notifications pour les offres correspondant à tes préférences.',
+              linkUrl: '/feed',
+            },
+            {
+              userId,
+              type: 'welcome',
+              title: 'Personnalise tes alertes',
+              message: 'Tu peux modifier tes préférences d\'état et de catégorie à tout moment dans les réglages.',
+              linkUrl: '/settings',
+            },
+          ]
+        : [
+            {
+              userId,
+              type: 'welcome',
+              title: 'Welcome to Job Club!',
+              message: "Thanks for subscribing! You'll receive notifications for jobs matching your preferences.",
+              linkUrl: '/feed',
+            },
+            {
+              userId,
+              type: 'welcome',
+              title: 'Customize your alerts',
+              message: 'You can change your state and category preferences anytime in settings.',
+              linkUrl: '/settings',
+            },
+          ]
+
+      await prisma.notification.createMany({ data: welcomeNotifications })
     }
 
     // Update user
