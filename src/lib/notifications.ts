@@ -48,7 +48,7 @@ export async function createJobNotifications(job: JobData): Promise<void> {
       let shouldNotify = false
 
       if (!hasStatePreference && !hasCategoryPreference) {
-        shouldNotify = true
+        shouldNotify = false
       } else if (hasStatePreference && !hasCategoryPreference) {
         shouldNotify = preferredStates.includes(job.state)
       } else if (!hasStatePreference && hasCategoryPreference) {
