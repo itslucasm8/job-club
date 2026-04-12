@@ -22,7 +22,7 @@ export const authOptions: NextAuthOptions = {
         if (!user) return null
         const valid = await bcrypt.compare(credentials.password, user.passwordHash)
         if (!valid) return null
-        return { id: user.id, email: user.email, name: user.name, role: user.role, subscriptionStatus: user.subscriptionStatus, currentPeriodEnd: user.currentPeriodEnd }
+        return { id: user.id, email: user.email, name: user.name, role: user.role, subscriptionStatus: user.subscriptionStatus, currentPeriodEnd: user.currentPeriodEnd, onboardingCompleted: user.onboardingCompleted }
       },
     }),
   ],
@@ -33,13 +33,15 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role
         token.subscriptionStatus = (user as any).subscriptionStatus
         token.currentPeriodEnd = (user as any).currentPeriodEnd
+        token.onboardingCompleted = (user as any).onboardingCompleted
       }
       if (token.sub) {
-        const dbUser = await prisma.user.findUnique({ where: { id: token.sub }, select: { subscriptionStatus: true, role: true, currentPeriodEnd: true } })
+        const dbUser = await prisma.user.findUnique({ where: { id: token.sub }, select: { subscriptionStatus: true, role: true, currentPeriodEnd: true, onboardingCompleted: true } })
         if (dbUser) {
           token.subscriptionStatus = dbUser.subscriptionStatus
           token.role = dbUser.role
           token.currentPeriodEnd = dbUser.currentPeriodEnd
+          token.onboardingCompleted = dbUser.onboardingCompleted
         }
       }
       return token
@@ -50,6 +52,7 @@ export const authOptions: NextAuthOptions = {
         ;(session.user as any).role = token.role
         ;(session.user as any).subscriptionStatus = token.subscriptionStatus
         ;(session.user as any).currentPeriodEnd = token.currentPeriodEnd
+        ;(session.user as any).onboardingCompleted = token.onboardingCompleted
       }
       return session
     },
