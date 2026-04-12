@@ -30,7 +30,7 @@ function SubscribeContent() {
         text: t.subscribe.successMessage,
       })
       const timer = setTimeout(() => {
-        router.push('/feed')
+        router.push('/onboarding')
       }, 2000)
       return () => clearTimeout(timer)
     } else if (canceled === 'true') {
