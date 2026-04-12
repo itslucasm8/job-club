@@ -228,31 +228,29 @@ function FeedContent() {
         </div>
 
         {/* State chips */}
-        <div className="relative">
-          <div className="flex gap-2 overflow-x-auto mt-2.5 pb-0.5 scrollbar-none">
+        <div className="chip-fade mt-2.5">
+          <div className="flex gap-2 overflow-x-auto scrollbar-none scroll-snap pr-8">
             <Chip active={state === 'all'} onClick={() => updateFilter('state', 'all')}>{t.common.all}</Chip>
             {STATES.map(s => <Chip key={s.code} active={state === s.code} onClick={() => updateFilter('state', s.code)}>{s.code}</Chip>)}
           </div>
-          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-warm-bg to-transparent pointer-events-none" />
         </div>
 
         {/* Category tabs */}
-        <div className="relative">
-          <div className="flex gap-1.5 overflow-x-auto mt-2 pb-0.5 scrollbar-none">
+        <div className="chip-fade mt-2">
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none scroll-snap pr-8">
             {categories.map(c => (
               <button key={c.key} onClick={() => updateFilter('category', c.key)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-[10px] text-[12px] font-semibold border transition whitespace-nowrap ${category === c.key ? 'bg-amber-400 text-stone-900 border-amber-400' : 'bg-white text-stone-500 border-stone-200 hover:border-purple-300'}`}>
+                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition whitespace-nowrap ${category === c.key ? 'bg-amber-400 text-stone-900 border-amber-400' : 'bg-white text-stone-500 border-stone-200 hover:border-purple-300'}`}>
                 {c.label}
               </button>
             ))}
             <button
               onClick={() => setOnly88Days(!only88Days)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-[10px] text-[12px] font-semibold border transition whitespace-nowrap ${only88Days ? 'bg-yellow-400 text-stone-900 border-yellow-400' : 'bg-white text-stone-500 border-stone-200 hover:border-yellow-300'}`}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition whitespace-nowrap ${only88Days ? 'bg-yellow-400 text-stone-900 border-yellow-400' : 'bg-white text-stone-500 border-stone-200 hover:border-yellow-300'}`}
             >
               {t.feed.days88}
             </button>
           </div>
-          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-warm-bg to-transparent pointer-events-none" />
         </div>
       </div>
 
@@ -309,7 +307,7 @@ function FeedContent() {
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button onClick={onClick}
-      className={`flex-shrink-0 px-3.5 py-1.5 rounded-[10px] text-[13px] font-semibold border transition whitespace-nowrap ${active ? 'bg-purple-700 text-white border-purple-700' : 'bg-white text-stone-500 border-stone-200 hover:border-purple-400 hover:text-purple-700'}`}>
+      className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-[13px] font-semibold border transition whitespace-nowrap ${active ? 'bg-purple-700 text-white border-purple-700' : 'bg-white text-stone-500 border-stone-200 hover:border-purple-400 hover:text-purple-700'}`}>
       {children}
     </button>
   )

@@ -45,3 +45,26 @@ html {
 .animate-fade-in { animation: fade-in 0.15s ease-out; }
 .animate-slide-up-modal { animation: slide-up-modal 0.25s ease-out; }
 .animate-dropdown-enter { animation: dropdown-enter 0.15s ease-out; }
+
+/* Tailwind v3 doesn't have scrollbar-none — add it manually */
+.scrollbar-none {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Fade-out right edge on scrollable chip rows */
+.chip-fade {
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+}
+
+/* Snap chips into place after scrolling */
+.scroll-snap {
+  scroll-snap-type: x mandatory;
+}
+.scroll-snap > * {
+  scroll-snap-align: start;
+}
