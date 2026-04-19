@@ -6,11 +6,52 @@
 
 ---
 
-## Last Blocker Before Go-Live
+## Last Blocker Before Go-Live — Podia User Migration
 
-| # | Workstream | Plan | Type | Status |
-|---|-----------|------|------|--------|
-| 1 | **Podia User Migration** | [plan](docs/plans/podia-user-migration.md) | Script + Ops | Not started — needs Podia CSV export + subscription strategy decision |
+> [Plan](docs/plans/podia-user-migration.md) — rewritten to "data sync + env swap" approach (NOT the original "seamless Stripe subscription transfer"). Existing Podia subs stay as-is; we don't call `stripe.subscriptions.update()` on anyone.
+
+**Cohort (verified 2026-04-19 via live Stripe run):** 37 active — 26 monthly + 11 yearly. All have valid emails. Zero `past_due`, zero `trialing`.
+
+**Pricing locked:** $39.99/mo and $149/yr (keep Podia's prices — monthly LTV analysis showed $149 already captures ~2× monthly revenue/customer).
+
+### Done
+
+| Item | Where |
+|------|-------|
+| Plan rewritten to data-sync approach | `docs/plans/podia-user-migration.md` (commit `9498882`) |
+| Pricing decision locked ($39.99/$149) | Memory + plan doc |
+| Three French email templates drafted (pre-cutover, welcome, Day-7 follow-up) | `docs/emails/podia-migration-emails.md` (commit `8ecd557`) |
+| Script 1: `scripts/inventory-podia.ts` — reads live Stripe, writes `out/podia-cohort.json` | Committed (`13d4cf0`); ran successfully, 37 rows produced |
+
+### To do (in order)
+
+| # | Item | Type | Effort |
+|---|------|------|--------|
+| 1 | Podia data backup — export subscribers + course content from Podia dashboard | Ops (manual) | 15 min |
+| 2 | Decide cutover date | Decision | — |
+| 3 | `scripts/sync-podia-customers.ts` — upsert Users + generate `PasswordReset` tokens, output `out/welcome-emails.csv`. Dry-run default, `--live` flag to write | Code | ~1 hr |
+| 4 | `scripts/followup-podia-customers.ts` — CSV of non-activators for Day-7 follow-up | Code | ~30 min |
+| 5 | Short cutover-day runbook | Doc | ~30 min |
+| 6 | On cutover day: swap `STRIPE_PRICE_ID` + `STRIPE_PRICE_ID_YEARLY` env vars on VPS to Podia Price IDs; redeploy | Ops | 15 min |
+| 7 | On cutover day: run inventory → sync `--live` → paste `welcome-emails.csv` into Resend → monitor | Ops | ~1 hr + 48-72h monitoring |
+| 8 | Day 7: run follow-up script → paste into Resend | Ops | 15 min |
+| 9 | Day 14 (if activation >95%): decommission Podia plan | Ops | 15 min |
+
+### Key IDs for cutover (don't look these up again)
+
+- **Monthly Price ID:** `monthly-monthly-20230426090915-996d`
+- **Yearly Price ID:** `rejoignez-le-job-club-et-assurez-vous-un-acces-exclusif-a-des-opportunites-de-travail-tout-au-long-de-votre-annee-en-australie-annual-20240523062135-f036`
+- **Duplicate product to archive later** (leave alone for now): `prod_UFpN16niWDMgQI`
+
+### How to run scripts against live Stripe
+
+Local `.env` has a placeholder key. Use the restricted read-only key from `~/.claude.json`:
+
+```bash
+STRIPE_SECRET_KEY=$(grep -oE 'rk_live_[a-zA-Z0-9]+' ~/.claude.json | head -1) npx tsx scripts/inventory-podia.ts
+```
+
+The restricted key is read-only — fine for inventory and for any script that only reads Stripe. If the sync script's optional Stripe-metadata write needs to succeed, a full `sk_live_` key may be needed (check the restricted key's permissions first).
 
 ---
 
@@ -116,6 +157,47 @@
 
 ---
 
+## Post-Launch Hardening (from Comprehensive Critique — 2026-04-10)
+
+> Work through these after Podia migration is complete and the app is live.
+
+### High Priority
+
+| # | Item | Effort | Status |
+|---|------|--------|--------|
+| 1 | Fix 47+ `as any` type casts (extend NextAuth types, type Stripe events) | Medium | Not started |
+| 2 | Add tests — Stripe webhook handler, auth flows | Large | Not started |
+| 3 | Email verification on registration | Medium | Not started |
+
+### Medium Priority
+
+| # | Item | Effort | Status |
+|---|------|--------|--------|
+| 4 | Standardize API error format (consistent shape + HTTP status codes) | Medium | Not started |
+| 5 | Admin audit log (who changed what) | Medium | Not started |
+| 6 | Basic caching layer for feed queries | Medium | Not started |
+| 7 | Accessibility fixes (focus trap, ARIA live regions, skip-to-content, button labels) | Medium | Not started |
+
+### Lower Priority
+
+| # | Item | Effort | Status |
+|---|------|--------|--------|
+| 8 | Migrate preferences from CSV strings to JSON arrays | Small | Not started |
+| 9 | Soft deletes on jobs | Small | Not started |
+| 10 | Full-text search (replace LIKE queries) | Large | Not started |
+| 11 | Break up large components (admin dashboard 412 lines, feed page) | Medium | Not started |
+
+### Security Hardening
+
+| # | Item | Effort | Status |
+|---|------|--------|--------|
+| 12 | Remove dev-mode auth bypass in middleware | Small | Not started |
+| 13 | Validate trusted proxies for rate limiter (x-forwarded-for spoofing) | Small | Not started |
+| 14 | Cron secret — fail explicitly instead of fallback to NEXTAUTH_SECRET | Small | Not started |
+| 15 | URL validation on /api/extract (SSRF prevention) | Small | Not started |
+
+---
+
 ## Decided Against
 
 | Item | Reason |
@@ -138,4 +220,4 @@
 
 ---
 
-*Last updated: 2026-04-09*
+*Last updated: 2026-04-19*
