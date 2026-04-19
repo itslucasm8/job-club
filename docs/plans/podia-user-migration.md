@@ -47,7 +47,7 @@ Both Prices carry `metadata: { managed_by: "Podia", id: "<podia-internal>" }`. T
 - [x] Resend email setup complete.
 - [x] DNS/domain finalized (`thejobclub.com.au`).
 - [x] Pricing decision made (keep Podia prices).
-- [ ] Draft two bilingual emails (FR + EN): pre-cutover announcement + welcome email.
+- [ ] Draft three French emails: pre-cutover announcement + welcome email + ~Day 7 follow-up. (The cohort is 100% French; no need for bilingual copy even though the app supports EN.)
 - [ ] Backup of current Podia data — export subscribers list, course content. Cheap insurance.
 - [ ] Decide cutover window — ~2 hours is enough since no subscription edits happen.
 
@@ -98,7 +98,7 @@ In Stripe Dashboard:
 
 ### Step 2 — Pre-cutover announcement (5–7 days before user-facing switch)
 
-A heads-up email (or Podia community post) that explains:
+A heads-up email **in French only** (or Podia community post) that explains:
 - We're moving to a new platform at `thejobclub.com.au` on `<date>`.
 - Your subscription carries over automatically — same card, same price, same billing cycle, no action required.
 - After the move, you'll get an email with a password-setup link.
@@ -187,8 +187,8 @@ Errors → log, continue, review at end.
 For each row in `migration-results.csv` where `dbUpsertStatus ∈ {ok, skipped}`:
 
 1. Generate a `PasswordReset` token (7-day expiry — reuse existing model).
-2. Send bilingual email via Resend:
-   - **Subject (FR):** `Bienvenue sur Job Club !` / **(EN):** `Welcome to Job Club!`
+2. Send **French-only** email via Resend:
+   - **Subject:** `Bienvenue sur Job Club !`
    - **Body:** Explains the platform switch, reassures subscription carries over at same price and same billing cycle, gives password-setup link, support contact.
 3. Rate-limit to ~2 emails/sec.
 
