@@ -1,278 +1,282 @@
 # Podia User Migration
 
-> **For Claude:** This is a script + ops plan. The old plan assumed a "cold" CSV migration. This version takes advantage of Stripe already being Lucas's own account (connected to Podia), which enables a **seamless subscription transfer** — no payment interruption, no re-entering cards.
+> **For Claude:** This is a script + ops plan. It supersedes two prior versions: the original "cold CSV migration" and the later "seamless Stripe subscription transfer" (commit `450795f`). Both were over-engineered because they assumed Podia's Prices needed to be replaced. They don't — Podia's Prices ARE the real production Prices in Lucas's own Stripe account. The migration is therefore **data sync + env swap + comms**, not a subscription rewrite.
 
-**Goal:** Migrate ~230 paying Podia subscribers into Job Club so that:
+**Goal:** Migrate all active Podia subscribers into Job Club so that:
 1. Every subscriber can log in to `thejobclub.com.au` on day one.
-2. Their existing Stripe subscription continues on the same card, same billing cycle, just re-pointed at Job Club's new Price IDs.
-3. Podia can be safely decommissioned after a short parallel-run window.
+2. Their existing Stripe subscription stays exactly as-is — same Price, same card, same billing cycle, same next-charge date.
+3. Podia's frontend/community layer can be decommissioned after a short parallel-run window.
 
-**Why this matters:** These are paying customers. A botched migration means lost revenue, confused users, and support headaches. The seamless approach minimizes churn risk by removing *any* action required from the user to keep their subscription alive.
+**Why this matters:** These are paying customers. A botched migration means lost revenue, confused users, and support headaches. The approach here minimizes risk by not touching Stripe subscriptions at all — they stay exactly as Podia left them.
 
 ---
 
-## Core insight
+## Core insight (verified empirically 2026-04-19 via Stripe MCP)
 
-Podia uses Stripe Connect to manage billing inside **your own Stripe account**. That means:
+Podia stores its products and Prices inside Lucas's own Stripe account. Those Prices ARE the production Prices — there is no separate "Job Club product" we need to move subscribers toward. The earlier plan assumed the opposite, leading to an unnecessarily complex "seamless transfer" design.
 
-- The ~230 active subscriptions already exist in `dashboard.stripe.com` under your login.
-- Each one references a **Podia-created Price ID** (e.g. `price_1AbCd...` tied to Podia's Product).
-- You should have full API access to update, cancel, or re-price those subscriptions — **but this needs to be verified empirically before we touch the cohort** (see Step 0).
+**Active cohort (as of 2026-04-19):**
+- **37 active subscriptions** (23 monthly + 14 yearly). Prior memory said "~230" — that number counted all-time subscribers including churn.
+- **0 `past_due`, 0 `trialing`**, 100+ historic `canceled`.
 
-The migration is therefore **not** a payment migration — cards stay charged. It's a data + ownership re-assignment.
+**The two live Prices:**
+| Plan | Price ID | Product | Amount |
+|------|----------|---------|--------|
+| Monthly | `monthly-monthly-20230426090915-996d` | `prod_Nmdc5X7To0kuWC` | $39.99 AUD/mo |
+| Yearly | `rejoignez-le-job-club-et-assurez-vous-un-acces-exclusif-a-des-opportunites-de-travail-tout-au-long-de-votre-annee-en-australie-annual-20240523062135-f036` | `prod_Q9ofD6y3OUQOAk` | $149 AUD/yr |
+
+Both Prices carry `metadata: { managed_by: "Podia", id: "<podia-internal>" }`. That metadata is the reliable cohort filter — don't rely on the slug-style Price IDs.
+
+**Accidental duplicate:** `prod_UFpN16niWDMgQI` ("Job Club by MLF", created 2026-03-27) was set up by Lucas thinking new products were needed. It has zero subscriptions attached. Safe to archive.
+
+**Eleven dead Podia products** also exist in the account (EUR test Prices, abandoned tiers, expired promos). All have zero active subscriptions. Left alone — archiving them is cosmetic, not migration-critical.
+
+---
+
+## Pricing decision (locked 2026-04-19)
+
+**Keep Podia pricing unchanged:** $39.99 AUD/mo, $149 AUD/yr.
+
+**Why:** Analysis of 15 canceled monthly subscriptions shows median tenure = 2 months (distribution: 40% at 1mo, 47% at 2mo, 13% at 3-4mo). That gives monthly LTV ≈ $76/customer. Yearly at $149 already captures ~2× monthly LTV — it is NOT "cannibalizing" monthly, it's capturing commitment-priced value from an audience whose visa aligns with a yearly cycle. See `memory/project_pricing_decision.md` for the reasoning in full. Revisit 60+ days post-launch when PostHog conversion data is available.
 
 ---
 
 ## Prerequisites
 
-- [x] Stripe production setup complete (`STRIPE_PRICE_ID` monthly + `STRIPE_PRICE_ID_YEARLY` live in prod env).
+- [x] Stripe production setup complete.
 - [x] Resend email setup complete.
 - [x] DNS/domain finalized (`thejobclub.com.au`).
-- [ ] **Identify the Podia Price IDs** in Stripe — the "old" prices currently attached to the 230 subscriptions. We'll filter by these to find the migration cohort.
-- [ ] **Decide the cutover window** — ideally a ~2-hour low-activity window; the migration itself will be fast but we want a clean before/after.
-- [ ] **Draft two emails** (French + English): a *pre-cutover announcement* (Step 0.5) and a *welcome email at cutover* (Step 4).
-- [ ] **Backup of current Podia data** — export subscribers, course content, anything else Podia holds. Cheap insurance before we decommission.
+- [x] Pricing decision made (keep Podia prices).
+- [ ] Draft two bilingual emails (FR + EN): pre-cutover announcement + welcome email.
+- [ ] Backup of current Podia data — export subscribers list, course content. Cheap insurance.
+- [ ] Decide cutover window — ~2 hours is enough since no subscription edits happen.
 
 ---
 
-## Strategy: Seamless Subscription Transfer
+## Strategy
 
-For every active Podia subscription:
+Four mechanical moves, in order:
 
-1. **Update the subscription** via `stripe.subscriptions.update()` to swap the old Podia Price ID → new Job Club Price ID (monthly or yearly, matching their current plan).
-2. **Preserve the billing cycle** (`proration_behavior: 'none'`, `billing_cycle_anchor: 'unchanged'`) so their next charge date doesn't shift.
-3. **Tag the subscription** with `metadata: { migrated_from_podia: 'true', migrated_at: <ISO date> }` for audit + idempotency.
-4. **Create a User record** in Job Club DB linked by `stripeCustomerId`.
-5. **Send a welcome email** with a one-time password-setup link (reuses existing `PasswordReset` flow).
+1. **Env swap + duplicate archive** — point `.env.production` at the Podia Price IDs; archive `prod_UFpN16niWDMgQI`.
+2. **Customer data sync** — create one `User` record per active Podia subscriber in the Job Club DB, keyed by `stripeCustomerId` and `subscriptionId`.
+3. **Welcome emails** — each migrated user gets a password-setup link (7-day `PasswordReset` token).
+4. **Decommission Podia** — cancel Podia plan, remove redirects, once >95% have logged in.
 
-Users wake up the next morning with:
-- An email: "You can now log in at thejobclub.com.au, your subscription carries over, click here to set your password."
-- A live subscription on the new platform.
-- No payment action required.
+**What we are NOT doing:**
+- Not calling `stripe.subscriptions.update()` on anyone. Subscriptions stay exactly as they are.
+- Not creating new Stripe Prices or Products.
+- Not changing billing cycles, proration, or payment methods.
+- Not asking customers to re-enter cards or re-subscribe.
 
 ### Idempotency by design
 
-The script must be **safely re-runnable**. In practice we'll run it 3–5 times: dry-run, real-run-that-errors, re-run-after-fix, final-cleanup. Design for this from the start.
+Every script must be safely re-runnable. The DB is the single source of truth for idempotency:
+- `User.findUnique({ email })` with `stripeCustomerId` set → already synced, skip.
+- Otherwise → plan to create.
 
-Every row checks two independent "have we done this?" signals before acting:
-- **Stripe:** `subscription.metadata.migrated_from_podia === 'true'` → skip.
-- **DB:** `User.findUnique({ email })` returns a user with `stripeCustomerId` set → skip.
-
-### Ordering: Stripe first, DB second
-
-This encodes a deliberate belief: **billing correctness > DB correctness**. A charged-but-can't-login user is fixable (reset their password, they get in). A logged-in-but-not-charged user is a revenue leak. Stripe is the side that matters for the business, so it goes first.
+**Optional Stripe audit marker:** write `metadata: { migrated_from_podia: 'true', migrated_at: <ISO> }` to each migrated subscription. This is a nice-to-have audit trail, not load-bearing for idempotency. If the write fails, log it and continue — the DB state determines whether a user is "migrated."
 
 ---
 
 ## Steps
 
-### Step 0 — Diagnostic: verify one subscription before touching the rest
+### Step 1 — Env swap + archive the duplicate product
 
-> **For Claude:** Write `scripts/diagnose-podia.ts`. Read-only + one no-op write. Takes a single `--subscription-id` argument.
+> **For Claude:** This is the one-line ops change that makes everything else work. No code change needed in the app — only one file (`src/app/api/stripe/checkout/route.ts`) reads these env vars.
 
-The whole plan rests on two assumptions: **(a)** we have write access to Podia-created subscriptions under Stripe Connect, and **(b)** the old Price and the new target Price have matching amounts and currency. If either is wrong, the plan fails on row 1 and we need a different approach.
+Update `.env.production` and `.env.example`:
+```
+STRIPE_PRICE_ID="monthly-monthly-20230426090915-996d"
+STRIPE_PRICE_ID_YEARLY="rejoignez-le-job-club-et-assurez-vous-un-acces-exclusif-a-des-opportunites-de-travail-tout-au-long-de-votre-annee-en-australie-annual-20240523062135-f036"
+```
 
-This script takes one live subscription ID from Stripe Dashboard (pick any active Podia subscriber) and checks:
+Redeploy on the VPS. Verify by opening Stripe Checkout from the live app and confirming the displayed amounts are $39.99 AUD (monthly) and $149 AUD (yearly).
 
-1. **Retrieve** the subscription with your live keys — should succeed. Log `application` field (if present, it points to Podia's Connect platform — informational).
-2. **Inspect the Price** — log `unit_amount`, `currency`, and `recurring.interval`. Compare against `STRIPE_PRICE_ID` (monthly) or `STRIPE_PRICE_ID_YEARLY` (yearly) in env. If amounts or currency differ, **halt and flag for human review** — migrating to a different amount is a material change to the customer's subscription terms.
-3. **No-op update** — try setting `metadata: { migration_check: '<timestamp>' }` on the subscription. If this fails with a permission error, we don't have write access via Stripe Connect and the seamless transfer approach isn't viable. Fall back to the cold-migration path (see "Fallback plan" at bottom).
+In Stripe Dashboard:
+- Archive product `prod_UFpN16niWDMgQI` ("Job Club by MLF") — non-destructive, hides it from Checkout.
+- Archive its two Prices: `price_1THJiOAX1FfAZ93bJZ1xqz7D` and `price_1THJljAX1FfAZ93b21AR4jYe`.
 
-Only after all three checks pass do we proceed to Step 1.
+### Step 2 — Pre-cutover announcement (5–7 days before user-facing switch)
 
-### Step 0.5 — Pre-cutover announcement (5–7 days before)
-
-230 paying customers getting an unexpected "set your password" email from a domain they don't recognize is a spam-filter disaster and a support-ticket bomb. Warn them first.
-
-Send a bilingual email (or post to the Podia community, whichever reaches them better) that explains:
+A heads-up email (or Podia community post) that explains:
 - We're moving to a new platform at `thejobclub.com.au` on `<date>`.
-- Your subscription carries over automatically — same card, same billing cycle, no action required.
-- After the move, you'll get an email with a link to set your password and log in.
-- If the email doesn't arrive, contact `<support address>`.
+- Your subscription carries over automatically — same card, same price, same billing cycle, no action required.
+- After the move, you'll get an email with a password-setup link.
+- If the email doesn't arrive within 24 hours of `<date>`, contact `<support address>`.
 
-No action required from the user — this is a heads-up, not a CTA.
+No CTA. Just reduces the surprise and spam-filter risk when the welcome email lands.
 
-### Step 1 — Inventory the Podia cohort in Stripe
+### Step 3 — Inventory the cohort
 
-> **For Claude:** Write `scripts/inventory-podia.ts`. Runs read-only against Stripe.
+> **For Claude:** Write `scripts/inventory-podia.ts`. Read-only against Stripe.
 
-Pull all active subscriptions, expand the customer, and group by the Price ID. The Podia prices will be the ones that are *not* your new Job Club `STRIPE_PRICE_ID` / `STRIPE_PRICE_ID_YEARLY`.
+Query `subscriptions.list({ status: 'active', expand: ['data.customer', 'data.items.data.price'] })`. Filter to rows where `subscription.items.data[0].price.metadata.managed_by === 'Podia'`.
 
-For each row, record:
-- `{ customerId, email, name, subscriptionId, currentPriceId, currentPriceAmount, currentPriceCurrency, nextBillingDate, status, planType }` where `planType` = "monthly" or "yearly" (inferred from the Price's `recurring.interval`).
-- **Target Price lookup:** match `planType` → `STRIPE_PRICE_ID` or `STRIPE_PRICE_ID_YEARLY`.
-- **Pricing-match check:** compare `currentPriceAmount` + `currentPriceCurrency` to the target Price. Record a `pricingMismatch: true/false` flag.
+For each matching row, record:
+```ts
+{
+  customerId: string,
+  email: string,
+  name: string | null,
+  subscriptionId: string,
+  priceId: string,
+  status: string,              // 'active' expected
+  currentPeriodEnd: number,    // unix ts
+  planType: 'monthly' | 'yearly',
+}
+```
+
+Also run with `status: 'past_due'` (currently 0, but this may change between prep and cutover).
 
 Output:
-- `out/podia-cohort.json` — full array with the fields above.
-- `out/pricing-mismatches.csv` — any row where `pricingMismatch === true`. **If this file is non-empty, halt** and review with Lucas before proceeding. Options: (a) update one side to match, (b) exclude mismatched rows from automated migration and handle manually, (c) accept the change and notify affected customers explicitly.
-- Stdout summary: total count, breakdown by plan, breakdown by status (`active`, `past_due`, `canceled`, `trialing`), count of pricing mismatches.
+- `out/podia-cohort.json` — the full array.
+- stdout summary: counts by `planType` and `status`.
 
-Sanity-check: does the count roughly match your expected ~230?
+Sanity-check against expected 37 (± small churn).
 
-### Step 2 — Dry-run the migration
+### Step 4 — Dry-run the sync
 
-> **For Claude:** Write `scripts/migrate-podia.ts --dry-run`.
+> **For Claude:** Write `scripts/sync-podia-customers.ts --dry-run` (default on).
 
-For each row in `podia-cohort.json`:
-- **Stripe-side idempotency check:** fetch the subscription; if `metadata.migrated_from_podia === 'true'`, **skip**.
-- **DB-side idempotency check:** `User.findUnique({ email })`:
-  - Exists with `stripeCustomerId` set → **skip** (already migrated or self-signed-up).
-  - Exists without `stripeCustomerId` → **warn** (Lucas to review manually — likely a test/admin account sharing the email).
-  - Does not exist → plan to **create**.
-- Verify the target Price ID maps cleanly to the planType.
-- Log the planned action per row; **do not write** to Stripe or DB in dry-run mode.
+For each row in `out/podia-cohort.json`:
+- `User.findUnique({ email })`:
+  - Exists with `stripeCustomerId` set → **skip** (already migrated or self-signup).
+  - Exists without `stripeCustomerId` → **warn** (Lucas reviews — likely test/admin account).
+  - Does not exist → **plan to create**.
+- Log the planned action. Write nothing to DB or Stripe in dry-run mode.
 
-Review the dry-run output carefully before going live.
+Review with Lucas before going live.
 
-### Step 3 — Run the real migration
+### Step 5 — Real sync run
 
 > **For Claude:** Same script, without `--dry-run`.
 
-Per row, **Stripe first, DB second**, with idempotency checks at each step:
+Per row:
 
-1. **Stripe:** Update the subscription (skip if already tagged as migrated):
-   ```ts
-   await stripe.subscriptions.update(subscriptionId, {
-     items: [{ id: subscription.items.data[0].id, price: TARGET_PRICE_ID }],
-     proration_behavior: 'none',
-     billing_cycle_anchor: 'unchanged',
-     metadata: { migrated_from_podia: 'true', migrated_at: isoNow },
-   })
-   ```
-   The metadata write is the "transactional flag" — once set, re-runs skip this row on the Stripe side.
-
-2. **DB:** Upsert `User` record (skip if already exists with `stripeCustomerId`):
+1. **DB upsert:**
    ```ts
    {
      email,
      name,
-     passwordHash: await bcrypt.hash(randomBytes(32).toString('hex'), 12), // unusable — user will reset
+     passwordHash: await bcrypt.hash(randomBytes(32).toString('hex'), 12), // unusable; user resets
      role: 'user',
      stripeCustomerId: customerId,
-     subscriptionId: subscriptionId,
-     subscriptionStatus: 'active',
-     currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+     subscriptionId,
+     subscriptionStatus: status,    // usually 'active'
+     currentPeriodEnd: new Date(currentPeriodEnd * 1000),
      preferredLanguage: 'fr',
      onboardingCompleted: false,
    }
    ```
-   If this step fails (e.g. DB connection blip), the Stripe side is already updated — re-running the script picks up where it left off because the Stripe check will skip but the DB check will still find the missing user and create it.
+2. **Optional Stripe audit marker** — tag the subscription with metadata:
+   ```ts
+   await stripe.subscriptions.update(subscriptionId, {
+     metadata: { migrated_from_podia: 'true', migrated_at: new Date().toISOString() }
+   })
+   ```
+   Non-load-bearing — if it fails (rate limit, transient error), log and continue. Rate-limit to ~5 req/sec.
 
-3. **Audit log:** Append to `out/migration-results.csv` — `email, customerId, subscriptionId, oldPriceId, newPriceId, stripeUpdateStatus (ok|skipped|failed), dbUpsertStatus (ok|skipped|failed), error`.
+3. **Audit log:** append to `out/migration-results.csv`: `email, customerId, subscriptionId, dbUpsertStatus (ok|skipped|failed), stripeMetadataStatus (ok|skipped|failed), error`.
 
-Rate-limit to ~5 req/sec to stay well under Stripe's limits. Errors → log, continue, review at end.
+Errors → log, continue, review at end.
 
-### Step 4 — Send migration welcome emails
+### Step 6 — Send welcome emails
 
 > **For Claude:** Write `scripts/send-migration-emails.ts`.
 
-For each row in `migration-results.csv` where both `stripeUpdateStatus` and `dbUpsertStatus` are `ok` or `skipped`:
+For each row in `migration-results.csv` where `dbUpsertStatus ∈ {ok, skipped}`:
 
-1. Generate a `PasswordReset` token (reuse the existing model — 7-day expiry is fine for migration).
-2. Send a bilingual email via Resend:
+1. Generate a `PasswordReset` token (7-day expiry — reuse existing model).
+2. Send bilingual email via Resend:
    - **Subject (FR):** `Bienvenue sur Job Club !` / **(EN):** `Welcome to Job Club!`
-   - **Body:** Explains the platform switch, reassures that their subscription carries over, gives the password-setup link, points to support contact.
-3. Rate-limit to ~2 emails/sec (Resend throttle buffer).
+   - **Body:** Explains the platform switch, reassures subscription carries over at same price and same billing cycle, gives password-setup link, support contact.
+3. Rate-limit to ~2 emails/sec.
 
 Log each send to `out/email-results.csv`.
 
-### Step 5 — Parallel-run window (48–72 hours)
+### Step 7 — Parallel-run window (48–72 hours)
 
-During this period:
-- **Podia state:** ideally replace Podia course content with a "We've moved to thejobclub.com.au" landing page so users who log in out of habit get a clear signal. Verify in the Podia admin what you can actually do — if you can't replace content, at minimum post a banner in the community or course.
+- **Podia side:** if possible, replace course content with a "We've moved to thejobclub.com.au" landing page. At minimum post a banner in the community.
 - **Monitor:**
-  - Failed logins (Sentry).
-  - Password-reset request volume (expected to spike).
-  - Stripe webhook events for the migrated subscriptions (`invoice.paid`, `customer.subscription.updated`).
-  - Support inbox + any WhatsApp/FB messages from subscribers.
+  - Sentry for failed logins.
+  - PostHog for password-reset page traffic and feed engagement.
+  - Stripe webhook events for migrated subscriptions (`invoice.paid`, `customer.subscription.updated`) — confirm the Job Club handler updates `currentPeriodEnd` correctly.
+  - Support inbox + WhatsApp/FB DMs.
 
-### Step 6 — Follow-up email to non-logged-in users (~Day 7)
+### Step 8 — Follow-up email to non-logged-in users (~Day 7)
 
 > **For Claude:** Write `scripts/followup-migration-emails.ts`.
 
-Query for migrated users where `PasswordReset.used === false` AND `updatedAt` hasn't changed since migration (proxy for "never logged in"). Send a reminder email: "You haven't set up your password yet — here's a fresh link." Fresh 7-day token.
+Query for migrated users where the corresponding `PasswordReset.used === false` AND `updatedAt` unchanged since sync (proxy for "never logged in"). Send a reminder with a fresh 7-day token.
 
-This catches spam-filter losses and genuinely disengaged subscribers before we decommission Podia.
+Catches spam-filter losses and disengaged subscribers before decommission.
 
-### Step 7 — Decommission Podia
+### Step 9 — Decommission Podia
 
-Once you're confident (>95% of users have logged in or at least opened the welcome email):
-1. Confirm you have a fresh backup of Podia data (from Prerequisites).
-2. Cancel the Podia subscription/plan.
-3. Remove any redirects from Podia → Job Club.
+Once >95% have logged in or at least opened the welcome email:
+1. Confirm Podia data backup is fresh.
+2. Cancel the Podia plan / subscription.
+3. Remove any Podia → Job Club redirects.
 
 ---
 
-## Edge Cases
+## Edge cases
 
 | Case | Handling |
 |------|---------|
-| `past_due` subscription | Migrate as-is; the new Price takes effect, Stripe retries per dunning schedule. User gets welcome email; existing `past_due` banner shows on Job Club. |
-| `canceled` but still in current period | Migrate user record but set `subscriptionStatus: 'canceled'`; don't update the subscription in Stripe. They can access until `currentPeriodEnd`. |
-| `trialing` | Unlikely but possible. Default: skip, flag for manual review in Step 1 output. |
-| Pricing mismatch (old Price amount ≠ new) | Halt migration; see Step 1 "Options." Never silently change a customer's billing amount. |
-| Duplicate emails (same customer, two subs) | Log, skip automated handling, Lucas resolves manually. |
-| Customer has no email on Stripe record | Skip; log for manual follow-up. |
-| User already exists with `stripeCustomerId` set | Skip — already on Job Club via self-signup. |
-| User already exists without `stripeCustomerId` | Warn, do not auto-merge. Likely admin/test account. |
+| `past_due` subscription | Migrate as-is. Stripe dunning retries continue. User gets welcome email; `past_due` banner shown on Job Club until paid. |
+| `canceled` but still in current period | Skip — they won't renew and won't generate revenue. Not worth the migration effort. |
+| `trialing` | Unlikely but possible. Flag in inventory output for manual review. |
+| Duplicate emails (one customer, two active subs) | Log, skip, Lucas resolves manually. Unusual. |
+| Customer has no email on Stripe record | Skip, log for manual follow-up. |
+| User already exists with `stripeCustomerId` set | Skip — already on Job Club. |
+| User already exists without `stripeCustomerId` | Warn, do not auto-merge. Likely admin/test account sharing the email. |
 
 ---
 
 ## Verification
 
-- [ ] **Step 0 diagnostic passes** on a single real subscription (write access + pricing match + metadata update).
-- [ ] **Step 1 pricing-mismatch file is empty** (or all mismatches have been explicitly resolved).
-- [ ] Inventory count matches expected ~230 (± expected churn since last check).
+- [ ] After Step 1: Checkout on `thejobclub.com.au` shows $39.99 AUD (monthly) and $149 AUD (yearly). Duplicate product `prod_UFpN16niWDMgQI` archived in Stripe Dashboard.
+- [ ] Inventory count matches expected ~37 (± expected churn since 2026-04-19).
 - [ ] Dry-run completes with zero unexpected errors.
-- [ ] Real migration results CSV: every row is `ok` or `skipped`, any `failed` rows understood.
-- [ ] Spot-check 5 migrated subscriptions in Stripe Dashboard: each references the new Price ID, has `migrated_from_podia: true` metadata, `current_period_end` unchanged from pre-migration.
-- [ ] Spot-check: log in as 2–3 migrated users (after password reset) — feed loads, subscription banner shows "active," no paywall redirect.
-- [ ] Welcome emails delivered (Resend dashboard + check a few real inboxes).
-- [ ] No regression in Stripe webhook handler — `invoice.paid` on a migrated subscription correctly updates the user's `currentPeriodEnd`.
-- [ ] Re-run the migration script: everything skips cleanly, no duplicate writes, no errors (proves idempotency).
+- [ ] Real sync `migration-results.csv`: every row is `ok` or `skipped`; any `failed` rows understood.
+- [ ] Spot-check 3 migrated users: the `stripeCustomerId`, `subscriptionId`, and `currentPeriodEnd` in the DB match what Stripe shows.
+- [ ] Spot-check: log in as 2–3 migrated users (after password reset) — feed loads, no paywall redirect, saved-jobs works.
+- [ ] Welcome emails delivered (Resend dashboard + a few real inboxes).
+- [ ] Webhook handler regression check: trigger a test `invoice.paid` event for a migrated subscription → user's `currentPeriodEnd` updates correctly.
+- [ ] Re-run `sync-podia-customers.ts`: everything skips cleanly, no duplicate writes (proves idempotency).
 
 ---
 
-## Risks & Rollback
+## Risks & rollback
 
-### Primary risk: broken Stripe subscription state
+### Primary risk: DB state diverges from Stripe
 
-If a subscription update fails mid-script and leaves DB + Stripe out of sync:
-- `migration-results.csv` is the single source of truth for what happened.
-- **Rollback per row**: re-point the Stripe subscription back to the original Podia Price ID using the `oldPriceId` column:
-  ```ts
-  await stripe.subscriptions.update(subscriptionId, {
-    items: [{ id: itemId, price: oldPriceId }],
-    proration_behavior: 'none',
-    billing_cycle_anchor: 'unchanged',
-    metadata: { migrated_from_podia: null }, // clear the flag
-  })
-  ```
-- Delete the User record if no meaningful data has been written (no saved jobs, no notifications).
+If the sync script errors mid-run, some users are in the DB and others aren't. `migration-results.csv` is the source of truth. Re-run the script — idempotency check skips already-synced rows. No data loss, no billing disruption because subscriptions were never touched.
 
-### Secondary risk: Podia reacts badly to external subscription edits
+### Secondary risk: Stripe webhook doesn't fire for Podia-created subs
 
-Podia may detect that "their" subscription was changed and flag the account or cancel service. **Mitigation**: run the cutover close to when you plan to decommission Podia anyway — narrows the reaction window.
+Low-probability but worth verifying. Podia's Prices are normal Stripe objects, and our webhook listens on the account level — it should receive all events for all subscriptions. But trigger a manual test event for one migrated sub post-launch to confirm the handler updates `currentPeriodEnd` correctly.
 
-### Fallback plan: Cold migration
+### Tertiary risk: Podia reacts to the decommission
 
-If Step 0 reveals we don't actually have write access (Stripe Connect restrictions) or pricing mismatches block the transfer approach, fall back to:
-- Create users with `subscriptionStatus: 'active'` + 30-day grace period via `currentPeriodEnd`.
-- Users re-subscribe through Stripe Checkout during the grace window.
-- Cancel the Podia subscriptions in bulk at the end of the grace period.
+Podia's system may still be "listening" for activity on its products until their plan is canceled. Shouldn't matter — we're not modifying anything Podia cares about. But if anything weird happens (unexpected cancellation emails from Podia to customers, etc.), the parallel-run window's monitoring will surface it.
 
-Less elegant, more friction, higher churn — but always works. Keep it in your back pocket.
+### Rollback
+
+Because no subscriptions are modified, rollback is trivial:
+- **Undo Step 1:** revert env var swap, un-archive the duplicate product.
+- **Undo Step 5:** delete User rows created during the sync. Safe because no dependent data yet (saved jobs, notifications happen only after the user logs in).
+- **Welcome emails:** can't un-send, but sending again isn't harmful (users get a fresh password-reset link).
 
 ---
 
 ## File outputs
 
 All scripts write to a gitignored `out/` directory:
-- `out/podia-cohort.json` — inventory from Step 1.
-- `out/pricing-mismatches.csv` — pricing-mismatch flags from Step 1 (should be empty to proceed).
-- `out/migration-results.csv` — per-row migration outcomes from Step 3.
-- `out/email-results.csv` — per-row welcome-email outcomes from Step 4.
-- `out/followup-results.csv` — per-row follow-up email outcomes from Step 6.
+- `out/podia-cohort.json` — inventory from Step 3.
+- `out/migration-results.csv` — per-row sync outcomes from Step 5.
+- `out/email-results.csv` — per-row welcome-email outcomes from Step 6.
+- `out/followup-results.csv` — per-row follow-up outcomes from Step 8.
 
-Keep these files. They're your audit trail.
+Keep them. Audit trail.
