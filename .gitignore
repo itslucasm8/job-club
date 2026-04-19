@@ -5,3 +5,4 @@ node_modules.bak/
 .env
 .env.sentry-build-plugin
 prisma/dev.db
+out/
