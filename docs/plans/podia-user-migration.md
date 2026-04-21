@@ -1,23 +1,43 @@
 # Podia User Migration
 
-> **For Claude:** This is a script + ops plan. It supersedes two prior versions: the original "cold CSV migration" and the later "seamless Stripe subscription transfer" (commit `450795f`). Both were over-engineered because they assumed Podia's Prices needed to be replaced. They don't — Podia's Prices ARE the real production Prices in Lucas's own Stripe account. The migration is therefore **data sync + env swap + comms**, not a subscription rewrite.
-
-**Goal:** Migrate all active Podia subscribers into Job Club so that:
-1. Every subscriber can log in to `thejobclub.com.au` on day one.
-2. Their existing Stripe subscription stays exactly as-is — same Price, same card, same billing cycle, same next-charge date.
-3. Podia's frontend/community layer can be decommissioned after a short parallel-run window.
-
-**Why this matters:** These are paying customers. A botched migration means lost revenue, confused users, and support headaches. The approach here minimizes risk by not touching Stripe subscriptions at all — they stay exactly as Podia left them.
+> **Status (2026-04-21):** Prep is ~70% done. Waiting on Lucas to pick a cutover date. Scripts for the sync and email steps still to be written. Everything is deliberately idempotent — re-runs are safe.
 
 ---
 
-## Core insight (verified empirically 2026-04-19 via Stripe MCP)
+## At a glance — where we are
 
-Podia stores its products and Prices inside Lucas's own Stripe account. Those Prices ARE the production Prices — there is no separate "Job Club product" we need to move subscribers toward. The earlier plan assumed the opposite, leading to an unnecessarily complex "seamless transfer" design.
+| # | Item | Status |
+|---|------|--------|
+| 1 | Plan rewritten to data-sync + env-swap approach (no Stripe subscription edits) | ✅ Done |
+| 2 | Pricing locked — $39.99/mo + $149/yr (keep Podia prices) | ✅ Done |
+| 3 | Three French email templates drafted (`docs/emails/podia-migration-emails.md`) | ✅ Done |
+| 4 | `scripts/inventory-podia.ts` written + run against live Stripe | ✅ Done |
+| 5 | Cohort verified: **37 active** (26 monthly + 11 yearly), 0 past_due, 0 missing emails | ✅ Done |
+| 6 | Podia data backup (manual export from Podia dashboard) | ⏸ Optional — do before Day-14 decommission |
+| 7 | Pick cutover date | ⏳ Waiting on Lucas |
+| 8 | Write `scripts/sync-podia-customers.ts` | ⏳ Queued — will write when Lucas says GO |
+| 9 | Write `scripts/send-migration-emails.ts` (welcome emails) | ⏳ Queued |
+| 10 | Write `scripts/followup-migration-emails.ts` (Day-7 reminder) | ⏳ Queued |
+| 11 | Cutover runbook | ✅ Done — see `docs/plans/podia-cutover-runbook.md` |
+| 12 | Execute cutover day | ⏳ On chosen date |
 
-**Active cohort (as of 2026-04-19):**
-- **37 active subscriptions** (23 monthly + 14 yearly). Prior memory said "~230" — that number counted all-time subscribers including churn.
-- **0 `past_due`, 0 `trialing`**, 100+ historic `canceled`.
+**When Lucas says GO:** scripts 8–10 can be written in a single ~2-hour session, then the runbook takes over.
+
+---
+
+## The plan in one paragraph
+
+Keep the 37 existing Podia-created Stripe subscriptions exactly as they are. Swap `.env.production` to point at the Podia Price IDs so new signups also land on those prices. Upsert a `User` row in our Postgres for each Podia subscriber, keyed by `stripeCustomerId`. Email each user a password-setup link so they can log in. Run a Day-7 follow-up for anyone who hasn't activated. Decommission Podia after Day 14 if activation >95%. No `stripe.subscriptions.update()` calls on anyone — which means zero billing-side blast radius.
+
+---
+
+## Core insight (verified 2026-04-19 via Stripe MCP)
+
+Podia stores its products and Prices inside **Lucas's own Stripe account**. Those Prices ARE the production Prices — there is no separate "Job Club product" we need to move subscribers toward. The earlier plan assumed the opposite, leading to an unnecessarily complex "seamless transfer" design.
+
+**Active cohort (verified 2026-04-19, counted from `out/podia-cohort.json`):**
+- **37 active subscriptions** — 26 monthly + 11 yearly.
+- 0 `past_due`, 0 `trialing`, 0 missing emails, 100+ historic `canceled`.
 
 **The two live Prices:**
 | Plan | Price ID | Product | Amount |
@@ -41,21 +61,7 @@ Both Prices carry `metadata: { managed_by: "Podia", id: "<podia-internal>" }`. T
 
 ---
 
-## Prerequisites
-
-- [x] Stripe production setup complete.
-- [x] Resend email setup complete.
-- [x] DNS/domain finalized (`thejobclub.com.au`).
-- [x] Pricing decision made (keep Podia prices).
-- [ ] Draft three French emails: pre-cutover announcement + welcome email + ~Day 7 follow-up. (The cohort is 100% French; no need for bilingual copy even though the app supports EN.)
-- [ ] Backup of current Podia data — export subscribers list, course content. Cheap insurance.
-- [ ] Decide cutover window — ~2 hours is enough since no subscription edits happen.
-
----
-
-## Strategy
-
-Four mechanical moves, in order:
+## Strategy — four mechanical moves
 
 1. **Env swap + duplicate archive** — point `.env.production` at the Podia Price IDs; archive `prod_UFpN16niWDMgQI`.
 2. **Customer data sync** — create one `User` record per active Podia subscriber in the Job Club DB, keyed by `stripeCustomerId` and `subscriptionId`.
@@ -78,19 +84,21 @@ Every script must be safely re-runnable. The DB is the single source of truth fo
 
 ---
 
-## Steps
+## Step reference (detailed)
+
+> The cutover runbook at `docs/plans/podia-cutover-runbook.md` is the "tick the boxes on the day" version. This section is the underlying reasoning and spec for each script.
 
 ### Step 1 — Env swap + archive the duplicate product
 
-> **For Claude:** This is the one-line ops change that makes everything else work. No code change needed in the app — only one file (`src/app/api/stripe/checkout/route.ts`) reads these env vars.
+One-line ops change that makes everything else work. No code change needed in the app — only one file (`src/app/api/stripe/checkout/route.ts`) reads these env vars.
 
-Update `.env.production` and `.env.example`:
+Update `.env.production` on the VPS:
 ```
 STRIPE_PRICE_ID="monthly-monthly-20230426090915-996d"
 STRIPE_PRICE_ID_YEARLY="rejoignez-le-job-club-et-assurez-vous-un-acces-exclusif-a-des-opportunites-de-travail-tout-au-long-de-votre-annee-en-australie-annual-20240523062135-f036"
 ```
 
-Redeploy on the VPS. Verify by opening Stripe Checkout from the live app and confirming the displayed amounts are $39.99 AUD (monthly) and $149 AUD (yearly).
+Redeploy (`docker compose up -d --build`). Verify by opening Stripe Checkout from the live app and confirming the amounts display as $39.99 AUD (monthly) and $149 AUD (yearly).
 
 In Stripe Dashboard:
 - Archive product `prod_UFpN16niWDMgQI` ("Job Club by MLF") — non-destructive, hides it from Checkout.
@@ -98,60 +106,36 @@ In Stripe Dashboard:
 
 ### Step 2 — Pre-cutover announcement (5–7 days before user-facing switch)
 
-A heads-up email **in French only** (or Podia community post) that explains:
-- We're moving to a new platform at `thejobclub.com.au` on `<date>`.
-- Your subscription carries over automatically — same card, same price, same billing cycle, no action required.
-- After the move, you'll get an email with a password-setup link.
-- If the email doesn't arrive within 24 hours of `<date>`, contact `<support address>`.
+Email in French only to all 37 active subscribers. Template lives in `docs/emails/podia-migration-emails.md` (§1). Tells them:
+- We're moving to `thejobclub.com.au` on `<date>`.
+- Subscription carries over automatically — same card, same price, same billing cycle, no action required.
+- After the move they'll get a password-setup email.
 
-No CTA. Just reduces the surprise and spam-filter risk when the welcome email lands.
+No CTA. Just reduces surprise and spam-filter risk when the welcome email lands. Can be sent by pasting into Resend dashboard manually — no script strictly required.
 
-### Step 3 — Inventory the cohort
+### Step 3 — Inventory the cohort ✅ DONE
 
-> **For Claude:** Write `scripts/inventory-podia.ts`. Read-only against Stripe.
+`scripts/inventory-podia.ts` is written and was run on 2026-04-19. It queries `subscriptions.list({ status: 'active' | 'past_due' })`, filters on `price.metadata.managed_by === 'Podia'`, and writes `out/podia-cohort.json`. Re-run any time before cutover to refresh — it's a pure read.
 
-Query `subscriptions.list({ status: 'active', expand: ['data.customer', 'data.items.data.price'] })`. Filter to rows where `subscription.items.data[0].price.metadata.managed_by === 'Podia'`.
-
-For each matching row, record:
-```ts
-{
-  customerId: string,
-  email: string,
-  name: string | null,
-  subscriptionId: string,
-  priceId: string,
-  status: string,              // 'active' expected
-  currentPeriodEnd: number,    // unix ts
-  planType: 'monthly' | 'yearly',
-}
+Run it again the morning of cutover to capture any churn between now and then:
+```bash
+STRIPE_SECRET_KEY=$(grep -oE 'rk_live_[a-zA-Z0-9]+' ~/.claude.json | head -1) npx tsx scripts/inventory-podia.ts
 ```
 
-Also run with `status: 'past_due'` (currently 0, but this may change between prep and cutover).
+### Step 4 — Dry-run the sync (script TBD)
 
-Output:
-- `out/podia-cohort.json` — the full array.
-- stdout summary: counts by `planType` and `status`.
-
-Sanity-check against expected 37 (± small churn).
-
-### Step 4 — Dry-run the sync
-
-> **For Claude:** Write `scripts/sync-podia-customers.ts --dry-run` (default on).
-
-For each row in `out/podia-cohort.json`:
+Future `scripts/sync-podia-customers.ts` will default to `--dry-run`. For each row in `out/podia-cohort.json`:
 - `User.findUnique({ email })`:
   - Exists with `stripeCustomerId` set → **skip** (already migrated or self-signup).
   - Exists without `stripeCustomerId` → **warn** (Lucas reviews — likely test/admin account).
   - Does not exist → **plan to create**.
 - Log the planned action. Write nothing to DB or Stripe in dry-run mode.
 
-Review with Lucas before going live.
+Review dry-run output with Lucas before going live.
 
-### Step 5 — Real sync run
+### Step 5 — Real sync run (script TBD)
 
-> **For Claude:** Same script, without `--dry-run`.
-
-Per row:
+Same script, with `--live`. Per row:
 
 1. **DB upsert:**
    ```ts
@@ -180,34 +164,28 @@ Per row:
 
 Errors → log, continue, review at end.
 
-### Step 6 — Send welcome emails
+### Step 6 — Send welcome emails (script TBD)
 
-> **For Claude:** Write `scripts/send-migration-emails.ts`.
-
-For each row in `migration-results.csv` where `dbUpsertStatus ∈ {ok, skipped}`:
+Future `scripts/send-migration-emails.ts`. For each row in `migration-results.csv` where `dbUpsertStatus ∈ {ok, skipped}`:
 
 1. Generate a `PasswordReset` token (7-day expiry — reuse existing model).
-2. Send **French-only** email via Resend:
-   - **Subject:** `Bienvenue sur Job Club !`
-   - **Body:** Explains the platform switch, reassures subscription carries over at same price and same billing cycle, gives password-setup link, support contact.
+2. Send French email via Resend using template from `docs/emails/podia-migration-emails.md` §2.
 3. Rate-limit to ~2 emails/sec.
 
 Log each send to `out/email-results.csv`.
 
 ### Step 7 — Parallel-run window (48–72 hours)
 
-- **Podia side:** if possible, replace course content with a "We've moved to thejobclub.com.au" landing page. At minimum post a banner in the community.
+- **Podia side:** replace course content with a "We've moved to thejobclub.com.au" landing page if possible. At minimum post a banner in the community.
 - **Monitor:**
   - Sentry for failed logins.
   - PostHog for password-reset page traffic and feed engagement.
   - Stripe webhook events for migrated subscriptions (`invoice.paid`, `customer.subscription.updated`) — confirm the Job Club handler updates `currentPeriodEnd` correctly.
   - Support inbox + WhatsApp/FB DMs.
 
-### Step 8 — Follow-up email to non-logged-in users (~Day 7)
+### Step 8 — Follow-up email to non-activators (~Day 7) (script TBD)
 
-> **For Claude:** Write `scripts/followup-migration-emails.ts`.
-
-Query for migrated users where the corresponding `PasswordReset.used === false` AND `updatedAt` unchanged since sync (proxy for "never logged in"). Send a reminder with a fresh 7-day token.
+Future `scripts/followup-migration-emails.ts`. Query for migrated users where the corresponding `PasswordReset.used === false` AND `updatedAt` unchanged since sync (proxy for "never logged in"). Send reminder using template from `docs/emails/podia-migration-emails.md` §3, with a fresh 7-day token.
 
 Catches spam-filter losses and disengaged subscribers before decommission.
 
@@ -228,7 +206,7 @@ Once >95% have logged in or at least opened the welcome email:
 | `canceled` but still in current period | Skip — they won't renew and won't generate revenue. Not worth the migration effort. |
 | `trialing` | Unlikely but possible. Flag in inventory output for manual review. |
 | Duplicate emails (one customer, two active subs) | Log, skip, Lucas resolves manually. Unusual. |
-| Customer has no email on Stripe record | Skip, log for manual follow-up. |
+| Customer has no email on Stripe record | Skip, log for manual follow-up. Verified 0 cases in current cohort. |
 | User already exists with `stripeCustomerId` set | Skip — already on Job Club. |
 | User already exists without `stripeCustomerId` | Warn, do not auto-merge. Likely admin/test account sharing the email. |
 
@@ -237,7 +215,7 @@ Once >95% have logged in or at least opened the welcome email:
 ## Verification
 
 - [ ] After Step 1: Checkout on `thejobclub.com.au` shows $39.99 AUD (monthly) and $149 AUD (yearly). Duplicate product `prod_UFpN16niWDMgQI` archived in Stripe Dashboard.
-- [ ] Inventory count matches expected ~37 (± expected churn since 2026-04-19).
+- [ ] Inventory count matches expected ~37 (± small churn since 2026-04-19).
 - [ ] Dry-run completes with zero unexpected errors.
 - [ ] Real sync `migration-results.csv`: every row is `ok` or `skipped`; any `failed` rows understood.
 - [ ] Spot-check 3 migrated users: the `stripeCustomerId`, `subscriptionId`, and `currentPeriodEnd` in the DB match what Stripe shows.
@@ -274,9 +252,17 @@ Because no subscriptions are modified, rollback is trivial:
 ## File outputs
 
 All scripts write to a gitignored `out/` directory:
-- `out/podia-cohort.json` — inventory from Step 3.
+- `out/podia-cohort.json` — inventory from Step 3 (✅ exists).
 - `out/migration-results.csv` — per-row sync outcomes from Step 5.
 - `out/email-results.csv` — per-row welcome-email outcomes from Step 6.
 - `out/followup-results.csv` — per-row follow-up outcomes from Step 8.
 
 Keep them. Audit trail.
+
+---
+
+## Related docs
+
+- **Runbook:** [`podia-cutover-runbook.md`](podia-cutover-runbook.md) — the minute-by-minute command sequence for cutover day.
+- **Email templates:** [`../emails/podia-migration-emails.md`](../emails/podia-migration-emails.md) — the three French emails (pre-cutover, welcome, follow-up).
+- **Pricing memory:** `memory/project_pricing_decision.md` — the LTV analysis behind the $39.99/$149 decision.

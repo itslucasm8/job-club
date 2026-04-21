@@ -14,28 +14,34 @@
 
 **Pricing locked:** $39.99/mo and $149/yr (keep Podia's prices — monthly LTV analysis showed $149 already captures ~2× monthly revenue/customer).
 
+**Docs to read:**
+- [`docs/plans/podia-user-migration.md`](docs/plans/podia-user-migration.md) — the full plan + reasoning (start here)
+- [`docs/plans/podia-cutover-runbook.md`](docs/plans/podia-cutover-runbook.md) — the tick-the-boxes checklist for cutover day
+- [`docs/emails/podia-migration-emails.md`](docs/emails/podia-migration-emails.md) — three French email templates
+
 ### Done
 
 | Item | Where |
 |------|-------|
-| Plan rewritten to data-sync approach | `docs/plans/podia-user-migration.md` (commit `9498882`) |
+| Plan rewritten to data-sync approach | `docs/plans/podia-user-migration.md` |
+| Cutover runbook written | `docs/plans/podia-cutover-runbook.md` |
 | Pricing decision locked ($39.99/$149) | Memory + plan doc |
-| Three French email templates drafted (pre-cutover, welcome, Day-7 follow-up) | `docs/emails/podia-migration-emails.md` (commit `8ecd557`) |
-| Script 1: `scripts/inventory-podia.ts` — reads live Stripe, writes `out/podia-cohort.json` | Committed (`13d4cf0`); ran successfully, 37 rows produced |
+| Three French email templates drafted (pre-cutover, welcome, Day-7 follow-up) | `docs/emails/podia-migration-emails.md` |
+| `scripts/inventory-podia.ts` — reads live Stripe, writes `out/podia-cohort.json` | Committed; ran successfully, 37 rows produced |
 
 ### To do (in order)
 
 | # | Item | Type | Effort |
 |---|------|------|--------|
-| 1 | Podia data backup — export subscribers + course content from Podia dashboard | Ops (manual) | 15 min |
-| 2 | Decide cutover date | Decision | — |
-| 3 | `scripts/sync-podia-customers.ts` — upsert Users + generate `PasswordReset` tokens, output `out/welcome-emails.csv`. Dry-run default, `--live` flag to write | Code | ~1 hr |
-| 4 | `scripts/followup-podia-customers.ts` — CSV of non-activators for Day-7 follow-up | Code | ~30 min |
-| 5 | Short cutover-day runbook | Doc | ~30 min |
-| 6 | On cutover day: swap `STRIPE_PRICE_ID` + `STRIPE_PRICE_ID_YEARLY` env vars on VPS to Podia Price IDs; redeploy | Ops | 15 min |
-| 7 | On cutover day: run inventory → sync `--live` → paste `welcome-emails.csv` into Resend → monitor | Ops | ~1 hr + 48-72h monitoring |
-| 8 | Day 7: run follow-up script → paste into Resend | Ops | 15 min |
-| 9 | Day 14 (if activation >95%): decommission Podia plan | Ops | 15 min |
+| 1 | **Decide cutover date** | Decision | — |
+| 2 | `scripts/sync-podia-customers.ts` — upsert Users + generate `PasswordReset` tokens. Dry-run default, `--live` flag to write | Code | ~1 hr |
+| 3 | `scripts/send-migration-emails.ts` — send welcome email via Resend using template §2 | Code | ~45 min |
+| 4 | `scripts/followup-migration-emails.ts` — Day-7 reminder for non-activators | Code | ~30 min |
+| 5 | Send pre-cutover email (T-5, via Resend dashboard) | Ops (manual) | 10 min |
+| 6 | Podia data backup (optional, before Day-14 decommission) | Ops (manual) | 15 min |
+| 7 | Execute cutover per runbook — env swap, sync `--live`, welcome emails, monitor 48-72h | Ops | ~2 hr + 48-72h |
+| 8 | Day 7: run follow-up script | Ops | 15 min |
+| 9 | Day 14 (if activation ≥95%): decommission Podia plan | Ops | 15 min |
 
 ### Key IDs for cutover (don't look these up again)
 
@@ -220,4 +226,4 @@ The restricted key is read-only — fine for inventory and for any script that o
 
 ---
 
-*Last updated: 2026-04-19*
+*Last updated: 2026-04-21*
