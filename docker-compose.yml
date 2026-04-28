@@ -26,6 +26,9 @@ services:
       - db
     env_file:
       - .env.production
+    extra_hosts:
+      # Lets the container reach the host (where the Claude proxy runs on :8090)
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/health"]
       interval: 30s

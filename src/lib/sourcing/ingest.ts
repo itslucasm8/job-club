@@ -78,7 +78,7 @@ export async function ingestCandidate(input: IngestInput): Promise<IngestResult>
       data: { totalSeen: { increment: 1 } },
     }).catch(() => {})
 
-    if (process.env.ANTHROPIC_API_KEY) {
+    if (process.env.CLAUDE_PROXY_SECRET) {
       import('./classifier').then(m => m.classifyAndPersist(created.id)).catch(() => {})
     }
 

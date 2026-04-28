@@ -320,9 +320,16 @@ Phase 3:
 ## Environment variables to add
 
 ```
-ANTHROPIC_API_KEY=          # For classifier + generic extractor (Phase 2)
-SOURCING_CRON_TOKEN=        # Auth token for the run-all script if exposed via HTTP
+CLAUDE_PROXY_URL=http://host.docker.internal:8090   # Reaches the Flask proxy on the VPS host
+CLAUDE_PROXY_SECRET=...                             # Bearer token shared with /opt/jobclub-claude-proxy/.env
+SOURCING_CRON_TOKEN=                                # Auth token for the run-all script if exposed via HTTP
 ```
+
+## LLM access
+
+Job Club calls Claude through a **separate Flask proxy service** (`services/claude-proxy/`) running on the VPS host. The proxy shells out to the `claude` CLI, which is OAuth-authenticated against Lucas's Claude Max subscription. This mirrors the Sales Koala architecture — costs go against the Max subscription, not pay-per-token API.
+
+See `services/claude-proxy/README.md` for the deploy steps.
 
 ---
 
