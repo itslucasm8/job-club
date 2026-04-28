@@ -4,8 +4,12 @@
 const $ = (id) => document.getElementById(id)
 
 async function loadConfig() {
-  const cfg = await chrome.storage.sync.get(['apiUrl', 'secret'])
-  return { apiUrl: cfg.apiUrl || '', secret: cfg.secret || '' }
+  // Read from local first (single-machine, reliable). Fall back to sync
+  // for users migrating from an older version that wrote to sync.
+  const local = await chrome.storage.local.get(['apiUrl', 'secret'])
+  if (local.apiUrl && local.secret) return { apiUrl: local.apiUrl, secret: local.secret }
+  const sync = await chrome.storage.sync.get(['apiUrl', 'secret']).catch(() => ({}))
+  return { apiUrl: local.apiUrl || sync.apiUrl || '', secret: local.secret || sync.secret || '' }
 }
 
 async function getActiveTab() {
