@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Job Club — Importer",
+  "version": "0.1.0",
+  "description": "Capture la page de l'annonce courante et l'envoie au backend Job Club pour extraction IA + revue.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://thejobclub.com.au/*"
+  ],
+  "action": {
+    "default_title": "Envoyer à Job Club",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js"
+  }
+}
