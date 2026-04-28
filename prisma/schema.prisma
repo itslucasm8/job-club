@@ -86,3 +86,39 @@ model PasswordReset {
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
 }
+
+model JobCandidate {
+  id              String    @id @default(cuid())
+  source          String
+  sourceUrl       String
+  sourceJobId     String?
+  rawData         Json
+  dedupeHash      String
+  status          String    @default("pending") // pending | approved | rejected | duplicate | auto_rejected
+  rejectReason    String?
+  classifierScore Json?
+  promotedJobId   String?
+  createdAt       DateTime  @default(now())
+  reviewedAt      DateTime?
+  reviewedBy      String?
+
+  @@index([status, createdAt])
+  @@index([dedupeHash])
+  @@index([source, createdAt])
+  @@unique([source, sourceJobId])
+}
+
+model JobSource {
+  id            String    @id @default(cuid())
+  slug          String    @unique
+  label         String
+  category      String    // government | aggregator | ats_rss | competitor | manual | direct
+  enabled       Boolean   @default(true)
+  lastRunAt     DateTime?
+  lastRunStatus String?   // ok | error | skipped
+  lastRunError  String?
+  totalSeen     Int       @default(0)
+  totalApproved Int       @default(0)
+  totalRejected Int       @default(0)
+  createdAt     DateTime  @default(now())
+}

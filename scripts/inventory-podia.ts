@@ -56,7 +56,7 @@ async function fetchByStatus(status: 'active' | 'past_due'): Promise<CohortRow[]
     const customer = sub.customer as Stripe.Customer | Stripe.DeletedCustomer
     const customerId = typeof sub.customer === 'string' ? sub.customer : customer.id
     const email = 'email' in customer ? customer.email : null
-    const name = 'name' in customer ? customer.name : null
+    const name = 'name' in customer ? (customer.name ?? null) : null
 
     const interval = price.recurring?.interval
     const planType: CohortRow['planType'] =

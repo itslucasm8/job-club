@@ -20,7 +20,9 @@ export default function Sidebar() {
   const adminNav = [
     { href: '/admin', label: t.admin.dashboardTitle || 'Tableau de bord', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
     { href: '/admin/publish', label: t.nav.publishJob, icon: 'M12 5v14 M5 12h14' },
+    { href: '/admin/candidates', label: 'Candidats', icon: 'M9 12l2 2 4-4 M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z' },
     { href: '/admin/jobs', label: t.nav.manageJobs, icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { href: '/admin/sources', label: 'Sources', icon: 'M4 6h16 M4 12h16 M4 18h16' },
   ]
 
   const userNav = [
