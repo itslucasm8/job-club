@@ -8,7 +8,7 @@ User=root
 WorkingDirectory=/opt/jobclub-claude-proxy
 EnvironmentFile=/opt/jobclub-claude-proxy/.env
 ExecStart=/opt/jobclub-claude-proxy/venv/bin/gunicorn \
-    --bind 127.0.0.1:8090 \
+    --bind 0.0.0.0:8090 \
     --workers 2 \
     --timeout 120 \
     --access-logfile - \

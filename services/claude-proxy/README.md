@@ -96,9 +96,9 @@ journalctl -u jobclub-claude-proxy.service -f
 
 ## Auth, scope, and security
 
-- The Flask app binds to `127.0.0.1:8090` only — not reachable from the public internet.
-- The Next.js Docker container reaches the host via `host.docker.internal` (configured in `docker-compose.yml` via `extra_hosts`).
-- Bearer-token auth (`CLAUDE_PROXY_SECRET`) is defence-in-depth, not the primary control. Anyone on the host can already hit localhost — the secret prevents accidental misuse from other containers on the box.
+- The Flask app binds to `0.0.0.0:8090` so the Job Club Docker container can reach it via the host bridge (`host.docker.internal`, configured in `docker-compose.yml` via `extra_hosts`). On Linux Docker, the container can't reach a `127.0.0.1`-bound host service.
+- Bearer-token auth (`CLAUDE_PROXY_SECRET` — a 64-char hex secret) is the primary access control on the proxy. Constant-time comparison.
+- **Firewall recommended:** Hostinger VPS exposes a public IPv4. Without UFW, port 8090 is reachable from the internet (still gated by the bearer token, but exposed to brute-force). Consider `ufw allow 22 && ufw allow 80 && ufw allow 443 && ufw default deny incoming && ufw enable` to limit the attack surface. Sales Koala's `:8089` has the same exposure profile.
 - The `claude` CLI runs as root (matching the systemd unit). It uses whatever Claude Max account that root user is OAuth-authenticated to. To re-auth: `claude` interactively as root and follow the OAuth flow.
 
 ## Why a separate service instead of inlining into Next.js?
