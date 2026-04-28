@@ -68,6 +68,10 @@ export async function proxyExtract(url: string, pageText: string): Promise<Proxy
   return postJSON<ProxyExtractResult>('/extract', { url, page_text: pageText })
 }
 
+export async function proxyExtractFromUrl(url: string): Promise<ProxyExtractResult & { fetch_status?: number }> {
+  return postJSON<ProxyExtractResult & { fetch_status?: number }>('/extract-from-url', { url })
+}
+
 export async function proxyClassify(raw: Record<string, unknown>): Promise<ProxyClassifyResult> {
   return postJSON<ProxyClassifyResult>('/classify', { raw })
 }

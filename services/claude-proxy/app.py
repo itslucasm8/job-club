@@ -17,6 +17,7 @@ from hashlib import sha256
 from flask import Flask, jsonify, request
 
 import drafter
+import fetcher
 
 app = Flask(__name__)
 
@@ -59,6 +60,40 @@ def extract_endpoint():
         return jsonify(result)
     except Exception as e:
         log.exception('extract failed')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/extract-from-url', methods=['POST'])
+def extract_from_url_endpoint():
+    """Fetch via headless Chromium + extract in one call.
+    Use this for sites that 403 plain HTTP fetches (Gumtree, Seek, BPJB, ...).
+    """
+    if not authorized(request):
+        return jsonify({'error': 'unauthorized'}), 401
+    body = request.get_json(silent=True) or {}
+    url = (body.get('url') or '').strip()
+    if not url or not url.startswith(('http://', 'https://')):
+        return jsonify({'error': 'valid url required'}), 400
+    try:
+        fetch_result = fetcher.fetch_page(url)
+        if not fetch_result.ok:
+            return jsonify({
+                'extraction_failed': True,
+                'failure_reason': f'fetch failed: {fetch_result.error}',
+                'fetch_status': fetch_result.status,
+            }), 200
+        text = fetch_result.text[:25000]
+        if len(text) < 200:
+            return jsonify({
+                'extraction_failed': True,
+                'failure_reason': 'page returned almost no text after rendering',
+                'fetch_status': fetch_result.status,
+            }), 200
+        result = drafter.extract_job(url=url, page_text=text)
+        result['fetch_status'] = fetch_result.status
+        return jsonify(result)
+    except Exception as e:
+        log.exception('extract-from-url failed')
         return jsonify({'error': str(e)}), 500
 
 

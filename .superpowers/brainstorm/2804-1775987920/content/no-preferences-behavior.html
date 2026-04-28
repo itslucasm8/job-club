@@ -1,0 +1,26 @@
+<h2>When a user has no preferences set, what should happen with job notifications?</h2>
+<p class="subtitle">Currently: they get ALL notifications (20-30/day). You want to change this. Pick the behavior you prefer.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>No job notifications until they set preferences</h3>
+      <p>New users get zero job notifications. They only start receiving them once they've gone to Settings and selected at least one state or category. The onboarding notifications guide them there.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Send a limited "sample" for the first few days</h3>
+      <p>New users get ~3-5 job notifications per day (random or top jobs) for the first 3 days, then it stops. The onboarding notification nudges them to set preferences before the sample period ends.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Ask preferences during signup</h3>
+      <p>Add a step after registration where users pick their preferred states and categories before they even see the feed. No "empty preferences" state possible.</p>
+    </div>
+  </div>
+</div>
