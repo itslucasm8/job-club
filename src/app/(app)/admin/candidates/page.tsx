@@ -43,6 +43,8 @@ export default function AdminCandidatesPage() {
   const [actingId, setActingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [importUrl, setImportUrl] = useState('')
+  const [importPasteText, setImportPasteText] = useState('')
+  const [importPasteOpen, setImportPasteOpen] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importMessage, setImportMessage] = useState<string | null>(null)
 
@@ -85,10 +87,12 @@ export default function AdminCandidatesPage() {
     setImporting(true)
     setImportMessage(null)
     try {
+      const payload: any = { url: importUrl.trim() }
+      if (importPasteText.trim().length >= 200) payload.page_text = importPasteText.trim()
       const res = await fetch('/api/admin/candidates/from-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: importUrl.trim() }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
@@ -97,6 +101,8 @@ export default function AdminCandidatesPage() {
         } else {
           setImportMessage(`✓ Importée: ${data.raw?.title || ''}`)
           setImportUrl('')
+          setImportPasteText('')
+          setImportPasteOpen(false)
           fetchCandidates()
         }
       } else {
@@ -144,7 +150,7 @@ export default function AdminCandidatesPage() {
       <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">Candidats</h1>
       <p className="text-sm text-stone-500 mb-4">Annonces collectées par les sources, en attente de revue.</p>
 
-      {/* Import by URL */}
+      {/* Import by URL (optionally with pasted page text) */}
       <div className="mb-5 p-3 bg-purple-50 border border-purple-200 rounded-lg">
         <div className="text-xs font-bold text-purple-900 mb-2">Importer une annonce par URL</div>
         <div className="flex flex-col sm:flex-row gap-2">
@@ -152,9 +158,9 @@ export default function AdminCandidatesPage() {
             type="url"
             value={importUrl}
             onChange={e => setImportUrl(e.target.value)}
-            placeholder="https://www.gumtree.com.au/s-ad/... ou n'importe quelle URL d'annonce"
+            placeholder="https://... (URL d'annonce)"
             className="flex-1 px-3 py-2 rounded-lg border border-purple-300 bg-white text-sm focus:outline-none focus:border-purple-500"
-            onKeyDown={e => { if (e.key === 'Enter') importFromUrl() }}
+            onKeyDown={e => { if (e.key === 'Enter' && !importPasteOpen) importFromUrl() }}
           />
           <button
             onClick={importFromUrl}
@@ -164,6 +170,27 @@ export default function AdminCandidatesPage() {
             {importing ? 'Extraction…' : 'Extraire (IA)'}
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => setImportPasteOpen(o => !o)}
+          className="mt-2 text-[11px] font-semibold text-purple-700 hover:text-purple-900 underline"
+        >
+          {importPasteOpen ? '− Fermer le texte collé' : '+ Coller le texte directement (pour Gumtree, Seek, sites bloqués)'}
+        </button>
+        {importPasteOpen && (
+          <div className="mt-2">
+            <textarea
+              value={importPasteText}
+              onChange={e => setImportPasteText(e.target.value)}
+              rows={6}
+              placeholder="Copie-colle le texte de l'annonce ici (Ctrl+A puis Ctrl+C sur la page Gumtree/Seek). L'URL au-dessus sert de référence."
+              className="w-full px-3 py-2 rounded-lg border border-purple-300 bg-white text-xs focus:outline-none focus:border-purple-500"
+            />
+            <div className="text-[11px] text-purple-700 mt-1">
+              {importPasteText.length} caractères {importPasteText.length >= 200 ? '✓' : '(min 200 pour utiliser le texte collé)'}
+            </div>
+          </div>
+        )}
         {importMessage && (
           <div className="mt-2 text-xs text-purple-900">{importMessage}</div>
         )}
