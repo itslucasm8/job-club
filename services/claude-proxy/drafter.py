@@ -16,12 +16,18 @@ import shutil
 import subprocess
 from typing import Any
 
+import eligibility
+
 log = logging.getLogger('drafter')
 
 CLAUDE_CMD = shutil.which('claude') or '/usr/local/bin/claude'
 
 EXTRACT_MODEL = 'claude-haiku-4-5'
 CLASSIFY_MODEL = 'claude-haiku-4-5'
+# Reference data parsing is one-off, not in the hot path; use Sonnet for higher
+# fidelity since we're parsing dense regulatory pages (postcode ranges, pay
+# tables) into a strict schema.
+REFDATA_MODEL = 'claude-sonnet-4-6'
 
 VALID_CATEGORIES = ['farm', 'hospitality', 'construction', 'retail', 'cleaning', 'events', 'animals', 'transport', 'other']
 VALID_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT']
@@ -152,7 +158,124 @@ def extract_job(url: str, page_text: str) -> dict[str, Any]:
         data['category'] = None
     if data.get('type') not in ('casual', 'full_time', 'part_time', 'contract'):
         data['type'] = 'casual'
+
+    # If the LLM short-circuited the extraction, skip eligibility — there's
+    # nothing to assess.
+    if data.get('extraction_failed'):
+        return data
+
+    # Deterministic post-pass: postcode lookup + award comparison override the
+    # LLM's eligible88Days and add structured eligibility/pay metadata + notes.
+    try:
+        verdict = eligibility.assess(data)
+    except Exception as e:
+        log.exception('eligibility assess failed; keeping raw LLM output')
+        data.setdefault('extraction_notes', []).append(f'Eligibility module error: {e}')
+        return data
+
+    llm_88 = bool(data.get('eligible88Days'))
+    deterministic_88 = verdict['eligibility_88_days']
+    if deterministic_88 is not None and deterministic_88 != llm_88:
+        verdict['extraction_notes'].insert(
+            0,
+            f'⚠ Override IA: extracteur LLM disait eligible88Days={llm_88}, '
+            f'mais lookup déterministe = {deterministic_88}. La vérification postcode est autoritative.'
+        )
+
+    # Final eligible88Days = deterministic verdict if available, else fall back
+    # to LLM (so we don't regress when reference data is missing).
+    if deterministic_88 is None:
+        data['eligible88Days'] = llm_88
+    else:
+        data['eligible88Days'] = deterministic_88
+
+    # Merge verdict fields into the output. The LLM's original 88-day flag is
+    # preserved in 'eligible88Days_llm' for audit.
+    data['eligible88Days_llm'] = llm_88
+    for k, v in verdict.items():
+        data[k] = v
+
     return data
+
+
+POSTCODE_PARSE_SYSTEM = """You parse Australian postcode lists from the Home Affairs "specified work" page for a single industry (agriculture, construction, or tourism/hospitality).
+
+Input: raw text dump of one page section listing eligible regional postcodes by state/territory.
+
+Rules:
+- Detect each state/territory header (NSW, VIC, QLD, SA, WA, TAS, NT, ACT) and the postcodes listed under it.
+- Preserve postcode RANGES verbatim ("4124-4125", "4211-4287") — do NOT expand them.
+- Capture standalone 4-digit postcodes as strings.
+- If the page says the entire state/territory is eligible (NT, sometimes others for agriculture), set "include_all_state": true and leave postcodes empty.
+- Capture the effective_from date or amendment date if shown (e.g. "5 April 2025"), ISO format YYYY-MM-DD.
+- If you find no clear postcode data, set parse_failed=true.
+
+Respond with ONLY a JSON object — no markdown, no preamble. Exact shape:
+{
+  "parse_failed": false,
+  "failure_reason": "",
+  "industry": "agriculture" | "construction" | "tourism",
+  "effective_from": "YYYY-MM-DD" | null,
+  "states": {
+    "NSW": { "include_all_state": false, "postcodes": ["2311", "2328-2411", ...] },
+    "VIC": { "include_all_state": false, "postcodes": [...] },
+    "QLD": { "include_all_state": false, "postcodes": [...] },
+    "SA":  { "include_all_state": false, "postcodes": [...] },
+    "WA":  { "include_all_state": false, "postcodes": [...] },
+    "TAS": { "include_all_state": true,  "postcodes": [] },
+    "NT":  { "include_all_state": true,  "postcodes": [] },
+    "ACT": { "include_all_state": false, "postcodes": [] }
+  },
+  "notes": "anything unusual the reviewer should know"
+}"""
+
+AWARD_PARSE_SYSTEM = """You parse a Fair Work Australia "Pay Guide" page for ONE Modern Award into a strict JSON schema.
+
+Input: raw text dump from fairwork.gov.au pay guide PDF/page (e.g. Horticulture Award MA000028, Pastoral Award MA000035).
+
+Rules:
+- Extract the award_id (MA-prefixed code), award_name, and effective_from date (ISO YYYY-MM-DD).
+- For "min_full_time_hourly", capture the LOWEST adult full-time hourly rate (usually Level 1 / Grade 1 / Introductory). Adult, not junior. Hourly, not weekly.
+- For "min_casual_hourly", capture the LOWEST adult casual hourly rate (Level 1 + 25% casual loading typically).
+- Capture all classifications (Level/Grade name → full_time_hourly, casual_hourly, weekly) for the adult schedule. Skip junior/apprentice tables unless that's the only schedule shown.
+- Capture casual_loading_pct (typically 25.0).
+- "industry" is one of agriculture, construction, hospitality, cleaning, transport, retail, animals, events, other.
+- "notes" should mention if piecework rates exist (esp. horticulture), if the award has unusual penalties, or if the page only had partial data.
+- If you cannot locate a coherent pay schedule, set parse_failed=true.
+
+Respond with ONLY a JSON object — no markdown, no preamble. Exact shape:
+{
+  "parse_failed": false,
+  "failure_reason": "",
+  "award_id": "MA000028",
+  "award_name": "Horticulture Award 2020",
+  "industry": "agriculture",
+  "effective_from": "YYYY-MM-DD" | null,
+  "min_full_time_hourly": 24.95,
+  "min_casual_hourly": 31.19,
+  "casual_loading_pct": 25.0,
+  "classifications": [
+    { "level": "Level 1", "full_time_hourly": 24.95, "casual_hourly": 31.19, "weekly": 948.05 }
+  ],
+  "has_piecework": false,
+  "notes": "..."
+}"""
+
+
+def parse_reference_data(kind: str, page_text: str) -> dict[str, Any]:
+    """Parse a pasted regulatory page into a strict reference-data schema.
+
+    kind: "postcodes" | "award"
+    """
+    if kind == 'postcodes':
+        system = POSTCODE_PARSE_SYSTEM
+    elif kind == 'award':
+        system = AWARD_PARSE_SYSTEM
+    else:
+        raise ValueError(f'unknown kind: {kind}')
+    user = f"Page content (cleaned):\n{page_text}"
+    response_text = _call_claude(system, user, REFDATA_MODEL, max_chars=80000)
+    return _parse_json_response(response_text)
 
 
 def classify_candidate(raw: dict[str, Any]) -> dict[str, Any]:

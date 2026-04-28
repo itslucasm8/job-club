@@ -23,6 +23,7 @@ export default function Sidebar() {
     { href: '/admin/candidates', label: 'Candidats', icon: 'M9 12l2 2 4-4 M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z' },
     { href: '/admin/jobs', label: t.nav.manageJobs, icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2' },
     { href: '/admin/sources', label: 'Sources', icon: 'M4 6h16 M4 12h16 M4 18h16' },
+    { href: '/admin/reference-data', label: 'Données 88j/awards', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l7-3 7 3z' },
   ]
 
   const userNav = [

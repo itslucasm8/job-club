@@ -1,0 +1,31 @@
+{
+  "_doc": "Maps Job Club's 9 categories to the most likely Modern Award (by ID). Used by eligibility.py to look up the relevant minimum hourly rate from awards.json. The mapping is 'best fit' — many roles legitimately fall under multiple awards. The eligibility module compares pay against the chosen award's minimum and surfaces a note when there's significant ambiguity (esp. farm pieceworkers).",
+  "_source": "https://www.fairwork.gov.au/employment-conditions/awards/awards-summary",
+  "_updated": "2026-04-29",
+  "mapping": {
+    "farm": "MA000028",
+    "animals": "MA000035",
+    "construction": "MA000020",
+    "hospitality": "MA000009",
+    "cleaning": "MA000022",
+    "events": "MA000009",
+    "transport": "MA000038",
+    "retail": "MA000004",
+    "other": null
+  },
+  "_award_names": {
+    "MA000004": "General Retail Industry Award 2020",
+    "MA000009": "Hospitality Industry (General) Award 2020",
+    "MA000020": "Building and Construction General On-site Award 2020",
+    "MA000022": "Cleaning Services Award 2020",
+    "MA000028": "Horticulture Award 2020",
+    "MA000035": "Pastoral Award 2020",
+    "MA000038": "Road Transport and Distribution Award 2020"
+  },
+  "_notes": {
+    "farm_piecework": "Horticulture jobs paid by piece rate (per kg, per bin) have a separate piecework rate floor under MA000028. compare_pay() must skip strict comparison and surface a 'piece rate — verify manually' note when pay_kind=='piece'.",
+    "events_uses_hospitality": "Most one-off event work (catering, function staff) is covered by Hospitality MA000009. Pure event-management contractor roles may not be — but those rarely target backpackers anyway.",
+    "animals_pastoral_choice": "Stations and farms with livestock fall under Pastoral MA000035. Pet groomer / kennel hand technically fall under Animal Care & Veterinary Services MA000118, but these roles are rare in our data; defaulting to Pastoral covers the 88-day-relevant cases (cattle stations).",
+    "construction_award_caveat": "MA000020 covers on-site construction. Joinery, plumbing services, electrical contracting have separate awards — but for a backpacker labourer the on-site award is typically the floor."
+  }
+}

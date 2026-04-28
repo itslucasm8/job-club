@@ -2,12 +2,10 @@ import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { extractFromUrl } from '@/lib/sourcing/extractor'
+import { extractFromUrl, proxyResultToRaw } from '@/lib/sourcing/extractor'
 import { proxyExtract, isProxyConfigured } from '@/lib/sourcing/claude-proxy'
 import { ingestCandidate } from '@/lib/sourcing/ingest'
 import type { CandidateRaw } from '@/lib/sourcing/ingest'
-
-const VALID_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
@@ -37,18 +35,7 @@ export async function POST(req: Request) {
             error: `Extraction échouée: ${data.failure_reason || 'unspecified'}`,
           }, { status: 422 })
         }
-        raw = {
-          title: data.title || '',
-          company: data.company || '',
-          state: (VALID_STATES as readonly string[]).includes(data.state || '') ? (data.state as any) : undefined,
-          location: data.location || '',
-          category: data.category || undefined,
-          type: data.type || 'casual',
-          pay: data.pay || undefined,
-          description: data.description || '',
-          applyUrl: data.applyUrl || undefined,
-          eligible88Days: !!data.eligible88Days,
-        }
+        raw = proxyResultToRaw(data)
       } catch (e: any) {
         return NextResponse.json({
           error: `Erreur proxy: ${e?.message || String(e)}`,

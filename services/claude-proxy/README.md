@@ -22,11 +22,15 @@ Anthropic — billed against the Max subscription, NOT the API
 
 ## Endpoints
 
-| Method | Path        | Body                                  | Returns |
-|--------|-------------|---------------------------------------|---------|
-| GET    | `/health`   | —                                     | `{ok: true, claude_cli: "..."}`    |
-| POST   | `/extract`  | `{url, page_text}`                    | Extracted job fields (or `extraction_failed`) |
-| POST   | `/classify` | `{raw: {title, company, description, …}}` | Classifier scores |
+| Method | Path                       | Body                                  | Returns |
+|--------|----------------------------|---------------------------------------|---------|
+| GET    | `/health`                  | —                                     | `{ok: true, claude_cli: "..."}`    |
+| POST   | `/extract`                 | `{url, page_text}`                    | Extracted job fields (or `extraction_failed`) |
+| POST   | `/extract-from-url`        | `{url}`                               | Fetch via headless Chromium + extract in one call |
+| POST   | `/classify`                | `{raw: {title, company, description, …}}` | Classifier scores |
+| POST   | `/parse-reference`         | `{kind: "postcodes"\|"award", page_text}` | Parses regulator pages (Home Affairs, Fair Work) into strict reference-data schema |
+| POST   | `/save-reference-data`     | `{filename, mode: "replace"\|"upsert", data, key?}` | Writes parsed JSON to `data/` (whitelisted filenames only) |
+| GET    | `/list-reference-data`     | —                                     | Current state of all whitelisted reference-data files |
 
 All POSTs require `Authorization: Bearer <CLAUDE_PROXY_SECRET>`.
 
@@ -72,12 +76,30 @@ docker compose -f /data/job-club/docker-compose.yml exec app sh -c \
 # {"claude_cli":"/usr/local/bin/claude","ok":true}
 ```
 
+## Reference data (postcodes + awards)
+
+The proxy reads + writes JSON reference data from `/opt/jobclub-claude-proxy/data/`. Two static mapping files are version-controlled in the repo and deployed; four user-seeded files (postcodes + awards) live only on the proxy host and are written via the admin paste tool at `/admin/reference-data`.
+
+| File                          | Source                | Owner       |
+|-------------------------------|----------------------|-------------|
+| `category_to_industry.json`   | repo, deployed       | code        |
+| `category_to_award.json`      | repo, deployed       | code        |
+| `postcodes_agriculture.json`  | admin paste from Home Affairs | runtime     |
+| `postcodes_construction.json` | admin paste from Home Affairs | runtime     |
+| `postcodes_tourism.json`      | admin paste from Home Affairs | runtime     |
+| `awards.json`                 | admin paste from Fair Work pay guides (upsert by award_id) | runtime     |
+
+> **Critical:** Never `cp -r data/` on deploy. That would clobber the runtime-seeded files. Only cp the two static mapping files explicitly (see Updating below).
+
 ## Updating
 
-Edits to `app.py` or `drafter.py` need re-deploy:
+Edits to `app.py`, `drafter.py`, `fetcher.py` need re-deploy:
 
 ```bash
-cp /data/job-club/services/claude-proxy/{app.py,drafter.py} /opt/jobclub-claude-proxy/
+mkdir -p /opt/jobclub-claude-proxy/data
+cp /data/job-club/services/claude-proxy/{app.py,drafter.py,fetcher.py} /opt/jobclub-claude-proxy/
+# Static mapping files only — never cp postcodes_*.json or awards.json
+cp /data/job-club/services/claude-proxy/data/{category_to_industry,category_to_award}.json /opt/jobclub-claude-proxy/data/
 systemctl restart jobclub-claude-proxy.service
 ```
 

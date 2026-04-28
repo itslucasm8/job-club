@@ -13,6 +13,24 @@ export type CandidateRaw = {
   applyUrl?: string
   postedAt?: string
   eligible88Days?: boolean
+  // Deterministic eligibility verdict fields (populated by the proxy's
+  // eligibility.py module). Optional — older candidates lack them.
+  eligible88Days_llm?: boolean
+  eligibility_reason?: string
+  eligibility_confidence?: 'high' | 'medium' | 'low'
+  postcode?: number | null
+  industry?: string | null
+  award_id?: string | null
+  award_name?: string | null
+  award_min_hourly?: number | null
+  award_min_casual_hourly?: number | null
+  award_effective_from?: string | null
+  pay_parsed_hourly?: number | null
+  pay_kind?: string
+  pay_status?: 'above' | 'at' | 'below' | 'piece_rate' | 'unknown'
+  pay_gap?: number | null
+  pay_gap_pct?: number | null
+  extraction_notes?: string[]
 }
 
 export type IngestInput = {

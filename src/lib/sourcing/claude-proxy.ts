@@ -10,22 +10,23 @@ export function isProxyConfigured(): boolean {
   return !!PROXY_SECRET
 }
 
-async function postJSON<T>(path: string, body: unknown): Promise<T> {
+async function fetchProxy<T>(method: 'GET' | 'POST', path: string, body?: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   if (!PROXY_SECRET) {
     throw new Error('CLAUDE_PROXY_SECRET not configured')
   }
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const res = await fetch(`${PROXY_URL}${path}`, {
-      method: 'POST',
+    const init: RequestInit = {
+      method,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${PROXY_SECRET}`,
       },
-      body: JSON.stringify(body),
       signal: controller.signal,
-    })
+    }
+    if (body !== undefined) init.body = JSON.stringify(body)
+    const res = await fetch(`${PROXY_URL}${path}`, init)
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
       throw new Error(`Claude proxy ${path} -> HTTP ${res.status}: ${errText.slice(0, 300)}`)
@@ -34,6 +35,10 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   } finally {
     clearTimeout(timeoutId)
   }
+}
+
+async function postJSON<T>(path: string, body: unknown): Promise<T> {
+  return fetchProxy<T>('POST', path, body)
 }
 
 export type ProxyExtractResult = {
@@ -49,6 +54,25 @@ export type ProxyExtractResult = {
   description: string
   applyUrl: string
   eligible88Days: boolean
+  // Deterministic verdict fields (added by eligibility.py post-pass — optional
+  // because old proxies may not return them yet).
+  eligible88Days_llm?: boolean
+  eligibility_88_days?: boolean | null
+  eligibility_reason?: string
+  eligibility_confidence?: 'high' | 'medium' | 'low'
+  postcode?: number | null
+  industry?: string | null
+  award_id?: string | null
+  award_name?: string | null
+  award_min_hourly?: number | null
+  award_min_casual_hourly?: number | null
+  award_effective_from?: string | null
+  pay_parsed_hourly?: number | null
+  pay_kind?: string
+  pay_status?: 'above' | 'at' | 'below' | 'piece_rate' | 'unknown'
+  pay_gap?: number | null
+  pay_gap_pct?: number | null
+  extraction_notes?: string[]
 }
 
 export type ProxyClassifyResult = {
@@ -74,4 +98,31 @@ export async function proxyExtractFromUrl(url: string): Promise<ProxyExtractResu
 
 export async function proxyClassify(raw: Record<string, unknown>): Promise<ProxyClassifyResult> {
   return postJSON<ProxyClassifyResult>('/classify', { raw })
+}
+
+// Reference-data endpoints (one-off seeding from pasted regulator pages).
+
+export type ProxyParseReferenceResult = {
+  parse_failed: boolean
+  failure_reason?: string
+  // remaining fields depend on `kind` — caller validates shape
+  [k: string]: unknown
+}
+
+export async function proxyParseReference(kind: 'postcodes' | 'award', pageText: string): Promise<ProxyParseReferenceResult> {
+  // Sonnet on 80K of text can take 90+ s — give it more headroom than the default.
+  return fetchProxy<ProxyParseReferenceResult>('POST', '/parse-reference', { kind, page_text: pageText }, 180_000)
+}
+
+export async function proxySaveReferenceData(args: {
+  filename: string
+  mode: 'replace' | 'upsert'
+  data: unknown
+  key?: string
+}): Promise<{ ok: boolean; filename: string; mode: string; bytes: number }> {
+  return postJSON('/save-reference-data', args)
+}
+
+export async function proxyListReferenceData(): Promise<Record<string, { exists: boolean; bytes?: number; mtime?: number; data?: unknown; error?: string }>> {
+  return fetchProxy('GET', '/list-reference-data')
 }

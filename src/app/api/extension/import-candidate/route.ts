@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { proxyExtract, isProxyConfigured } from '@/lib/sourcing/claude-proxy'
+import { proxyResultToRaw } from '@/lib/sourcing/extractor'
 import { ingestCandidate } from '@/lib/sourcing/ingest'
-import type { CandidateRaw } from '@/lib/sourcing/ingest'
-
-const VALID_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
 
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false
@@ -47,18 +45,7 @@ export async function POST(req: Request) {
       }, { status: 422 })
     }
 
-    const raw: CandidateRaw = {
-      title: data.title || '',
-      company: data.company || '',
-      state: (VALID_STATES as readonly string[]).includes(data.state || '') ? (data.state as any) : undefined,
-      location: data.location || '',
-      category: data.category || undefined,
-      type: data.type || 'casual',
-      pay: data.pay || undefined,
-      description: data.description || '',
-      applyUrl: data.applyUrl || undefined,
-      eligible88Days: !!data.eligible88Days,
-    }
+    const raw = proxyResultToRaw(data)
 
     const result = await ingestCandidate({
       source: 'extension',

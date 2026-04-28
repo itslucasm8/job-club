@@ -253,7 +253,8 @@ export default function AdminCandidatesPage() {
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded">{c.source}</span>
                         <span className="text-[10px] text-stone-400">{timeAgo(c.createdAt)}</span>
-                        {raw.eligible88Days && <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">88 jours</span>}
+                        <EligibilityBadge raw={raw} />
+                        <PayBadge raw={raw} />
                         {score?.has_locals_only_red_flag && <span className="text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">Locals only</span>}
                         {score?.has_scam_red_flags && <span className="text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">⚠ arnaque</span>}
                         {score?.is_backpacker_suitable === false && <span className="text-[10px] font-semibold text-stone-700 bg-stone-200 px-1.5 py-0.5 rounded">Pas WHV</span>}
@@ -273,12 +274,14 @@ export default function AdminCandidatesPage() {
                       <Field label="Pay" value={raw.pay} />
                       <Field label="State" value={raw.state} />
                     </div>
+                    <EligibilityPanel raw={raw} />
                     <div>
                       <div className="text-[10px] font-semibold text-stone-500 uppercase mb-1">Description</div>
                       <div className="text-xs text-stone-800 bg-white border border-stone-200 rounded p-2 max-h-48 overflow-y-auto whitespace-pre-wrap">
                         {raw.description || '(vide)'}
                       </div>
                     </div>
+                    <NotesPanel raw={raw} />
                     {score && (
                       <div>
                         <div className="text-[10px] font-semibold text-stone-500 uppercase mb-1">Classifier</div>
@@ -328,6 +331,80 @@ function Field({ label, value }: { label: string; value: any }) {
     <div>
       <div className="text-[10px] font-semibold text-stone-500 uppercase">{label}</div>
       <div className="text-stone-800 truncate">{value || '—'}</div>
+    </div>
+  )
+}
+
+function EligibilityBadge({ raw }: { raw: any }) {
+  // Prefer the deterministic verdict if the proxy returned it; else fall back
+  // to the raw LLM flag (older candidates predate the eligibility module).
+  const det = raw.eligibility_88_days
+  const conf = raw.eligibility_confidence as 'high' | 'medium' | 'low' | undefined
+  const reason = raw.eligibility_reason as string | undefined
+  if (det === undefined && raw.eligible88Days) {
+    return <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded" title="Annonce pré-eligibility module — vérifier manuellement">88 j (LLM)</span>
+  }
+  if (det === true) {
+    const cls = conf === 'high' ? 'text-green-700 bg-green-100' : 'text-amber-700 bg-amber-100'
+    return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${cls}`} title={reason || ''}>88 j ✓</span>
+  }
+  if (det === null) {
+    return <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded" title={reason || ''}>88 j ?</span>
+  }
+  return null // det === false → no badge to keep header clean
+}
+
+function PayBadge({ raw }: { raw: any }) {
+  const status = raw.pay_status as string | undefined
+  const gap = raw.pay_gap as number | undefined
+  const minUsed = raw.award_min_casual_hourly ?? raw.award_min_hourly
+  if (!status || status === 'unknown') return null
+  if (status === 'below') {
+    return <span className="text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded"
+      title={`Sous le minimum award ${minUsed}$/h (écart ${gap}$/h)`}>$ &lt; award</span>
+  }
+  if (status === 'piece_rate') {
+    return <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded"
+      title="Pay au piecework — comparaison automatique impossible">piecework</span>
+  }
+  if (status === 'above' || status === 'at') {
+    return <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-1.5 py-0.5 rounded"
+      title={`Min award: ${minUsed}$/h`}>$ ≥ award</span>
+  }
+  return null
+}
+
+function EligibilityPanel({ raw }: { raw: any }) {
+  if (raw.eligibility_88_days === undefined && !raw.award_id) return null
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs bg-white border border-stone-200 rounded p-2">
+      <Field label="Postcode" value={raw.postcode ?? null} />
+      <Field label="Industrie 88j" value={raw.industry} />
+      <Field label="Confiance" value={raw.eligibility_confidence} />
+      <Field label="Award" value={raw.award_id ? `${raw.award_id}${raw.award_name ? ' · ' + raw.award_name : ''}` : null} />
+      <Field label="Min FT $/h" value={raw.award_min_hourly ? `${raw.award_min_hourly}` : null} />
+      <Field label="Min casual $/h" value={raw.award_min_casual_hourly ? `${raw.award_min_casual_hourly}` : null} />
+      <Field label="Pay parsed $/h" value={raw.pay_parsed_hourly ? `${raw.pay_parsed_hourly} (${raw.pay_kind})` : null} />
+      <Field label="Pay status" value={raw.pay_status} />
+      <Field label="Gap" value={raw.pay_gap !== null && raw.pay_gap !== undefined ? `${raw.pay_gap}$/h (${raw.pay_gap_pct}%)` : null} />
+    </div>
+  )
+}
+
+function NotesPanel({ raw }: { raw: any }) {
+  const notes: string[] = Array.isArray(raw.extraction_notes) ? raw.extraction_notes : []
+  if (notes.length === 0) return null
+  return (
+    <div>
+      <div className="text-[10px] font-semibold text-stone-500 uppercase mb-1">Notes d'extraction</div>
+      <ul className="text-xs text-stone-800 bg-white border border-stone-200 rounded p-2 space-y-1">
+        {notes.map((n, i) => (
+          <li key={i} className="flex gap-2">
+            <span className="text-stone-400 flex-shrink-0">•</span>
+            <span className="whitespace-pre-wrap">{n}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

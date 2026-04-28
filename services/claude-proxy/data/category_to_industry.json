@@ -1,0 +1,22 @@
+{
+  "_doc": "Maps Job Club's 9 job categories to the 88-day specified-work industry buckets used by Home Affairs. Used by eligibility.py to pick which postcode list to consult. 'null' means the category is not a recognised specified-work industry. 'ambiguous' means the category could fall under multiple industries depending on context — eligibility.py treats this as 'cannot determine without more info' and surfaces a note rather than auto-flagging.",
+  "_source": "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/work-holiday-417/specified-work",
+  "_updated": "2026-04-29",
+  "mapping": {
+    "farm": "agriculture",
+    "animals": "agriculture",
+    "construction": "construction",
+    "hospitality": "tourism",
+    "cleaning": "tourism",
+    "events": null,
+    "transport": "ambiguous",
+    "retail": null,
+    "other": null
+  },
+  "_notes": {
+    "hospitality_cleaning_caveat": "Tourism/hospitality only counts as specified work in 'Northern Australia' postcodes (north of the Tropic of Capricorn). eligibility.py must check the postcode against postcodes_tourism.json — being category=hospitality is necessary but NOT sufficient.",
+    "transport_ambiguous": "A driver job could be agriculture (cattle station truck), mining (mine truck), or non-qualifying (suburban delivery). Cannot decide from category alone.",
+    "events_excluded": "Festival/event work is not on the Home Affairs list as of 2025-04 amendment. Always non-eligible regardless of postcode.",
+    "fishing_pearling_treefelling": "These are agriculture sub-industries on the Home Affairs page; we collapse them into the 'agriculture' bucket because they share the postcode list."
+  }
+}

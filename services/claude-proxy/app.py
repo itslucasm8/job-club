@@ -10,14 +10,29 @@ Mirrors the Sales Koala pattern. Bind to localhost only; clients are
 trusted (the Next.js Docker container reaches us via host.docker.internal).
 """
 import hmac
+import json
 import logging
 import os
+import re
 from hashlib import sha256
+from pathlib import Path
 
 from flask import Flask, jsonify, request
 
 import drafter
+import eligibility
 import fetcher
+
+DATA_DIR = Path(__file__).resolve().parent / 'data'
+DATA_DIR.mkdir(exist_ok=True)
+ALLOWED_FILES = {
+    'postcodes_agriculture.json',
+    'postcodes_construction.json',
+    'postcodes_tourism.json',
+    'awards.json',
+    'category_to_industry.json',
+    'category_to_award.json',
+}
 
 app = Flask(__name__)
 
@@ -111,6 +126,106 @@ def classify_endpoint():
     except Exception as e:
         log.exception('classify failed')
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/parse-reference', methods=['POST'])
+def parse_reference_endpoint():
+    """Parse a pasted regulatory page (Home Affairs postcodes or Fair Work pay guide)
+    into the strict reference-data schema. Does NOT save — caller reviews then calls /save-reference-data.
+    """
+    if not authorized(request):
+        return jsonify({'error': 'unauthorized'}), 401
+    body = request.get_json(silent=True) or {}
+    kind = (body.get('kind') or '').strip()
+    page_text = body.get('page_text') or ''
+    if kind not in ('postcodes', 'award'):
+        return jsonify({'error': 'kind must be "postcodes" or "award"'}), 400
+    if len(page_text) < 200:
+        return jsonify({'error': 'page_text too short (min 200 chars)'}), 400
+    try:
+        result = drafter.parse_reference_data(kind=kind, page_text=page_text[:80000])
+        return jsonify(result)
+    except Exception as e:
+        log.exception('parse-reference failed')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/save-reference-data', methods=['POST'])
+def save_reference_data_endpoint():
+    """Persist a parsed reference-data object to services/claude-proxy/data/<filename>.
+
+    Modes:
+      - "replace": overwrite the entire file with `data`.
+      - "upsert": treat the file as an object keyed by `key`, set data[key] = data.
+
+    Whitelisted filenames only — no path traversal, no arbitrary filesystem writes.
+    """
+    if not authorized(request):
+        return jsonify({'error': 'unauthorized'}), 401
+    body = request.get_json(silent=True) or {}
+    filename = (body.get('filename') or '').strip()
+    mode = (body.get('mode') or 'replace').strip()
+    data = body.get('data')
+    key = body.get('key')
+
+    if filename not in ALLOWED_FILES:
+        return jsonify({'error': f'filename must be one of {sorted(ALLOWED_FILES)}'}), 400
+    if data is None:
+        return jsonify({'error': 'data required'}), 400
+    if mode not in ('replace', 'upsert'):
+        return jsonify({'error': 'mode must be "replace" or "upsert"'}), 400
+    if mode == 'upsert' and not key:
+        return jsonify({'error': 'key required when mode=upsert'}), 400
+
+    target = DATA_DIR / filename
+    try:
+        if mode == 'replace':
+            payload = data
+        else:
+            existing = {}
+            if target.exists():
+                try:
+                    existing = json.loads(target.read_text(encoding='utf-8'))
+                    if not isinstance(existing, dict):
+                        existing = {}
+                except json.JSONDecodeError:
+                    existing = {}
+            existing[key] = data
+            payload = existing
+
+        tmp = target.with_suffix('.json.tmp')
+        tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding='utf-8')
+        tmp.replace(target)
+        # Bust the eligibility module cache so the next extract picks up the
+        # newly seeded reference data without a service restart.
+        eligibility.reload_data()
+        return jsonify({'ok': True, 'filename': filename, 'mode': mode, 'bytes': target.stat().st_size})
+    except Exception as e:
+        log.exception('save-reference-data failed')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/list-reference-data', methods=['GET'])
+def list_reference_data_endpoint():
+    """Return current state of all whitelisted reference-data files."""
+    if not authorized(request):
+        return jsonify({'error': 'unauthorized'}), 401
+    out = {}
+    for name in sorted(ALLOWED_FILES):
+        f = DATA_DIR / name
+        if f.exists():
+            try:
+                out[name] = {
+                    'exists': True,
+                    'bytes': f.stat().st_size,
+                    'mtime': int(f.stat().st_mtime),
+                    'data': json.loads(f.read_text(encoding='utf-8')),
+                }
+            except Exception as e:
+                out[name] = {'exists': True, 'error': str(e)}
+        else:
+            out[name] = {'exists': False}
+    return jsonify(out)
 
 
 if __name__ == '__main__':

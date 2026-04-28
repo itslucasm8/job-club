@@ -9,3 +9,7 @@ out/
 
 # Claude Code local state — should never be committed
 .superpowers/
+
+# Python bytecode (claude-proxy local dev)
+__pycache__/
+*.pyc
