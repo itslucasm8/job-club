@@ -6,3 +6,6 @@ node_modules.bak/
 .env.sentry-build-plugin
 prisma/dev.db
 out/
+
+# Claude Code local state — should never be committed
+.superpowers/
