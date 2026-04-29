@@ -15,6 +15,18 @@ type Candidate = {
 
 type StatusFilter = 'pending' | 'auto_rejected' | 'approved' | 'rejected'
 
+type BulkUrlResult =
+  | { url: string; status: 'inserted'; candidateId: string; title?: string }
+  | { url: string; status: 'duplicate'; reason: string }
+  | { url: string; status: 'extraction_failed'; reason: string }
+  | { url: string; status: 'error'; error: string }
+
+type BulkResult = {
+  counts: { inserted: number; duplicate: number; extraction_failed: number; error: number }
+  results: BulkUrlResult[]
+  processed: number
+}
+
 type EditFields = {
   title: string
   company: string
@@ -66,6 +78,10 @@ export default function AdminCandidatesPage() {
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editError, setEditError] = useState<string | null>(null)
+  const [bulkUrls, setBulkUrls] = useState('')
+  const [bulkImporting, setBulkImporting] = useState(false)
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null)
+  const [bulkOpen, setBulkOpen] = useState(false)
 
   function updateCandidateLocally(updated: Candidate) {
     setCandidates(cs => cs.map(c => (c.id === updated.id ? updated : c)))
@@ -100,6 +116,57 @@ export default function AdminCandidatesPage() {
     if (ok) {
       setEditingId(null)
       await approve(id)
+    }
+  }
+
+  function parseBulkUrls(text: string): string[] {
+    return text
+      .split(/[\s,;]+/)
+      .map(u => u.trim())
+      .filter(u => /^https?:\/\//i.test(u))
+  }
+
+  async function importBulk() {
+    const urls = parseBulkUrls(bulkUrls)
+    if (urls.length === 0) return
+    setBulkImporting(true)
+    setBulkResult(null)
+    try {
+      const res = await fetch('/api/admin/candidates/from-urls-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setBulkResult(data as BulkResult)
+        // Clear textarea on full success; keep failed URLs visible if any.
+        const counts = (data as BulkResult).counts
+        if (counts.extraction_failed === 0 && counts.error === 0) {
+          setBulkUrls('')
+        } else {
+          // Replace with only the URLs that failed so admin can retry/fix them.
+          const failedUrls = (data as BulkResult).results
+            .filter(r => r.status === 'extraction_failed' || r.status === 'error')
+            .map(r => r.url)
+          setBulkUrls(failedUrls.join('\n'))
+        }
+        fetchCandidates()
+      } else {
+        setBulkResult({
+          counts: { inserted: 0, duplicate: 0, extraction_failed: 0, error: 1 },
+          results: [{ url: '(batch)', status: 'error', error: data.error || 'Erreur' }],
+          processed: 0,
+        })
+      }
+    } catch (e: any) {
+      setBulkResult({
+        counts: { inserted: 0, duplicate: 0, extraction_failed: 0, error: 1 },
+        results: [{ url: '(batch)', status: 'error', error: e?.message || 'Erreur réseau' }],
+        processed: 0,
+      })
+    } finally {
+      setBulkImporting(false)
     }
   }
 
@@ -248,6 +315,83 @@ export default function AdminCandidatesPage() {
         )}
         {importMessage && (
           <div className="mt-2 text-xs text-purple-900">{importMessage}</div>
+        )}
+      </div>
+
+      {/* Bulk URL import — paste many URLs at once */}
+      <div className="mb-5 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+        <button
+          type="button"
+          onClick={() => setBulkOpen(o => !o)}
+          className="w-full flex items-center justify-between text-xs font-bold text-orange-900 hover:text-orange-950 transition"
+        >
+          <span>Importer un lot d&apos;URLs ({parseBulkUrls(bulkUrls).length} prêtes)</span>
+          <span className="text-orange-600">{bulkOpen ? '−' : '+'}</span>
+        </button>
+        {bulkOpen && (
+          <div className="mt-2">
+            <textarea
+              value={bulkUrls}
+              onChange={e => setBulkUrls(e.target.value)}
+              rows={5}
+              placeholder={'Colle plusieurs URLs (une par ligne, espaces ou virgules autorisés). Max 30 par lot.\n\nExemple:\nhttps://www.backpackerjobboard.com.au/job/123\nhttps://www.backpackerjobboard.com.au/job/456\nhttps://workforceaustralia.gov.au/individuals/jobs/details/789'}
+              className="w-full px-3 py-2 rounded-lg border border-orange-300 bg-white text-xs font-mono focus:outline-none focus:border-orange-500"
+            />
+            <div className="flex flex-wrap gap-2 items-center mt-2">
+              <button
+                onClick={importBulk}
+                disabled={bulkImporting || parseBulkUrls(bulkUrls).length === 0}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white transition disabled:opacity-50"
+              >
+                {bulkImporting ? `Traitement de ${parseBulkUrls(bulkUrls).length} URLs… (peut prendre 1-2 min)` : `Importer ${parseBulkUrls(bulkUrls).length} URLs`}
+              </button>
+              <span className="text-[11px] text-orange-700">
+                Ne marche pas pour Gumtree/Seek (datacenter bloqué) — utilise l&apos;extension pour ces sites.
+              </span>
+            </div>
+            {bulkResult && (
+              <div className="mt-3 space-y-2">
+                <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+                  {bulkResult.counts.inserted > 0 && (
+                    <span className="px-2 py-1 rounded bg-green-100 text-green-800">✓ {bulkResult.counts.inserted} importée(s)</span>
+                  )}
+                  {bulkResult.counts.duplicate > 0 && (
+                    <span className="px-2 py-1 rounded bg-stone-200 text-stone-700">{bulkResult.counts.duplicate} doublon(s)</span>
+                  )}
+                  {bulkResult.counts.extraction_failed > 0 && (
+                    <span className="px-2 py-1 rounded bg-amber-100 text-amber-800">⚠ {bulkResult.counts.extraction_failed} extraction(s) échouée(s)</span>
+                  )}
+                  {bulkResult.counts.error > 0 && (
+                    <span className="px-2 py-1 rounded bg-red-100 text-red-800">✗ {bulkResult.counts.error} erreur(s)</span>
+                  )}
+                </div>
+                <details className="text-[11px]">
+                  <summary className="cursor-pointer text-orange-800 font-semibold">Détails par URL</summary>
+                  <ul className="mt-1 space-y-1 bg-white border border-orange-200 rounded p-2 max-h-48 overflow-y-auto">
+                    {bulkResult.results.map((r, i) => (
+                      <li key={i} className="flex gap-2 items-start">
+                        <span className={
+                          r.status === 'inserted' ? 'text-green-700' :
+                          r.status === 'duplicate' ? 'text-stone-500' :
+                          r.status === 'extraction_failed' ? 'text-amber-700' :
+                          'text-red-700'
+                        }>
+                          {r.status === 'inserted' ? '✓' : r.status === 'duplicate' ? '·' : r.status === 'extraction_failed' ? '⚠' : '✗'}
+                        </span>
+                        <span className="font-mono text-stone-600 truncate flex-1" title={r.url}>{r.url}</span>
+                        <span className="text-stone-500 flex-shrink-0">
+                          {r.status === 'inserted' && (r.title?.slice(0, 40) || 'importée')}
+                          {r.status === 'duplicate' && `doublon (${r.reason})`}
+                          {r.status === 'extraction_failed' && r.reason.slice(0, 60)}
+                          {r.status === 'error' && r.error.slice(0, 60)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
