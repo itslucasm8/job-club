@@ -51,7 +51,13 @@ async function runWithConcurrency<T, R>(items: T[], limit: number, fn: (x: T) =>
   return results
 }
 
-async function runOneSource(adapter: SourceAdapter): Promise<AdapterRunResult> {
+type ListingOutcome = 'inserted' | 'duplicate' | 'error'
+
+async function runOneSource(
+  adapter: SourceAdapter,
+  onListingDone?: (outcome: ListingOutcome) => Promise<void> | void,
+  onListingsDiscovered?: (count: number) => Promise<void> | void,
+): Promise<AdapterRunResult> {
   const start = Date.now()
   const cap = adapter.maxListings ?? DEFAULT_MAX_LISTINGS_PER_SOURCE
 
@@ -76,6 +82,7 @@ async function runOneSource(adapter: SourceAdapter): Promise<AdapterRunResult> {
   // from a chatty source into memory just to drop them.
   const capped = listings.slice(0, cap)
   const news = await filterToNew(adapter.slug, capped)
+  if (onListingsDiscovered) await onListingsDiscovered(capped.length)
 
   let imported = 0
   let duplicates = 0
@@ -83,9 +90,12 @@ async function runOneSource(adapter: SourceAdapter): Promise<AdapterRunResult> {
 
   if (news.length > 0) {
     const outcomes = await runWithConcurrency(news, DEFAULT_EXTRACT_CONCURRENCY, async (listing) => {
+      let outcome: ListingOutcome = 'error'
       try {
         const extraction = await extractFromUrl(listing.url)
         if (extraction.extraction_failed) {
+          outcome = 'error'
+          if (onListingDone) await onListingDone(outcome)
           return { kind: 'error' as const, reason: extraction.failure_reason }
         }
         // Apply the adapter's defaults so a per-source category/state survives
@@ -100,8 +110,12 @@ async function runOneSource(adapter: SourceAdapter): Promise<AdapterRunResult> {
           raw,
           sourceText: extraction.sourceText,
         })
+        outcome = result.status === 'inserted' ? 'inserted' : result.status === 'duplicate' ? 'duplicate' : 'error'
+        if (onListingDone) await onListingDone(outcome)
         return { kind: result.status, ...result }
       } catch (e: any) {
+        outcome = 'error'
+        if (onListingDone) await onListingDone(outcome).catch(() => {})
         return { kind: 'error' as const, reason: e?.message || String(e) }
       }
     })
@@ -176,7 +190,28 @@ export async function executeRun(runId: string, slugs: string[]) {
 
   for (let i = 0; i < adapters.length; i++) {
     const adapter = adapters[i]
-    const result = await runOneSource(adapter).catch((e): AdapterRunResult => ({
+    // Live progress: bump SourcingRun totals after each listing completes
+    // (not just after each source). Otherwise a 5-minute source looks frozen.
+    const onListingDone = async (outcome: ListingOutcome) => {
+      if (outcome === 'inserted') totals.totalImported += 1
+      else if (outcome === 'duplicate') totals.totalDuplicates += 1
+      else totals.totalErrors += 1
+      await prisma.sourcingRun.update({
+        where: { id: runId },
+        data: { ...totals },
+      }).catch(() => {})
+    }
+    const onListingsDiscovered = async (count: number) => {
+      totals.totalListingsFound += count
+      // listingsNew is settled later when the source finishes. We update found here
+      // so admin can see "X listings discovered" mid-source.
+      await prisma.sourcingRun.update({
+        where: { id: runId },
+        data: { totalListingsFound: totals.totalListingsFound },
+      }).catch(() => {})
+    }
+
+    const result = await runOneSource(adapter, onListingDone, onListingsDiscovered).catch((e): AdapterRunResult => ({
       slug: adapter.slug,
       status: 'error',
       listingsFound: 0,
@@ -188,13 +223,10 @@ export async function executeRun(runId: string, slugs: string[]) {
       durationMs: 0,
     }))
     perSourceResults.push(result)
-    totals.totalListingsFound += result.listingsFound
+    // Reconcile listingsNew at source completion (we don't know it during discovery).
     totals.totalListingsNew += result.listingsNew
-    totals.totalImported += result.imported
-    totals.totalDuplicates += result.duplicates
-    totals.totalErrors += result.errors
 
-    // Persist progress after each source so the UI can poll meaningfully.
+    // Final per-source persistence: completed source list + processedSources counter.
     await prisma.sourcingRun.update({
       where: { id: runId },
       data: {
