@@ -61,12 +61,17 @@ const INGESTION_STRATEGIES: { value: string, label: string, badge: string }[] = 
 type SourceStatus = 'productive' | 'partial' | 'broken' | 'attention' | 'configured_off' | 'inventory'
 
 function statusOf(s: Source): SourceStatus {
+  // 1. No adapter → just inventory, regardless of anything else.
   if (!s.adapter) return 'inventory'
-  if (!s.enabled) return 'configured_off'
-  // Persistent health takes priority — runner has written real state here.
-  if (s.healthStatus === 'working') return 'productive'
-  if (s.healthStatus === 'partial') return 'partial'
+  // 2. Persistent health signals (broken/partial) win over enabled state — a
+  //    broken source is broken whether you've toggled it off or not, and
+  //    hiding it under "configured_off" buries the signal you need to act on.
   if (s.healthStatus === 'broken') return 'broken'
+  if (s.healthStatus === 'partial') return 'partial'
+  // 3. Disabled + not-flagged-broken-or-partial: it's just "configured but off."
+  if (!s.enabled) return 'configured_off'
+  // 4. Enabled with healthy or implicit-working state.
+  if (s.healthStatus === 'working') return 'productive'
   if (s.healthStatus === 'unverified') return 'attention'
   // Legacy fallback for rows the runner hasn't touched since healthStatus shipped.
   if (s.totalApproved > 0 || s.lastRunStatus === 'ok') return 'productive'
