@@ -100,6 +100,10 @@ export async function proxyClassify(raw: Record<string, unknown>): Promise<Proxy
   return postJSON<ProxyClassifyResult>('/classify', { raw })
 }
 
+export async function proxyReassessEligibility(raw: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return postJSON<Record<string, unknown>>('/reassess-eligibility', { raw })
+}
+
 // Reference-data endpoints (one-off seeding from pasted regulator pages).
 
 export type ProxyParseReferenceResult = {

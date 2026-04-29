@@ -112,6 +112,40 @@ def extract_from_url_endpoint():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/reassess-eligibility', methods=['POST'])
+def reassess_eligibility_endpoint():
+    """Re-run deterministic 88-day + award assessment on already-extracted job data.
+    No LLM call. Used by scripts/reassess-eligibility.ts to backfill historical
+    JobCandidate rows after reference data (postcodes/awards) is corrected.
+
+    Request: {"raw": <full rawData object>}
+    Response: the input merged with verdict fields (eligibility_88_days, postcode,
+    industry, award_*, pay_*, extraction_notes, ...).
+    """
+    if not authorized(request):
+        return jsonify({'error': 'unauthorized'}), 401
+    body = request.get_json(silent=True) or {}
+    raw = body.get('raw') or {}
+    if not isinstance(raw, dict):
+        return jsonify({'error': 'raw must be an object'}), 400
+    try:
+        verdict = eligibility.assess(raw)
+    except Exception as e:
+        log.exception('reassess failed')
+        return jsonify({'error': str(e)}), 500
+    merged = dict(raw)
+    llm_88 = bool(raw.get('eligible88Days_llm', raw.get('eligible88Days')))
+    deterministic_88 = verdict.get('eligibility_88_days')
+    if deterministic_88 is None:
+        merged['eligible88Days'] = llm_88
+    else:
+        merged['eligible88Days'] = deterministic_88
+    merged['eligible88Days_llm'] = llm_88
+    for k, v in verdict.items():
+        merged[k] = v
+    return jsonify(merged)
+
+
 @app.route('/classify', methods=['POST'])
 def classify_endpoint():
     if not authorized(request):
