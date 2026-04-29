@@ -130,3 +130,21 @@ export async function proxySaveReferenceData(args: {
 export async function proxyListReferenceData(): Promise<Record<string, { exists: boolean; bytes?: number; mtime?: number; data?: unknown; error?: string }>> {
   return fetchProxy('GET', '/list-reference-data')
 }
+
+export type ProxyAllPostcodesResult = {
+  agriculture: any
+  construction: any
+  tourism: any
+}
+
+export async function proxyParseAllPostcodes(pageText: string): Promise<ProxyAllPostcodesResult> {
+  // Same long-timeout headroom as single-section parsing.
+  return fetchProxy<ProxyAllPostcodesResult>('POST', '/parse-all-postcodes', { page_text: pageText }, 240_000)
+}
+
+export async function proxySaveAllPostcodes(payload: Partial<ProxyAllPostcodesResult>): Promise<{
+  any_written: boolean
+  results: Record<string, { ok?: boolean; bytes?: number; error?: string; skipped?: boolean; reason?: string }>
+}> {
+  return postJSON('/save-all-postcodes', payload)
+}

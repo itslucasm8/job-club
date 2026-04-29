@@ -151,6 +151,69 @@ def parse_reference_endpoint():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/parse-all-postcodes', methods=['POST'])
+def parse_all_postcodes_endpoint():
+    """Parse Home Affairs page text into all 3 industry postcode lists in one
+    Sonnet call. Returns {agriculture: {...}, construction: {...}, tourism: {...}}.
+    Caller reviews then calls /save-all-postcodes to persist all 3 files.
+    """
+    if not authorized(request):
+        return jsonify({'error': 'unauthorized'}), 401
+    body = request.get_json(silent=True) or {}
+    page_text = body.get('page_text') or ''
+    if len(page_text) < 200:
+        return jsonify({'error': 'page_text too short (min 200 chars)'}), 400
+    try:
+        result = drafter.parse_all_postcodes(page_text=page_text[:80000])
+        return jsonify(result)
+    except Exception as e:
+        log.exception('parse-all-postcodes failed')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/save-all-postcodes', methods=['POST'])
+def save_all_postcodes_endpoint():
+    """Atomically save all 3 industry postcode files. Body shape:
+    {
+      "agriculture": {<full schema>} | null,
+      "construction": {<full schema>} | null,
+      "tourism": {<full schema>} | null
+    }
+    Sections set to null are skipped (not overwritten). Sections with parse_failed=true are also skipped.
+    Returns per-file write results.
+    """
+    if not authorized(request):
+        return jsonify({'error': 'unauthorized'}), 401
+    body = request.get_json(silent=True) or {}
+    industries = ('agriculture', 'construction', 'tourism')
+    results: dict[str, Any] = {}
+    any_written = False
+    for industry in industries:
+        data = body.get(industry)
+        if data is None:
+            results[industry] = {'skipped': True, 'reason': 'not provided'}
+            continue
+        if not isinstance(data, dict):
+            results[industry] = {'skipped': True, 'reason': 'not an object'}
+            continue
+        if data.get('parse_failed'):
+            results[industry] = {'skipped': True, 'reason': f'parse_failed: {data.get("failure_reason", "?")}'}
+            continue
+        target = DATA_DIR / f'postcodes_{industry}.json'
+        try:
+            tmp = target.with_suffix('.json.tmp')
+            tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding='utf-8')
+            tmp.replace(target)
+            results[industry] = {'ok': True, 'bytes': target.stat().st_size}
+            any_written = True
+        except Exception as e:
+            log.exception('save %s failed', industry)
+            results[industry] = {'ok': False, 'error': str(e)}
+    if any_written:
+        eligibility.reload_data()
+    return jsonify({'results': results, 'any_written': any_written})
+
+
 @app.route('/save-reference-data', methods=['POST'])
 def save_reference_data_endpoint():
     """Persist a parsed reference-data object to services/claude-proxy/data/<filename>.

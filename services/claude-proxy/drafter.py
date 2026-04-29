@@ -235,6 +235,46 @@ Respond with ONLY a JSON object — no markdown, no preamble. Exact shape:
   "notes": "anything unusual the reviewer should know"
 }"""
 
+ALL_POSTCODES_PARSE_SYSTEM = """You parse the Home Affairs "Specified work for Working Holiday visa (subclass 417)" page in ONE pass and emit THREE industry postcode lists at once: agriculture, construction, and tourism.
+
+The page contains multiple sections, each with its own state-by-state postcode table. Headings/synonyms to expect (case-insensitive):
+- Agriculture: "Plant and animal cultivation", "Agriculture", "agricultural work", "Plant or animal cultivation"
+- Construction: "Construction"
+- Tourism: "Tourism and hospitality", "Remote and Very Remote Australia" (the tourism table is always titled this way), "Tourism and hospitality in Northern Australia"
+
+There are also other sections on the page (Fishing/pearling, Tree farming/felling, Mining, Bushfire recovery) — IGNORE those, do not include them.
+
+Per-section rules (apply to each of the 3 industries independently):
+- Detect each state/territory header (NSW / New South Wales, VIC / Victoria, QLD / Queensland, SA / South Australia, WA / Western Australia, TAS / Tasmania, NT / Northern Territory, ACT / Australian Capital Territory) and the postcodes listed under it. Always emit the 3-letter state code.
+- Convert "X to Y" syntax (e.g. "2832 to 2836") into "2832-2836" range strings. Preserve other ranges verbatim.
+- Capture standalone 4-digit postcodes as strings.
+- If the section says the entire state/territory is eligible (e.g. "All postcodes in the Northern Territory are eligible"), set "include_all_state": true and leave postcodes empty.
+- Capture the effective_from date or amendment date if shown for that section (e.g. "5 April 2025", "22 June 2021"), ISO format YYYY-MM-DD.
+- If a particular industry section is absent from the input, emit it with parse_failed=true and a clear failure_reason; the other two should still succeed.
+
+Respond with ONLY a JSON object — no markdown, no preamble. Exact shape:
+{
+  "agriculture": {
+    "parse_failed": false,
+    "failure_reason": "",
+    "industry": "agriculture",
+    "effective_from": "YYYY-MM-DD" | null,
+    "states": {
+      "NSW": { "include_all_state": false, "postcodes": [...] },
+      "VIC": { ... },
+      "QLD": { ... },
+      "SA":  { ... },
+      "WA":  { ... },
+      "TAS": { ... },
+      "NT":  { ... },
+      "ACT": { ... }
+    },
+    "notes": "..."
+  },
+  "construction": { ... same shape, "industry": "construction" ... },
+  "tourism":      { ... same shape, "industry": "tourism" ... }
+}"""
+
 AWARD_PARSE_SYSTEM = """You parse a Fair Work Australia "Pay Guide" page for ONE Modern Award into a strict JSON schema.
 
 Input: raw text dump from fairwork.gov.au pay guide PDF/page (e.g. Horticulture Award MA000028, Pastoral Award MA000035).
@@ -266,6 +306,19 @@ Respond with ONLY a JSON object — no markdown, no preamble. Exact shape:
   "has_piecework": false,
   "notes": "..."
 }"""
+
+
+def parse_all_postcodes(page_text: str) -> dict[str, Any]:
+    """One-shot multi-industry parse of the Home Affairs page.
+
+    Returns {agriculture: {...}, construction: {...}, tourism: {...}} where
+    each section has the same schema as parse_reference_data(kind="postcodes")
+    plus its own parse_failed flag. Cheaper than 3 separate calls because the
+    LLM only reads the input page once.
+    """
+    user = f"Page content (cleaned):\n{page_text}"
+    response_text = _call_claude(ALL_POSTCODES_PARSE_SYSTEM, user, REFDATA_MODEL, max_chars=80000)
+    return _parse_json_response(response_text)
 
 
 def parse_reference_data(kind: str, page_text: str, industry: str | None = None) -> dict[str, Any]:

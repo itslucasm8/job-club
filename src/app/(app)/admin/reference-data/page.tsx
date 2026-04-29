@@ -11,16 +11,16 @@ type FileStatus = {
 }
 type Status = Record<string, FileStatus>
 
-type PasteKind = 'postcodes_agriculture' | 'postcodes_construction' | 'postcodes_tourism' | 'award'
+type PasteKind = 'all_postcodes' | 'postcodes_agriculture' | 'postcodes_construction' | 'postcodes_tourism' | 'award'
 
 type PasteConfig = {
   key: PasteKind
   label: string
   helpUrl: string
   helpText: string
-  parseKind: 'postcodes' | 'award'
+  parseKind: 'postcodes' | 'award' | 'all_postcodes'
   /** For postcodes parses: tells the backend which section to extract from a
-   *  multi-section Home Affairs page. Ignored for awards. */
+   *  multi-section Home Affairs page. Ignored for awards and all_postcodes. */
   industry?: 'agriculture' | 'construction' | 'tourism'
   // For postcodes: deterministic filename. For award: filename derived after parsing (awards.json + key=award_id).
   filename?: string
@@ -30,6 +30,13 @@ const HA_URL = 'https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listin
 const HA_HELP = "Toutes les industries 88 jours sont sur la MÊME page Home Affairs. Pas besoin de filtrer la section — fais juste Ctrl+A puis Ctrl+C sur toute la page, l'IA extraira automatiquement la section qui correspond à l'onglet sélectionné."
 
 const PASTE_OPTIONS: PasteConfig[] = [
+  {
+    key: 'all_postcodes',
+    label: '🚀 Tout-en-un — page Home Affairs entière',
+    helpUrl: HA_URL,
+    helpText: HA_HELP + " Mode recommandé : un seul Ctrl+A + Ctrl+V, l'IA extrait les 3 industries (agriculture + construction + tourisme) et écrit les 3 fichiers en un coup.",
+    parseKind: 'all_postcodes',
+  },
   {
     key: 'postcodes_agriculture',
     label: 'Postcodes — Agriculture',
@@ -72,7 +79,7 @@ export default function AdminReferenceDataPage() {
   const [status, setStatus] = useState<Status | null>(null)
   const [statusLoading, setStatusLoading] = useState(true)
 
-  const [activeKind, setActiveKind] = useState<PasteKind>('postcodes_agriculture')
+  const [activeKind, setActiveKind] = useState<PasteKind>('all_postcodes')
   const [pasteText, setPasteText] = useState('')
   const [parsing, setParsing] = useState(false)
   const [parsed, setParsed] = useState<any | null>(null)
@@ -114,21 +121,26 @@ export default function AdminReferenceDataPage() {
     setParsing(true)
     resetParse()
     try {
-      const res = await fetch('/api/admin/reference-data/parse', {
+      const endpoint = config.parseKind === 'all_postcodes'
+        ? '/api/admin/reference-data/parse-all-postcodes'
+        : '/api/admin/reference-data/parse'
+      const body = config.parseKind === 'all_postcodes'
+        ? { page_text: pasteText }
+        : { kind: config.parseKind, page_text: pasteText, industry: config.industry }
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kind: config.parseKind,
-          page_text: pasteText,
-          industry: config.industry,
-        }),
+        body: JSON.stringify(body),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setParseError(data.error || `HTTP ${res.status}`)
         return
       }
-      if (data.parse_failed) {
+      // For single-section parses, the response itself has parse_failed at top level.
+      // For all-postcodes, each subsection has its own parse_failed; we keep the whole
+      // payload and let the user save the successful sections.
+      if (config.parseKind !== 'all_postcodes' && data.parse_failed) {
         setParseError(`Parsing échoué: ${data.failure_reason || 'inconnu'}`)
         return
       }
@@ -151,6 +163,37 @@ export default function AdminReferenceDataPage() {
     setSaving(true)
     setSaveMsg(null)
     try {
+      // All-postcodes flow: post the whole {agriculture, construction, tourism}
+      // object to /save-all-postcodes which writes 3 files atomically and reports per-file results.
+      if (config.parseKind === 'all_postcodes') {
+        const res = await fetch('/api/admin/reference-data/save-all-postcodes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataToSave),
+        })
+        const result = await res.json().catch(() => ({}))
+        if (res.ok) {
+          const lines: string[] = []
+          for (const [industry, r] of Object.entries(result.results || {})) {
+            const v = r as any
+            if (v.ok) lines.push(`✓ postcodes_${industry}.json (${v.bytes} octets)`)
+            else if (v.skipped) lines.push(`⊘ ${industry} sauté: ${v.reason}`)
+            else lines.push(`✗ ${industry}: ${v.error || 'erreur'}`)
+          }
+          setSaveMsg(lines.join('\n'))
+          if (result.any_written) {
+            setPasteText('')
+            setParsed(null)
+            setEditing(false)
+            await loadStatus()
+          }
+        } else {
+          setSaveMsg(`✗ ${result.error || `HTTP ${res.status}`}`)
+        }
+        setSaving(false)
+        return
+      }
+
       let payload: any
       if (config.parseKind === 'postcodes') {
         payload = {
@@ -303,6 +346,38 @@ export default function AdminReferenceDataPage() {
               rows={20}
               className="w-full px-3 py-2 rounded-lg border border-purple-300 bg-white text-[11px] font-mono focus:outline-none focus:border-purple-500"
             />
+          ) : config.parseKind === 'all_postcodes' ? (
+            <div className="space-y-2">
+              {(['agriculture', 'construction', 'tourism'] as const).map(industry => {
+                const section = parsed?.[industry]
+                if (!section) {
+                  return <div key={industry} className="text-xs text-red-700 bg-white border border-red-200 rounded p-2">{industry}: section absente du payload</div>
+                }
+                if (section.parse_failed) {
+                  return (
+                    <div key={industry} className="text-xs text-red-700 bg-white border border-red-200 rounded p-2">
+                      <strong className="capitalize">{industry}:</strong> ⚠ parse_failed — {section.failure_reason || 'inconnu'}
+                    </div>
+                  )
+                }
+                const states = section.states || {}
+                const stateCount = Object.keys(states).length
+                const totalEntries = Object.values(states).reduce(
+                  (sum: number, s: any) => sum + (s?.include_all_state ? 1 : (s?.postcodes?.length || 0)),
+                  0
+                )
+                return (
+                  <details key={industry} className="text-xs bg-white border border-purple-200 rounded">
+                    <summary className="px-2 py-1.5 cursor-pointer font-semibold capitalize">
+                      {industry} · {stateCount} états · {totalEntries} entrées · effectif {section.effective_from || '?'}
+                    </summary>
+                    <pre className="text-[11px] text-stone-800 px-2 py-1.5 overflow-x-auto max-h-72 whitespace-pre-wrap border-t border-purple-100">
+                      {JSON.stringify(section, null, 2)}
+                    </pre>
+                  </details>
+                )
+              })}
+            </div>
           ) : (
             <pre className="text-[11px] text-stone-800 bg-white border border-purple-200 rounded p-2 overflow-x-auto max-h-96 whitespace-pre-wrap">
               {JSON.stringify(parsed, null, 2)}
@@ -316,6 +391,8 @@ export default function AdminReferenceDataPage() {
             >
               {saving ? 'Enregistrement…' : config.parseKind === 'award'
                 ? `3. Enregistrer (upsert dans awards.json)`
+                : config.parseKind === 'all_postcodes'
+                ? `3. Enregistrer les 3 fichiers (agriculture + construction + tourisme)`
                 : `3. Enregistrer (remplacer ${config.filename})`}
             </button>
             {saveMsg && <div className="text-xs text-stone-800">{saveMsg}</div>}
