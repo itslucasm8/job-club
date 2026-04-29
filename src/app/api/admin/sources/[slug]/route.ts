@@ -9,6 +9,7 @@ const VALID_ADAPTERS = ['workforce_australia', 'harvest_trail', 'generic_career_
 const VALID_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
 const VALID_JOB_CATS = ['farm', 'hospitality', 'construction', 'retail', 'cleaning', 'events', 'animals', 'transport', 'other'] as const
 const VALID_SHEET_TABS = ['seek', 'gumtree', 'facebook', 'packhouse', 'station', 'website', 'mine_agency', 'job_agency', 'government', 'manual'] as const
+const VALID_INGESTION_STRATEGIES = ['structured_api', 'structured_html', 'generic_web', 'extension', 'keyword_search', 'manual'] as const
 
 export async function PATCH(req: Request, { params }: { params: { slug: string } }) {
   const session = await getServerSession(authOptions)
@@ -42,6 +43,12 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
       return NextResponse.json({ error: `Onglet invalide` }, { status: 400 })
     }
     data.sheetTab = body.sheetTab ?? null
+  }
+  if ('ingestionStrategy' in body) {
+    if (body.ingestionStrategy != null && !VALID_INGESTION_STRATEGIES.includes(body.ingestionStrategy)) {
+      return NextResponse.json({ error: `Stratégie invalide` }, { status: 400 })
+    }
+    data.ingestionStrategy = body.ingestionStrategy ?? null
   }
   if ('adapter' in body) {
     if (body.adapter != null && !VALID_ADAPTERS.includes(body.adapter)) {

@@ -17,6 +17,7 @@ type Source = {
   label: string
   category: string
   sheetTab: string | null
+  ingestionStrategy: string | null
   enabled: boolean
   adapter: string | null
   config: SourceConfig | null
@@ -27,6 +28,20 @@ type Source = {
   totalApproved: number
   totalRejected: number
 }
+
+// 3-flow grouping: which strategies belong to which dashboard button.
+const FLOW_A_STRATEGIES = ['structured_api', 'structured_html'] as const  // Scan rapide (cheap, no LLM)
+const FLOW_B_STRATEGIES = ['generic_web'] as const                         // Scan intelligent (Playwright + Claude)
+const FLOW_C_STRATEGIES = ['extension', 'keyword_search'] as const         // Tâches manuelles (extension/checklist)
+
+const INGESTION_STRATEGIES: { value: string, label: string, badge: string }[] = [
+  { value: 'structured_api',  label: 'Structured API (Greenhouse, Workable, RSS)', badge: 'API' },
+  { value: 'structured_html', label: 'Structured HTML (selectors connus)',          badge: 'HTML' },
+  { value: 'generic_web',     label: 'Generic web (Playwright + Claude)',           badge: 'Web' },
+  { value: 'extension',       label: 'Extension navigateur',                        badge: 'Ext' },
+  { value: 'keyword_search',  label: 'Mots-clés de recherche',                      badge: 'Mots' },
+  { value: 'manual',          label: 'Manuel',                                      badge: 'Man' },
+]
 
 // Tabs mirror Lucas's source sheet structure. Order = display order.
 const SHEET_TABS: { value: string, label: string, hint?: string }[] = [
@@ -52,6 +67,7 @@ type SourceFormState = {
   label: string
   category: string
   sheetTab: string
+  ingestionStrategy: string
   adapter: string
   enabled: boolean
   configUrl: string
@@ -67,6 +83,7 @@ function emptyForm(defaultTab?: string | null): SourceFormState {
     label: '',
     category: 'direct',
     sheetTab: defaultTab || '',
+    ingestionStrategy: 'generic_web',
     adapter: 'generic_career_page',
     enabled: true,
     configUrl: '',
@@ -84,6 +101,7 @@ function formFromSource(s: Source): SourceFormState {
     label: s.label,
     category: s.category,
     sheetTab: s.sheetTab || '',
+    ingestionStrategy: s.ingestionStrategy || '',
     adapter: s.adapter || '',
     enabled: s.enabled,
     configUrl: cfg.url || '',
@@ -185,6 +203,7 @@ export default function AdminSourcesPage() {
         label: form.label,
         category: form.category,
         sheetTab: form.sheetTab || null,
+        ingestionStrategy: form.ingestionStrategy || null,
         adapter: form.adapter || null,
         enabled: form.enabled,
         config: buildConfigPayload(),
@@ -341,7 +360,10 @@ export default function AdminSourcesPage() {
     return <div className="px-4 sm:px-5 lg:px-7 py-5"><p className="text-stone-500">Non autorisé</p></div>
   }
 
-  const runnable = sources.filter(s => s.enabled && s.adapter)
+  // 3-flow runnable buckets: each Run button is scoped to its strategy set.
+  const flowARunnable = sources.filter(s => s.enabled && s.adapter && FLOW_A_STRATEGIES.includes(s.ingestionStrategy as any))
+  const flowBRunnable = sources.filter(s => s.enabled && s.adapter && FLOW_B_STRATEGIES.includes(s.ingestionStrategy as any))
+  const flowCInventory = sources.filter(s => FLOW_C_STRATEGIES.includes(s.ingestionStrategy as any))
   const isRunning = activeRun && (activeRun.status === 'running' || activeRun.status === 'pending')
 
   return (
@@ -349,24 +371,55 @@ export default function AdminSourcesPage() {
       <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">Sources</h1>
       <p className="text-sm text-stone-500 mb-5">Rendement et scan automatique des sources d&apos;annonces.</p>
 
-      {/* Run panel */}
-      <div className="mb-5 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-        <div className="flex flex-wrap items-center gap-3">
+      {/* Run panel — three flows mirroring ingestion strategies */}
+      <div className="mb-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Flow A — Scan rapide */}
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
           <button
-            onClick={() => startRun()}
-            disabled={starting || !!isRunning || runnable.length === 0}
-            className="px-4 py-2 rounded-lg text-sm font-bold bg-purple-700 hover:bg-purple-800 text-white transition disabled:opacity-50"
+            onClick={() => startRun(flowARunnable.map(s => s.slug))}
+            disabled={starting || !!isRunning || flowARunnable.length === 0}
+            className="w-full px-3 py-2 rounded-lg text-sm font-bold bg-emerald-700 hover:bg-emerald-800 text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isRunning ? 'Scan en cours…' : `▶ Lancer un scan complet (${runnable.length} sources)`}
+            {isRunning ? '…' : `▶ Scan rapide (${flowARunnable.length})`}
           </button>
-          <span className="text-xs text-purple-800">
-            Va parcourir chaque source, importer les nouvelles annonces et déposer dans /admin/candidates.
-          </span>
+          <p className="text-[11px] text-emerald-800 mt-2 leading-tight">
+            <span className="font-semibold">Flow A.</span> APIs structurées (Greenhouse, RSS, gov SPAs). Rapide, ~$0/listing.
+          </p>
         </div>
-        {error && <div className="mt-2 text-xs text-red-700">{error}</div>}
 
-        {activeRun && (
-          <div className="mt-4 bg-white border border-purple-200 rounded p-3 space-y-2">
+        {/* Flow B — Scan intelligent */}
+        <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+          <button
+            onClick={() => startRun(flowBRunnable.map(s => s.slug))}
+            disabled={starting || !!isRunning || flowBRunnable.length === 0}
+            className="w-full px-3 py-2 rounded-lg text-sm font-bold bg-purple-700 hover:bg-purple-800 text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isRunning ? '…' : `▶ Scan intelligent (${flowBRunnable.length})`}
+          </button>
+          <p className="text-[11px] text-purple-800 mt-2 leading-tight">
+            <span className="font-semibold">Flow B.</span> Career pages génériques (Playwright + Claude). Plus lent, ~$0.01-0.05/listing.
+          </p>
+        </div>
+
+        {/* Flow C — Tâches manuelles */}
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <button
+            onClick={() => setSelectedTab('__flow_c__')}
+            className="w-full px-3 py-2 rounded-lg text-sm font-bold bg-amber-600 hover:bg-amber-700 text-white transition"
+          >
+            ✓ Tâches manuelles ({flowCInventory.length})
+          </button>
+          <p className="text-[11px] text-amber-800 mt-2 leading-tight">
+            <span className="font-semibold">Flow C.</span> Extension navigateur + mots-clés Seek/Gumtree. À parcourir à la main.
+          </p>
+        </div>
+      </div>
+
+      {error && <div className="mb-3 text-xs text-red-700">{error}</div>}
+
+      {activeRun && (
+        <div className="mb-5 p-4 bg-stone-50 border border-stone-200 rounded-lg">
+          <div className="bg-white border border-stone-200 rounded p-3 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-purple-900">
                 {activeRun.status === 'pending' && 'En préparation…'}
@@ -415,8 +468,8 @@ export default function AdminSourcesPage() {
               <div className="text-[11px] text-red-700">{activeRun.errorMessage}</div>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Tab navigation — mirrors Lucas's source sheet structure */}
       {!loading && sources.length > 0 && (() => {
@@ -472,7 +525,8 @@ export default function AdminSourcesPage() {
         <h2 className="text-sm font-bold text-stone-900">
           {selectedTab === null && 'Toutes les sources'}
           {selectedTab === '__untagged__' && 'Sources sans onglet'}
-          {selectedTab && selectedTab !== '__untagged__' && (SHEET_TABS.find(t => t.value === selectedTab)?.label || selectedTab)}
+          {selectedTab === '__flow_c__' && 'Tâches manuelles (Flow C)'}
+          {selectedTab && selectedTab !== '__untagged__' && selectedTab !== '__flow_c__' && (SHEET_TABS.find(t => t.value === selectedTab)?.label || selectedTab)}
         </h2>
         {!editing && (
           <button
@@ -535,6 +589,20 @@ export default function AdminSourcesPage() {
                 <option value="">— aucun —</option>
                 {SHEET_TABS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
+            </label>
+            <label className="space-y-1 sm:col-span-2">
+              <span className="block font-semibold text-stone-700">Stratégie d&apos;ingestion (Flow A/B/C)</span>
+              <select
+                value={form.ingestionStrategy}
+                onChange={e => setForm({ ...form, ingestionStrategy: e.target.value })}
+                className="w-full px-2 py-1.5 border border-stone-300 rounded"
+              >
+                <option value="">— non classée —</option>
+                {INGESTION_STRATEGIES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+              <span className="block text-[10px] text-stone-500">
+                Détermine quel bouton (rapide / intelligent / manuel) pilote cette source.
+              </span>
             </label>
             <label className="space-y-1">
               <span className="block font-semibold text-stone-700">Adapter</span>
@@ -641,7 +709,9 @@ export default function AdminSourcesPage() {
           ? sources
           : selectedTab === '__untagged__'
             ? sources.filter(s => !s.sheetTab)
-            : sources.filter(s => s.sheetTab === selectedTab)
+            : selectedTab === '__flow_c__'
+              ? sources.filter(s => FLOW_C_STRATEGIES.includes(s.ingestionStrategy as any))
+              : sources.filter(s => s.sheetTab === selectedTab)
         return loading ? (
           <div className="text-center py-12 text-stone-500">Chargement…</div>
         ) : sources.length === 0 ? (
@@ -678,7 +748,22 @@ export default function AdminSourcesPage() {
                       <div className="font-bold text-stone-900">{s.label}</div>
                       <div className="text-[10px] text-stone-500 font-mono">{s.slug}</div>
                     </td>
-                    <td className="px-3 py-2 text-stone-600 font-mono text-[11px]">{s.adapter || '—'}</td>
+                    <td className="px-3 py-2 text-stone-600 font-mono text-[11px]">
+                      {s.adapter || '—'}
+                      {s.ingestionStrategy && (() => {
+                        const strat = INGESTION_STRATEGIES.find(x => x.value === s.ingestionStrategy)
+                        const flowColor =
+                          FLOW_A_STRATEGIES.includes(s.ingestionStrategy as any) ? 'bg-emerald-100 text-emerald-800' :
+                          FLOW_B_STRATEGIES.includes(s.ingestionStrategy as any) ? 'bg-purple-100 text-purple-800' :
+                          FLOW_C_STRATEGIES.includes(s.ingestionStrategy as any) ? 'bg-amber-100 text-amber-800' :
+                          'bg-stone-200 text-stone-600'
+                        return (
+                          <span className={`ml-1.5 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${flowColor}`}>
+                            {strat?.badge || s.ingestionStrategy}
+                          </span>
+                        )
+                      })()}
+                    </td>
                     <td className="px-3 py-2 text-center">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                         s.enabled ? 'bg-green-100 text-green-700' : 'bg-stone-200 text-stone-600'

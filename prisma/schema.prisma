@@ -121,6 +121,14 @@ model JobSource {
   label         String
   category      String    // government | aggregator | ats_rss | competitor | manual | direct
   sheetTab      String?   // organizational grouping from Lucas's source sheet: seek | gumtree | facebook | packhouse | station | website | mine_agency | job_agency | government | manual
+  // How data is ingested — drives the 3-button dashboard (rapide / intelligent / manuel):
+  //   structured_api  → ATS APIs (Greenhouse, Workable, Workday) — Flow A (~$0/listing)
+  //   structured_html → custom-selector HTML scrapers (BPJB, gov SPAs)  — Flow A
+  //   generic_web     → generic_career_page (Playwright + Claude)        — Flow B (~$0.01-0.05/listing)
+  //   extension       → browser-extension territory (FB groups, anti-bot sites) — Flow C
+  //   keyword_search  → search-keyword inventory (Seek/Gumtree prompts)  — Flow C
+  //   manual          → manual entry / catch-all
+  ingestionStrategy String?
   enabled       Boolean   @default(true)
   adapter       String?   // adapter name for the source runner (workforce_australia | harvest_trail | generic_career_page | manual | extension)
   config        Json?     // adapter-specific config (search URL, default state/category, selectors for generic adapter, etc.)
