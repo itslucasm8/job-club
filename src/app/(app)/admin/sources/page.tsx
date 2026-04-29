@@ -30,18 +30,44 @@ type Source = {
 }
 
 // 3-flow grouping: which strategies belong to which dashboard button.
-const FLOW_A_STRATEGIES = ['structured_api', 'structured_html'] as const  // Scan rapide (cheap, no LLM)
-const FLOW_B_STRATEGIES = ['generic_web'] as const                         // Scan intelligent (Playwright + Claude)
-const FLOW_C_STRATEGIES = ['extension', 'keyword_search'] as const         // Tâches manuelles (extension/checklist)
+// Extensible: as new strategies land (rss_feed, sitemap_xml, etc.) just add
+// them to the relevant flow array; no other code change.
+const FLOW_A_STRATEGIES = ['structured_api', 'structured_html', 'rss_feed', 'sitemap_xml', 'api_partner'] as const  // Scan rapide
+const FLOW_B_STRATEGIES = ['generic_web'] as const                                                                   // Scan intelligent
+const FLOW_C_STRATEGIES = ['extension', 'keyword_search', 'email_inbound'] as const                                  // Tâches manuelles
 
 const INGESTION_STRATEGIES: { value: string, label: string, badge: string }[] = [
-  { value: 'structured_api',  label: 'Structured API (Greenhouse, Workable, RSS)', badge: 'API' },
-  { value: 'structured_html', label: 'Structured HTML (selectors connus)',          badge: 'HTML' },
-  { value: 'generic_web',     label: 'Generic web (Playwright + Claude)',           badge: 'Web' },
-  { value: 'extension',       label: 'Extension navigateur',                        badge: 'Ext' },
-  { value: 'keyword_search',  label: 'Mots-clés de recherche',                      badge: 'Mots' },
-  { value: 'manual',          label: 'Manuel',                                      badge: 'Man' },
+  { value: 'structured_api',  label: 'Structured API (Greenhouse, Workable, Workday)', badge: 'API' },
+  { value: 'structured_html', label: 'Structured HTML (selectors connus)',              badge: 'HTML' },
+  { value: 'rss_feed',        label: 'RSS / Atom feed',                                 badge: 'RSS' },
+  { value: 'sitemap_xml',     label: 'Sitemap.xml + crawl',                             badge: 'XML' },
+  { value: 'generic_web',     label: 'Generic web (Playwright + Claude)',               badge: 'Web' },
+  { value: 'extension',       label: 'Extension navigateur',                            badge: 'Ext' },
+  { value: 'keyword_search',  label: 'Mots-clés de recherche',                          badge: 'Mots' },
+  { value: 'email_inbound',   label: 'Email entrant (employeur)',                       badge: 'Mail' },
+  { value: 'api_partner',     label: 'API partenaire formelle',                         badge: 'Part' },
+  { value: 'manual',          label: 'Manuel',                                          badge: 'Man' },
 ]
+
+// Operational status of a source — drives the sort order and the status pill.
+// Sorted: productive first, then needs attention, then configured-off, then inventory.
+type SourceStatus = 'productive' | 'attention' | 'configured_off' | 'inventory'
+
+function statusOf(s: Source): SourceStatus {
+  if (!s.adapter) return 'inventory'
+  if (!s.enabled) return 'configured_off'
+  // Has adapter + enabled. "Productive" = real signs of life.
+  if (s.totalApproved > 0 || s.lastRunStatus === 'ok') return 'productive'
+  // Otherwise it needs attention (never run yet, or last run errored).
+  return 'attention'
+}
+
+const STATUS_META: Record<SourceStatus, { label: string, dot: string, pillClass: string, sortRank: number }> = {
+  productive:    { label: 'Productive',     dot: '🟢', sortRank: 0, pillClass: 'bg-green-100 text-green-800' },
+  attention:     { label: 'À tester',       dot: '🟡', sortRank: 1, pillClass: 'bg-amber-100 text-amber-800' },
+  configured_off:{ label: 'Configurée (off)', dot: '🔵', sortRank: 2, pillClass: 'bg-blue-100 text-blue-700' },
+  inventory:     { label: 'Inventaire',     dot: '⚪', sortRank: 3, pillClass: 'bg-stone-100 text-stone-500' },
+}
 
 // Tabs mirror Lucas's source sheet structure. Order = display order.
 const SHEET_TABS: { value: string, label: string, hint?: string }[] = [
@@ -166,8 +192,12 @@ export default function AdminSourcesPage() {
   const [form, setForm] = useState<SourceFormState>(emptyForm())
   const [formError, setFormError] = useState<string | null>(null)
   const [formSaving, setFormSaving] = useState(false)
-  // Active tab filter. null = "Tous". When creating, pre-fill with selectedTab.
+  // Active sheet-tab filter. null = "Tous". When creating, pre-fill with selectedTab.
   const [selectedTab, setSelectedTab] = useState<string | null>(null)
+  // Status-based quick filter (orthogonal to sheet tab). null = no filter.
+  const [statusFilter, setStatusFilter] = useState<SourceStatus | null>(null)
+  // Free-text search across slug + label.
+  const [searchQuery, setSearchQuery] = useState('')
 
   function openCreate() {
     setForm(emptyForm(selectedTab))
@@ -703,15 +733,68 @@ export default function AdminSourcesPage() {
         </div>
       )}
 
-      {/* Sources table — filtered by selected tab */}
+      {/* Quick-filter chips + search — orthogonal to sheet-tab filter */}
+      {!loading && sources.length > 0 && (() => {
+        const statusCounts: Record<SourceStatus, number> = {
+          productive: 0, attention: 0, configured_off: 0, inventory: 0,
+        }
+        for (const s of sources) statusCounts[statusOf(s)]++
+        return (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setStatusFilter(null)}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
+                statusFilter === null ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+              }`}
+            >
+              Toutes <span className="opacity-70 font-mono">{sources.length}</span>
+            </button>
+            {(['productive', 'attention', 'configured_off', 'inventory'] as SourceStatus[]).map(st => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(statusFilter === st ? null : st)}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
+                  statusFilter === st ? `${STATUS_META[st].pillClass} ring-2 ring-offset-1 ring-stone-400` : `${STATUS_META[st].pillClass} hover:opacity-90`
+                }`}
+              >
+                {STATUS_META[st].dot} {STATUS_META[st].label} <span className="opacity-70 font-mono">{statusCounts[st]}</span>
+              </button>
+            ))}
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="🔎 Rechercher slug ou label…"
+              className="ml-auto px-3 py-1 border border-stone-300 rounded-md text-xs w-full sm:w-64"
+            />
+          </div>
+        )
+      })()}
+
+      {/* Sources table — composes sheet-tab + status filter + search, sorted by status rank */}
       {(() => {
-        const filteredSources = selectedTab === null
-          ? sources
-          : selectedTab === '__untagged__'
-            ? sources.filter(s => !s.sheetTab)
-            : selectedTab === '__flow_c__'
-              ? sources.filter(s => FLOW_C_STRATEGIES.includes(s.ingestionStrategy as any))
-              : sources.filter(s => s.sheetTab === selectedTab)
+        const q = searchQuery.trim().toLowerCase()
+        const filteredSources = sources
+          // Sheet-tab filter
+          .filter(s => {
+            if (selectedTab === null) return true
+            if (selectedTab === '__untagged__') return !s.sheetTab
+            if (selectedTab === '__flow_c__') return FLOW_C_STRATEGIES.includes(s.ingestionStrategy as any)
+            return s.sheetTab === selectedTab
+          })
+          // Status filter
+          .filter(s => !statusFilter || statusOf(s) === statusFilter)
+          // Search
+          .filter(s => !q || s.slug.toLowerCase().includes(q) || s.label.toLowerCase().includes(q))
+          // Sort: productives first, then attention, then off, then inventory.
+          // Within tier: by totalApproved desc, then label asc.
+          .sort((a, b) => {
+            const ra = STATUS_META[statusOf(a)].sortRank
+            const rb = STATUS_META[statusOf(b)].sortRank
+            if (ra !== rb) return ra - rb
+            if (a.totalApproved !== b.totalApproved) return b.totalApproved - a.totalApproved
+            return a.label.localeCompare(b.label)
+          })
         return loading ? (
           <div className="text-center py-12 text-stone-500">Chargement…</div>
         ) : sources.length === 0 ? (
@@ -723,9 +806,9 @@ export default function AdminSourcesPage() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b-2 border-stone-200 text-xs">
+                <th className="text-left px-3 py-2 font-semibold text-stone-700">Statut</th>
                 <th className="text-left px-3 py-2 font-semibold text-stone-700">Source</th>
                 <th className="text-left px-3 py-2 font-semibold text-stone-700">Adapter</th>
-                <th className="text-center px-3 py-2 font-semibold text-stone-700">État</th>
                 <th className="text-right px-3 py-2 font-semibold text-stone-700">Vues</th>
                 <th className="text-right px-3 py-2 font-semibold text-stone-700">Approuvées</th>
                 <th className="text-right px-3 py-2 font-semibold text-stone-700">Rejetées</th>
@@ -738,12 +821,26 @@ export default function AdminSourcesPage() {
               {filteredSources.map(s => {
                 const denom = s.totalApproved + s.totalRejected
                 const approvalRate = denom > 0 ? Math.round((s.totalApproved / denom) * 100) : 0
+                const status = statusOf(s)
+                const meta = STATUS_META[status]
                 // Per-row Run button gate: just needs an adapter. The `enabled`
                 // flag only controls whether the master "scan complet" includes
                 // this source — explicit per-row Run is always allowed.
                 const canRun = !!s.adapter
+                // Visually de-emphasize inventory rows so the eye lands on
+                // productives + attention rows first.
+                const rowDim = status === 'inventory' ? 'opacity-60' : ''
                 return (
-                  <tr key={s.id} className="border-b border-stone-100 text-xs">
+                  <tr key={s.id} className={`border-b border-stone-100 text-xs ${rowDim}`}>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.pillClass}`}>
+                        <span>{meta.dot}</span>
+                        <span>{meta.label}</span>
+                      </span>
+                      {!s.enabled && status !== 'configured_off' && status !== 'inventory' && (
+                        <span className="ml-1 inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold bg-stone-200 text-stone-600">off</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       <div className="font-bold text-stone-900">{s.label}</div>
                       <div className="text-[10px] text-stone-500 font-mono">{s.slug}</div>
@@ -763,13 +860,6 @@ export default function AdminSourcesPage() {
                           </span>
                         )
                       })()}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                        s.enabled ? 'bg-green-100 text-green-700' : 'bg-stone-200 text-stone-600'
-                      }`}>
-                        {s.enabled ? 'actif' : 'désactivé'}
-                      </span>
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-stone-800">{s.totalSeen}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-green-700 font-semibold">{s.totalApproved}</td>

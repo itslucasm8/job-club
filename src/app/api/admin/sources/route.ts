@@ -9,7 +9,21 @@ const VALID_ADAPTERS = ['workforce_australia', 'harvest_trail', 'generic_career_
 const VALID_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
 const VALID_JOB_CATS = ['farm', 'hospitality', 'construction', 'retail', 'cleaning', 'events', 'animals', 'transport', 'other'] as const
 const VALID_SHEET_TABS = ['seek', 'gumtree', 'facebook', 'packhouse', 'station', 'website', 'mine_agency', 'job_agency', 'government', 'manual'] as const
-const VALID_INGESTION_STRATEGIES = ['structured_api', 'structured_html', 'generic_web', 'extension', 'keyword_search', 'manual'] as const
+// Extensible by design — add new strategies as new ingestion methods are
+// uncovered (rss_feed, sitemap_xml, email_inbound, api_partner, etc.).
+// Each new value just needs its own adapter implementation; no schema migration.
+const VALID_INGESTION_STRATEGIES = [
+  'structured_api',   // ATS APIs (Greenhouse, Workable, Workday) — Flow A
+  'structured_html',  // custom-selector scrapers — Flow A
+  'rss_feed',         // RSS/Atom feeds — Flow A (future)
+  'sitemap_xml',      // sitemap.xml crawling — Flow A (future)
+  'generic_web',      // Playwright + Claude — Flow B
+  'extension',        // browser extension — Flow C
+  'keyword_search',   // search-keyword inventory — Flow C
+  'email_inbound',    // employer-emailed listings — future
+  'api_partner',      // formal partnership feed — future
+  'manual',
+] as const
 
 const SLUG_RE = /^[a-z0-9_-]+$/
 
