@@ -114,8 +114,13 @@ Respond with ONLY a JSON object — no preamble, no markdown fencing. Exact shap
 When unclear, lean conservative on is_backpacker_suitable=false."""
 
 
-def _call_claude(system: str, user: str, model: str, max_chars: int = 25000) -> str:
-    """Run `claude -p` with the system + user prompts and return the assistant text."""
+def _call_claude(system: str, user: str, model: str, max_chars: int = 25000, timeout: int = 90) -> str:
+    """Run `claude -p` with the system + user prompts and return the assistant text.
+
+    timeout: subprocess wall-clock budget. 90s is fine for extract/classify (small
+             outputs). Use 240s+ for reference-data parsing where Sonnet may emit
+             thousands of postcode entries as JSON.
+    """
     user_clipped = user[:max_chars]
     full_prompt = f"<system>\n{system}\n</system>\n\n<user>\n{user_clipped}\n</user>"
     result = subprocess.run(
@@ -123,7 +128,7 @@ def _call_claude(system: str, user: str, model: str, max_chars: int = 25000) -> 
         input=full_prompt,
         capture_output=True,
         text=True,
-        timeout=90,
+        timeout=timeout,
     )
     if result.returncode != 0:
         raise RuntimeError(f'claude CLI failed (rc={result.returncode}): {result.stderr.strip()[:500]}')
@@ -315,9 +320,11 @@ def parse_all_postcodes(page_text: str) -> dict[str, Any]:
     each section has the same schema as parse_reference_data(kind="postcodes")
     plus its own parse_failed flag. Cheaper than 3 separate calls because the
     LLM only reads the input page once.
+
+    Output can be thousands of postcodes worth of JSON — needs the long timeout.
     """
     user = f"Page content (cleaned):\n{page_text}"
-    response_text = _call_claude(ALL_POSTCODES_PARSE_SYSTEM, user, REFDATA_MODEL, max_chars=80000)
+    response_text = _call_claude(ALL_POSTCODES_PARSE_SYSTEM, user, REFDATA_MODEL, max_chars=80000, timeout=300)
     return _parse_json_response(response_text)
 
 
@@ -338,7 +345,7 @@ def parse_reference_data(kind: str, page_text: str, industry: str | None = None)
         user = f"Page content (cleaned):\n{page_text}"
     else:
         raise ValueError(f'unknown kind: {kind}')
-    response_text = _call_claude(system, user, REFDATA_MODEL, max_chars=80000)
+    response_text = _call_claude(system, user, REFDATA_MODEL, max_chars=80000, timeout=240)
     return _parse_json_response(response_text)
 
 

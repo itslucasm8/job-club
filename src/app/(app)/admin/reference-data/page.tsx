@@ -80,6 +80,7 @@ export default function AdminReferenceDataPage() {
   const [statusLoading, setStatusLoading] = useState(true)
 
   const [activeKind, setActiveKind] = useState<PasteKind>('all_postcodes')
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [pasteText, setPasteText] = useState('')
   const [parsing, setParsing] = useState(false)
   const [parsed, setParsed] = useState<any | null>(null)
@@ -268,11 +269,15 @@ export default function AdminReferenceDataPage() {
         )}
       </div>
 
-      {/* Paste type selector */}
+      {/* Paste type selector — main path is "all_postcodes" + "award", others hidden behind toggle */}
       <div className="mb-4">
-        <div className="text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-2">Type de page à coller</div>
+        <div className="text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-2">Que veux-tu coller ?</div>
         <div className="flex flex-wrap gap-2">
-          {PASTE_OPTIONS.map(opt => (
+          {PASTE_OPTIONS.filter(opt => {
+            // Default flow: only show all_postcodes + award. Per-industry tabs hidden behind "Avancé".
+            const isPrimary = opt.key === 'all_postcodes' || opt.key === 'award'
+            return showAdvanced || isPrimary
+          }).map(opt => (
             <button
               key={opt.key}
               onClick={() => { setActiveKind(opt.key); setPasteText(''); resetParse() }}
@@ -285,6 +290,12 @@ export default function AdminReferenceDataPage() {
               {opt.label}
             </button>
           ))}
+          <button
+            onClick={() => setShowAdvanced(s => !s)}
+            className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-stone-300 text-stone-500 hover:text-stone-700 hover:border-stone-400 transition"
+          >
+            {showAdvanced ? '− Masquer avancé' : '+ Avancé (rare)'}
+          </button>
         </div>
       </div>
 
