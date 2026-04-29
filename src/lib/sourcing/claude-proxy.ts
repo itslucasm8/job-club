@@ -116,6 +116,26 @@ export async function proxyFetchHtml(url: string, timeoutMs = 60_000): Promise<P
   return fetchProxy<ProxyFetchHtmlResult>('POST', '/fetch-html', { url }, timeoutMs)
 }
 
+export type ProxySuggestionResult = {
+  diagnosis: string
+  proposedAction: 'update_config' | 'change_url' | 'disable' | 'no_change'
+  proposedConfig?: Record<string, any> | null
+  proposedUrl?: string | null
+  reasoning: string
+  confidence: 'low' | 'medium' | 'high'
+}
+
+export async function proxySuggestSourceFix(args: {
+  sourceLabel: string
+  sourceSlug: string
+  currentConfig: Record<string, any>
+  sampleFailedUrls: string[]
+  sampleHtml?: string
+  errorRate: number
+}): Promise<ProxySuggestionResult> {
+  return postJSON<ProxySuggestionResult>('/suggest-source-fix', args)
+}
+
 // Reference-data endpoints (one-off seeding from pasted regulator pages).
 
 export type ProxyParseReferenceResult = {

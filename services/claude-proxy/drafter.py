@@ -364,6 +364,67 @@ def parse_reference_data(kind: str, page_text: str, industry: str | None = None)
     return _parse_json_response(response_text)
 
 
+SUGGEST_FIX_MODEL = 'claude-haiku-4-5'
+
+SUGGEST_FIX_SYSTEM = """You diagnose Job Club source-scraping failures and propose targeted config fixes.
+
+Job Club's scraper (generic_career_page adapter) discovers job listing URLs on a configured page using:
+- jobLinkSelector: CSS selector (optional)
+- jobLinkPattern: substring or regex (admin can pass /\\/job\\/\\d+/i style; if it starts with / and has a second /, it's parsed as a regex with body+flags)
+- Falls back to a heuristic /(jobs?|careers?|positions?|roles?|opportunities?|vacancies)\\b when neither is set
+
+After discovery, each URL is rendered in headless Chromium and Claude Haiku extracts the job fields.
+Common failure modes:
+1. Wrong URLs harvested: the pattern/heuristic matches non-detail URLs (category pages, /career-advice, taxonomy, search filters). Detail pages exist but have a more specific pattern.
+2. SPA / JS-only detail pages: discover finds correct URLs but extraction returns empty body. Often Workday, Successfactors, or React-only sites.
+3. Anti-bot block: detail page returns CAPTCHA or 403 even via Playwright.
+4. Genuinely unscapable: site has no public listing index at all (referral hubs, EOI forms).
+
+You receive: the current source config, sample failed URLs from a recent run, optionally a sample of the listings-page HTML.
+
+Respond with ONLY a JSON object — no preamble, no markdown:
+{
+  "diagnosis": "1-2 sentences plain-language explanation of what likely failed",
+  "proposedAction": "update_config" | "change_url" | "disable" | "no_change",
+  "proposedConfig": { ... } | null,        // only fields to merge into config; e.g. {"jobLinkPattern": "/\\\\/job\\\\/\\\\d+/"}
+  "proposedUrl": "https://..." | null,     // only when proposedAction="change_url"
+  "reasoning": "what you observed in the failed URLs that led to this proposal",
+  "confidence": "low" | "medium" | "high"
+}
+
+Discipline:
+- If sample failed URLs are non-detail pages (category, taxonomy, /career-advice, /jobs?param=...), propose a tighter jobLinkPattern that only matches real detail URLs. Example: real Seek detail = /job/<digits>; tighten to "/\\\\/job\\\\/\\\\d+/" (regex form).
+- If failed URLs ARE proper detail pages, suspect SPA/anti-bot and propose disable or no_change with explanation.
+- Never propose a destructive change at high confidence unless evidence is overwhelming. When in doubt: confidence="low" and proposedAction="no_change".
+- proposedConfig must be a JSON object containing only keys to merge (e.g. just {"jobLinkPattern": "..."}). Don't repeat unchanged fields.
+"""
+
+
+def suggest_source_fix(payload: dict[str, Any]) -> dict[str, Any]:
+    """Propose a config fix for a source with a high error rate. Inputs:
+       sourceLabel, sourceSlug, currentConfig (dict), sampleFailedUrls (list[str]),
+       sampleHtml (str, may be empty), errorRate (float 0..1).
+    """
+    user_lines = [
+        f"Source: {payload.get('sourceLabel', '')} ({payload.get('sourceSlug', '')})",
+        f"Error rate this run: {payload.get('errorRate', 0):.0%}",
+        f"Current config: {json.dumps(payload.get('currentConfig') or {}, indent=2)[:1500]}",
+        '',
+        'Sample failed URLs:',
+    ]
+    for u in (payload.get('sampleFailedUrls') or [])[:8]:
+        user_lines.append(f'  - {u}')
+    sample_html = payload.get('sampleHtml') or ''
+    if sample_html:
+        user_lines.append('')
+        user_lines.append('Sample of the listings-page HTML (truncated):')
+        user_lines.append(sample_html[:6000])
+    user = '\n'.join(user_lines)
+    response_text = _call_claude(SUGGEST_FIX_SYSTEM, user, SUGGEST_FIX_MODEL, max_chars=15000, timeout=90)
+    data = _parse_json_response(response_text)
+    return data
+
+
 def classify_candidate(raw: dict[str, Any]) -> dict[str, Any]:
     user_lines = [
         f"Title: {raw.get('title', '')}",

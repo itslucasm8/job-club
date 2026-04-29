@@ -87,6 +87,27 @@ async function markSourceSuccess(slug: string, listingsFound: number): Promise<v
   })
 }
 
+/** Append an entry to JobSource.profile.fixHistory. Caps the array at 20
+ *  entries to keep the JSON column bounded (oldest dropped). Used by the
+ *  runner for auto-recorded diagnostics and by the Tier 2 suggest endpoint
+ *  for AI-proposed fixes. Both share the same array — the entry's `kind`
+ *  field discriminates ('high_error_rate' | 'ai_suggestion' | ...). */
+async function appendFixHistoryEntry(slug: string, entry: any): Promise<void> {
+  const row = await prisma.jobSource.findUnique({
+    where: { slug },
+    select: { profile: true },
+  })
+  if (!row) return
+  const profile: any = (row.profile && typeof row.profile === 'object') ? row.profile : {}
+  const history: any[] = Array.isArray(profile.fixHistory) ? profile.fixHistory : []
+  history.push(entry)
+  const trimmed = history.length > 20 ? history.slice(-20) : history
+  await prisma.jobSource.update({
+    where: { slug },
+    data: { profile: { ...profile, fixHistory: trimmed } },
+  })
+}
+
 /** Persist a failed run: increments consecutiveFailures and flips health to
  *  'broken' once the threshold is crossed. Two-step write because Prisma can't
  *  conditionally branch on the post-increment value in a single update. */
@@ -147,30 +168,25 @@ async function runOneSource(
   let imported = 0
   let duplicates = 0
   let errors = 0
+  // Per-listing failure trail. Used to append a structured fixHistory entry
+  // on the source when error rate is high — feeds the AI fix-suggestion flow.
+  const failures: { url: string; reason: string }[] = []
 
   if (news.length > 0) {
     const outcomes = await runWithConcurrency(news, DEFAULT_EXTRACT_CONCURRENCY, async (listing) => {
       let outcome: ListingOutcome = 'error'
       try {
-        // Flow A short-circuit: if the adapter has its own extractListing
-        // (Greenhouse / Workable / Lever / RSS), use it instead of the
-        // Playwright+Claude path. Same shape returned, runner treats both
-        // identically below.
         const extraction = adapter.extractListing
           ? await adapter.extractListing(listing)
           : await extractFromUrl(listing.url)
         if (extraction.extraction_failed) {
           outcome = 'error'
           if (onListingDone) await onListingDone(outcome)
-          return { kind: 'error' as const, reason: extraction.failure_reason }
+          return { kind: 'error' as const, reason: extraction.failure_reason, url: listing.url }
         }
-        // Apply the adapter's defaults so a per-source category/state survives
-        // when Claude leaves them null.
         const raw: any = { ...extraction.raw }
         if (!raw.category && adapter.defaultCategory) raw.category = adapter.defaultCategory
         if (!raw.state && adapter.defaultState) raw.state = adapter.defaultState
-        // ingestCandidate validates required fields (title/company/description)
-        // and surfaces missing ones as a duplicate/error rather than crashing.
         const result = await ingestCandidate({
           source: adapter.slug,
           sourceUrl: listing.url,
@@ -180,30 +196,43 @@ async function runOneSource(
         })
         outcome = result.status === 'inserted' ? 'inserted' : result.status === 'duplicate' ? 'duplicate' : 'error'
         if (onListingDone) await onListingDone(outcome)
-        return { kind: result.status, ...result }
+        return { kind: result.status, url: listing.url, ...result }
       } catch (e: any) {
         outcome = 'error'
         if (onListingDone) {
           try { await onListingDone(outcome) } catch {}
         }
-        return { kind: 'error' as const, reason: e?.message || String(e) }
+        return { kind: 'error' as const, reason: e?.message || String(e), url: listing.url }
       }
     })
 
     for (const o of outcomes) {
       if (o.kind === 'inserted') imported++
       else if (o.kind === 'duplicate') duplicates++
-      else errors++
+      else {
+        errors++
+        failures.push({ url: (o as any).url, reason: (o as any).reason || 'unknown' })
+      }
     }
   }
 
-  // Update JobSource counters + health status. totalSeen is "listings the
-  // source surfaced this run" — useful for yield % later. healthStatus
-  // reflects whether the run came back as expected (working) or below
-  // profile.expectedMinListings (partial / drift signal).
-  await markSourceSuccess(adapter.slug, capped.length).catch(() => {
-    // Source row may not exist if seed missed — runner shouldn't break on this.
-  })
+  await markSourceSuccess(adapter.slug, capped.length).catch(() => {})
+
+  // Tier 1 self-recording: when error rate is high, append a structured
+  // entry to profile.fixHistory so the next admin session (or the Tier 2 AI
+  // suggester) has the failure context preloaded — no need to re-diagnose.
+  // Threshold: ≥3 errors AND ≥40% error rate AND we actually attempted some.
+  if (news.length >= 3 && errors >= 3 && errors / news.length >= 0.4) {
+    await appendFixHistoryEntry(adapter.slug, {
+      date: new Date().toISOString(),
+      kind: 'high_error_rate',
+      status: 'open',
+      errorRate: Number((errors / news.length).toFixed(2)),
+      errorsCount: errors,
+      attemptedCount: news.length,
+      sampleFailures: failures.slice(0, 5),
+    }).catch(() => {})
+  }
 
   return {
     slug: adapter.slug,

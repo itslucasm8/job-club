@@ -195,6 +195,25 @@ def classify_endpoint():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/suggest-source-fix', methods=['POST'])
+def suggest_source_fix_endpoint():
+    """Tier 2 self-healing: given a source's recent failure context, ask
+    Claude to propose a config fix (tighter pattern, URL change, disable, etc).
+    Caller is responsible for storing the suggestion in fixHistory and applying.
+    """
+    if not authorized(request):
+        return jsonify({'error': 'unauthorized'}), 401
+    body = request.get_json(silent=True) or {}
+    if not body.get('sourceSlug') or not body.get('sampleFailedUrls'):
+        return jsonify({'error': 'sourceSlug and sampleFailedUrls required'}), 400
+    try:
+        result = drafter.suggest_source_fix(body)
+        return jsonify(result)
+    except Exception as e:
+        log.exception('suggest-source-fix failed')
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/parse-reference', methods=['POST'])
 def parse_reference_endpoint():
     """Parse a pasted regulatory page (Home Affairs postcodes or Fair Work pay guide)
