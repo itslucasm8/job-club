@@ -9,6 +9,10 @@ out/
 
 # Claude Code local state — should never be committed
 .superpowers/
+.claude/
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
 
 # Python bytecode (claude-proxy local dev)
 __pycache__/
