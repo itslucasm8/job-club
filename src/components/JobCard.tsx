@@ -2,10 +2,20 @@
 import { catLabel, typeLabel, timeAgo } from '@/lib/utils'
 import { useTranslation } from '@/components/LanguageContext'
 
+interface EligibilityData {
+  eligibility_88_days?: boolean | null
+  eligibility_confidence?: 'high' | 'medium' | 'low' | null
+  pay_status?: 'above' | 'at' | 'below' | 'piece_rate' | 'unknown' | null
+  award_id?: string | null
+  award_min_casual_hourly?: number | null
+  award_min_hourly?: number | null
+  pay_gap?: number | null
+}
+
 interface Job {
   id: string; title: string; company: string; state: string; location: string;
   category: string; type: string; pay: string | null; description: string;
-  createdAt: string; eligible88Days?: boolean;
+  createdAt: string; eligible88Days?: boolean; eligibilityData?: EligibilityData | null;
 }
 
 const tagColor: Record<string, string> = {
@@ -22,6 +32,38 @@ const tagColor: Record<string, string> = {
 
 function isNewJob(createdAt: string): boolean {
   return Date.now() - new Date(createdAt).getTime() < 24 * 60 * 60 * 1000
+}
+
+function Eligibility88Tag({ job, t }: { job: Job; t: any }) {
+  const det = job.eligibilityData?.eligibility_88_days
+  const conf = job.eligibilityData?.eligibility_confidence
+  // High-confidence verified positive — green check.
+  if (det === true && conf === 'high') {
+    return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-800" title={t.jobCard.days88Verified}>{t.jobCard.days88Verified}</span>
+  }
+  // Medium/low confidence positive OR null verdict on a job the LLM flagged as 88-day → amber question mark.
+  if (det === true || (det === null && job.eligible88Days)) {
+    return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800" title={t.jobCard.days88Unverified}>{t.jobCard.days88Unverified}</span>
+  }
+  // Legacy rows pre-eligibility module — show original yellow flag if LLM said yes.
+  if (det === undefined && job.eligible88Days) {
+    return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">{t.jobCard.days88}</span>
+  }
+  return null
+}
+
+function PayTag({ job, t }: { job: Job; t: any }) {
+  const status = job.eligibilityData?.pay_status
+  if (status === 'above' || status === 'at') {
+    return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-800" title={t.jobCard.payAtAward}>✓ {t.jobCard.payAtAward}</span>
+  }
+  if (status === 'below') {
+    return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-800" title={t.jobCard.payBelowAward}>⚠ {t.jobCard.payBelowAward}</span>
+  }
+  if (status === 'piece_rate') {
+    return <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800" title={t.jobCard.payPiecework}>{t.jobCard.payPiecework}</span>
+  }
+  return null
 }
 
 export default function JobCard({ job, saved, onSave, onClick }: { job: Job; saved: boolean; onSave: () => void; onClick: () => void }) {
@@ -77,7 +119,8 @@ export default function JobCard({ job, saved, onSave, onClick }: { job: Job; sav
 
       {/* Tags row: category + state + type + pay */}
       <div className="flex flex-wrap gap-1.5 mt-3">
-        {job.eligible88Days && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">{t.jobCard.days88}</span>}
+        <Eligibility88Tag job={job} t={t} />
+        <PayTag job={job} t={t} />
         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${tagColor[job.category] || tagColor.other}`}>{catLabel(job.category, language)}</span>
         <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">{job.state}</span>
         <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{typeLabel(job.type, language)}</span>

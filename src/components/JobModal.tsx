@@ -4,10 +4,22 @@ import { usePostHog } from 'posthog-js/react'
 import { catLabel, typeLabel, timeAgo } from '@/lib/utils'
 import { useTranslation } from '@/components/LanguageContext'
 
+interface EligibilityData {
+  eligibility_88_days?: boolean | null
+  eligibility_confidence?: 'high' | 'medium' | 'low' | null
+  pay_status?: 'above' | 'at' | 'below' | 'piece_rate' | 'unknown' | null
+  award_id?: string | null
+  award_name?: string | null
+  award_min_casual_hourly?: number | null
+  award_min_hourly?: number | null
+  pay_gap?: number | null
+}
+
 interface Job {
   id: string; title: string; company: string; state: string; location: string;
   category: string; type: string; pay: string | null; description: string;
   applyUrl?: string | null; createdAt: string; eligible88Days?: boolean;
+  eligibilityData?: EligibilityData | null;
 }
 
 const tagColor: Record<string, string> = {
@@ -71,11 +83,12 @@ export default function JobModal({ job, saved, onSave, onClose }: { job: Job | n
           </div>
 
           <div className="flex flex-wrap gap-2 mb-5">
-            {job.eligible88Days && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">{t.jobModal.days88}</span>}
+            <ModalEligibilityTags job={job} t={t} />
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${tagColor[job.category] || tagColor.other}`}>{catLabel(job.category, language)}</span>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-stone-100 text-stone-600">{typeLabel(job.type, language)}</span>
             <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">{job.state}</span>
           </div>
+          <VerificationDetails job={job} t={t} language={language} />
 
           {/* Details grid — stacked on mobile, 2x2 grid on desktop */}
           <div className="lg:hidden space-y-0 divide-y divide-stone-100">
@@ -139,6 +152,63 @@ function Detail({ icon, label, value }: { icon: string; label: string; value: st
       <div>
         <div className="text-[12px] text-stone-400">{label}</div>
         <div className="text-[14px] text-stone-700 font-medium">{value}</div>
+      </div>
+    </div>
+  )
+}
+
+function ModalEligibilityTags({ job, t }: { job: Job; t: any }) {
+  const det = job.eligibilityData?.eligibility_88_days
+  const conf = job.eligibilityData?.eligibility_confidence
+  const payStatus = job.eligibilityData?.pay_status
+  const tags: JSX.Element[] = []
+  if (det === true && conf === 'high') {
+    tags.push(<span key="88v" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-800">{t.jobCard.days88Verified}</span>)
+  } else if (det === true || (det === null && job.eligible88Days)) {
+    tags.push(<span key="88u" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">{t.jobCard.days88Unverified}</span>)
+  } else if (det === undefined && job.eligible88Days) {
+    tags.push(<span key="88l" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">{t.jobModal.days88}</span>)
+  }
+  if (payStatus === 'above' || payStatus === 'at') {
+    tags.push(<span key="pa" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-800">✓ {t.jobCard.payAtAward}</span>)
+  } else if (payStatus === 'below') {
+    tags.push(<span key="pb" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-800">⚠ {t.jobCard.payBelowAward}</span>)
+  } else if (payStatus === 'piece_rate') {
+    tags.push(<span key="pp" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">{t.jobCard.payPiecework}</span>)
+  }
+  return <>{tags}</>
+}
+
+function VerificationDetails({ job, t, language }: { job: Job; t: any; language: 'fr' | 'en' }) {
+  const e = job.eligibilityData
+  if (!e || (!e.award_id && e.eligibility_88_days === undefined)) return null
+  const fr = language === 'fr'
+  const minCasual = e.award_min_casual_hourly
+  const minFt = e.award_min_hourly
+  const lines: { label: string; value: string }[] = []
+  if (e.award_id) {
+    const awardLabel = e.award_name ? `${e.award_id} · ${e.award_name}` : e.award_id
+    lines.push({ label: fr ? 'Award (référence)' : 'Award (reference)', value: awardLabel })
+  }
+  if (minCasual || minFt) {
+    const parts: string[] = []
+    if (minFt) parts.push(`${fr ? 'plein temps' : 'full-time'} $${minFt}/h`)
+    if (minCasual) parts.push(`${fr ? 'casual' : 'casual'} $${minCasual}/h`)
+    lines.push({ label: fr ? 'Minimum award' : 'Award minimum', value: parts.join(' · ') })
+  }
+  if (lines.length === 0) return null
+  return (
+    <div className="mb-5 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-[12px] text-stone-700">
+      <div className="text-[11px] font-bold text-purple-700 uppercase tracking-wide mb-1.5">
+        {fr ? 'Vérifications Job Club' : 'Job Club verifications'}
+      </div>
+      <div className="space-y-1">
+        {lines.map(l => (
+          <div key={l.label} className="flex flex-wrap gap-1.5">
+            <span className="text-stone-500">{l.label}:</span>
+            <span className="font-medium">{l.value}</span>
+          </div>
+        ))}
       </div>
     </div>
   )

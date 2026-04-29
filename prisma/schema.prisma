@@ -44,6 +44,13 @@ model Job {
   sourceUrl   String?
   active      Boolean   @default(true)
   eligible88Days Boolean @default(false)
+  eligibilityData Json?  // Deterministic verdict snapshot from JobCandidate at approval time:
+                         // { eligibility_88_days, eligibility_reason, eligibility_confidence,
+                         //   industry, postcode, award_id, award_min_hourly,
+                         //   award_min_casual_hourly, pay_parsed_hourly, pay_kind, pay_status,
+                         //   pay_gap, pay_gap_pct }
+                         // Frozen at approve time — not auto-refreshed when reference data changes
+                         // (run scripts/reassess-eligibility.js if needed).
   expiresAt   DateTime? // Auto-set to 30 days after creation if not specified
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

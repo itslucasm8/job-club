@@ -15,6 +15,23 @@ type Candidate = {
 
 type StatusFilter = 'pending' | 'auto_rejected' | 'approved' | 'rejected'
 
+type EditFields = {
+  title: string
+  company: string
+  state: string
+  location: string
+  category: string
+  type: string
+  pay: string
+  description: string
+  applyUrl: string
+  eligible88Days: boolean
+}
+
+const VALID_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT']
+const VALID_CATEGORIES = ['farm', 'hospitality', 'construction', 'retail', 'cleaning', 'events', 'animals', 'transport', 'other']
+const VALID_TYPES = ['casual', 'full_time', 'part_time', 'contract']
+
 const STATUS_TABS: { key: StatusFilter; label: string }[] = [
   { key: 'pending', label: 'En attente' },
   { key: 'auto_rejected', label: 'Auto-rejetés' },
@@ -47,6 +64,44 @@ export default function AdminCandidatesPage() {
   const [importPasteOpen, setImportPasteOpen] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importMessage, setImportMessage] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  function updateCandidateLocally(updated: Candidate) {
+    setCandidates(cs => cs.map(c => (c.id === updated.id ? updated : c)))
+  }
+
+  async function saveEdit(id: string, fields: Partial<EditFields>): Promise<boolean> {
+    setEditError(null)
+    setActingId(id)
+    try {
+      const res = await fetch(`/api/admin/candidates/${id}/edit`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setEditError(data.error || 'Erreur')
+        return false
+      }
+      if (data.candidate) updateCandidateLocally(data.candidate)
+      return true
+    } catch (e: any) {
+      setEditError(e?.message || 'Erreur réseau')
+      return false
+    } finally {
+      setActingId(null)
+    }
+  }
+
+  async function saveAndApprove(id: string, fields: Partial<EditFields>) {
+    const ok = await saveEdit(id, fields)
+    if (ok) {
+      setEditingId(null)
+      await approve(id)
+    }
+  }
 
   const fetchCandidates = useCallback(async () => {
     setLoading(true)
@@ -255,6 +310,7 @@ export default function AdminCandidatesPage() {
                         <span className="text-[10px] text-stone-400">{timeAgo(c.createdAt)}</span>
                         <EligibilityBadge raw={raw} />
                         <PayBadge raw={raw} />
+                        <QualityBadges raw={raw} />
                         {score?.has_locals_only_red_flag && <span className="text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">Locals only</span>}
                         {score?.has_scam_red_flags && <span className="text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">⚠ arnaque</span>}
                         {score?.is_backpacker_suitable === false && <span className="text-[10px] font-semibold text-stone-700 bg-stone-200 px-1.5 py-0.5 rounded">Pas WHV</span>}
@@ -268,52 +324,76 @@ export default function AdminCandidatesPage() {
 
                 {expanded && (
                   <div className="border-t border-stone-100 px-4 py-3 bg-stone-50 space-y-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                      <Field label="Catégorie" value={raw.category} />
-                      <Field label="Type" value={raw.type} />
-                      <Field label="Pay" value={raw.pay} />
-                      <Field label="State" value={raw.state} />
-                    </div>
-                    <EligibilityPanel raw={raw} />
-                    <div>
-                      <div className="text-[10px] font-semibold text-stone-500 uppercase mb-1">Description</div>
-                      <div className="text-xs text-stone-800 bg-white border border-stone-200 rounded p-2 max-h-48 overflow-y-auto whitespace-pre-wrap">
-                        {raw.description || '(vide)'}
-                      </div>
-                    </div>
-                    <NotesPanel raw={raw} />
-                    {score && (
-                      <div>
-                        <div className="text-[10px] font-semibold text-stone-500 uppercase mb-1">Classifier</div>
-                        <pre className="text-[11px] text-stone-700 bg-white border border-stone-200 rounded p-2 overflow-x-auto">{JSON.stringify(score, null, 2)}</pre>
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <a
-                        href={c.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
-                      >
-                        Source ↗
-                      </a>
-                      {(c.status === 'pending' || c.status === 'auto_rejected') && (
-                        <>
-                          <button
-                            onClick={() => approve(c.id)}
-                            disabled={actingId === c.id}
-                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
+                    {editingId === c.id ? (
+                      <EditCandidateForm
+                        raw={raw}
+                        saving={actingId === c.id}
+                        error={editError}
+                        onCancel={() => { setEditingId(null); setEditError(null) }}
+                        onSave={async (fields) => {
+                          const ok = await saveEdit(c.id, fields)
+                          if (ok) setEditingId(null)
+                        }}
+                        onSaveAndApprove={(fields) => saveAndApprove(c.id, fields)}
+                      />
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                          <Field label="Catégorie" value={raw.category} />
+                          <Field label="Type" value={raw.type} />
+                          <Field label="Pay" value={raw.pay} />
+                          <Field label="State" value={raw.state} />
+                        </div>
+                        <EligibilityPanel raw={raw} />
+                        <div>
+                          <div className="text-[10px] font-semibold text-stone-500 uppercase mb-1">Description</div>
+                          <div className="text-xs text-stone-800 bg-white border border-stone-200 rounded p-2 max-h-48 overflow-y-auto whitespace-pre-wrap">
+                            {raw.description || '(vide)'}
+                          </div>
+                        </div>
+                        <NotesPanel raw={raw} />
+                        <SourceTextPanel raw={raw} />
+                        {score && (
+                          <div>
+                            <div className="text-[10px] font-semibold text-stone-500 uppercase mb-1">Classifier</div>
+                            <pre className="text-[11px] text-stone-700 bg-white border border-stone-200 rounded p-2 overflow-x-auto">{JSON.stringify(score, null, 2)}</pre>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <a
+                            href={c.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
                           >
-                            {actingId === c.id ? '…' : 'Approuver'}
-                          </button>
-                          <RejectMenu onPick={(reason) => reject(c.id, reason)} disabled={actingId === c.id} />
-                        </>
-                      )}
-                    </div>
-                    {c.rejectReason && (
-                      <div className="text-xs text-stone-600">
-                        <span className="font-semibold">Raison: </span>{c.rejectReason}
-                      </div>
+                            Source ↗
+                          </a>
+                          {(c.status === 'pending' || c.status === 'auto_rejected') && (
+                            <>
+                              <button
+                                onClick={() => { setEditingId(c.id); setEditError(null) }}
+                                disabled={actingId === c.id}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition disabled:opacity-50"
+                              >
+                                Modifier
+                              </button>
+                              <button
+                                onClick={() => approve(c.id)}
+                                disabled={actingId === c.id}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
+                              >
+                                {actingId === c.id ? '…' : 'Approuver'}
+                              </button>
+                              <RejectMenu onPick={(reason) => reject(c.id, reason)} disabled={actingId === c.id} />
+                            </>
+                          )}
+                        </div>
+                        {c.rejectReason && (
+                          <div className="text-xs text-stone-600">
+                            <span className="font-semibold">Raison: </span>{c.rejectReason}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -433,6 +513,167 @@ function RejectMenu({ onPick, disabled }: { onPick: (reason: string) => void; di
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function SourceTextPanel({ raw }: { raw: any }) {
+  const [open, setOpen] = useState(false)
+  const text: string = raw._source_text || ''
+  if (!text) return null
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="text-[10px] font-semibold text-purple-700 hover:text-purple-900 underline mb-1"
+      >
+        {open ? '− Cacher' : '+ Voir'} le texte source ({text.length} caractères) — comparer à l'extraction IA
+      </button>
+      {open && (
+        <div className="text-[11px] text-stone-700 bg-white border border-stone-200 rounded p-2 max-h-64 overflow-y-auto whitespace-pre-wrap font-mono">
+          {text}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function QualityBadges({ raw }: { raw: any }) {
+  const desc = String(raw.description || '')
+  const pay = String(raw.pay || '').trim()
+  const state = raw.state
+  const hasContact = /(?:[\w.+-]+@[\w-]+\.[\w.-]+|\b04\d{2}[\s-]?\d{3}[\s-]?\d{3}\b|\bwhatsapp\b|\bappel\w*\b)/i.test(desc)
+  const issues: { label: string; cls: string; title: string }[] = []
+  if (desc.length < 150) issues.push({ label: 'Description courte', cls: 'text-amber-700 bg-amber-100', title: `${desc.length} caractères — vérifie qu'il ne manque rien` })
+  if (!pay) issues.push({ label: 'Pay manquant', cls: 'text-amber-700 bg-amber-100', title: 'Aucun salaire indiqué' })
+  if (!state) issues.push({ label: 'State manquant', cls: 'text-red-700 bg-red-100', title: "Bloque l'approbation — édite la candidature pour préciser" })
+  if (!hasContact) issues.push({ label: 'Pas de contact', cls: 'text-amber-700 bg-amber-100', title: 'Aucun email/téléphone détecté dans la description' })
+  if (issues.length === 0) return null
+  return (
+    <>
+      {issues.map(iss => (
+        <span key={iss.label} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${iss.cls}`} title={iss.title}>{iss.label}</span>
+      ))}
+    </>
+  )
+}
+
+function EditCandidateForm({
+  raw,
+  saving,
+  error,
+  onCancel,
+  onSave,
+  onSaveAndApprove,
+}: {
+  raw: any
+  saving: boolean
+  error: string | null
+  onCancel: () => void
+  onSave: (fields: Partial<EditFields>) => void
+  onSaveAndApprove: (fields: Partial<EditFields>) => void
+}) {
+  const [form, setForm] = useState<EditFields>({
+    title: raw.title || '',
+    company: raw.company || '',
+    state: raw.state || '',
+    location: raw.location || '',
+    category: raw.category || '',
+    type: raw.type || 'casual',
+    pay: raw.pay || '',
+    description: raw.description || '',
+    applyUrl: raw.applyUrl || '',
+    eligible88Days: !!raw.eligible88Days,
+  })
+  const set = <K extends keyof EditFields>(k: K, v: EditFields[K]) => setForm(p => ({ ...p, [k]: v }))
+
+  return (
+    <div className="space-y-3">
+      <div className="text-[10px] font-semibold text-purple-700 uppercase">
+        Édition — toute modification déclenche une re-vérification (88j + award)
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <FieldInput label="Titre" value={form.title} onChange={v => set('title', v)} required />
+        <FieldInput label="Entreprise" value={form.company} onChange={v => set('company', v)} required />
+        <FieldSelect label="State" value={form.state} options={['', ...VALID_STATES]} onChange={v => set('state', v)} />
+        <FieldInput label="Lieu (ville/postcode)" value={form.location} onChange={v => set('location', v)} />
+        <FieldSelect label="Catégorie" value={form.category} options={['', ...VALID_CATEGORIES]} onChange={v => set('category', v)} />
+        <FieldSelect label="Type" value={form.type} options={VALID_TYPES} onChange={v => set('type', v)} />
+        <FieldInput label="Pay" value={form.pay} onChange={v => set('pay', v)} placeholder="$28/hr — vide si non indiqué" />
+        <FieldInput label="Apply URL" value={form.applyUrl} onChange={v => set('applyUrl', v)} placeholder="(optionnel)" />
+      </div>
+      <div>
+        <label className="text-[10px] font-semibold text-stone-500 uppercase">Description</label>
+        <textarea
+          value={form.description}
+          onChange={e => set('description', e.target.value)}
+          rows={8}
+          className="mt-1 w-full px-3 py-2 rounded-lg border border-stone-300 bg-white text-xs focus:outline-none focus:border-purple-500 whitespace-pre-wrap"
+        />
+        <div className="text-[11px] text-stone-500 mt-1">{form.description.length} caractères</div>
+      </div>
+      <label className="flex items-center gap-2 text-xs text-stone-700">
+        <input type="checkbox" checked={form.eligible88Days} onChange={e => set('eligible88Days', e.target.checked)} />
+        <span>88 jours éligible (sera ré-évalué via postcode si possible)</span>
+      </label>
+      {error && <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => onSave(form)}
+          disabled={saving}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-stone-200 hover:bg-stone-300 text-stone-900 transition disabled:opacity-50"
+        >
+          {saving ? '…' : 'Enregistrer (re-vérifier)'}
+        </button>
+        <button
+          onClick={() => onSaveAndApprove(form)}
+          disabled={saving}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
+        >
+          {saving ? '…' : 'Enregistrer + Approuver'}
+        </button>
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 transition disabled:opacity-50"
+        >
+          Annuler
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function FieldInput({ label, value, onChange, required, placeholder }: { label: string; value: string; onChange: (v: string) => void; required?: boolean; placeholder?: string }) {
+  return (
+    <div>
+      <label className="text-[10px] font-semibold text-stone-500 uppercase">
+        {label}{required && <span className="text-red-600 ml-0.5">*</span>}
+      </label>
+      <input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mt-1 w-full px-3 py-1.5 rounded-lg border border-stone-300 bg-white text-xs focus:outline-none focus:border-purple-500"
+      />
+    </div>
+  )
+}
+
+function FieldSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="text-[10px] font-semibold text-stone-500 uppercase">{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="mt-1 w-full px-3 py-1.5 rounded-lg border border-stone-300 bg-white text-xs focus:outline-none focus:border-purple-500"
+      >
+        {options.map(o => (
+          <option key={o} value={o}>{o || '—'}</option>
+        ))}
+      </select>
     </div>
   )
 }

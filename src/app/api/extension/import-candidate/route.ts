@@ -51,6 +51,7 @@ export async function POST(req: Request) {
       source: 'extension',
       sourceUrl: url,
       raw,
+      sourceText: pageText,
     })
 
     if (result.status === 'duplicate') {

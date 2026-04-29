@@ -38,6 +38,9 @@ export type IngestInput = {
   sourceUrl: string
   sourceJobId?: string
   raw: CandidateRaw
+  /** Original page text the extractor saw. Stored as `_source_text` on rawData
+   *  (truncated to 8000 chars) so admin can audit what Claude dropped or kept. */
+  sourceText?: string
 }
 
 export type IngestResult =
@@ -55,7 +58,10 @@ export function computeDedupeHash(raw: CandidateRaw): string {
 }
 
 export async function ingestCandidate(input: IngestInput): Promise<IngestResult> {
-  const { source, sourceUrl, sourceJobId, raw } = input
+  const { source, sourceUrl, sourceJobId, raw, sourceText } = input
+  const rawWithSource: CandidateRaw & { _source_text?: string } = sourceText
+    ? { ...raw, _source_text: sourceText.slice(0, 8000) }
+    : raw
 
   if (!raw.title || !raw.company || !raw.description) {
     return { status: 'error', error: 'missing required fields (title/company/description)' }
@@ -84,7 +90,7 @@ export async function ingestCandidate(input: IngestInput): Promise<IngestResult>
         source,
         sourceUrl,
         sourceJobId: sourceJobId ?? null,
-        rawData: raw as any,
+        rawData: rawWithSource as any,
         dedupeHash,
         status: 'pending',
       },

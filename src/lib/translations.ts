@@ -297,6 +297,11 @@ const fr = {
     removeFavorite: 'Retirer des favoris',
     addFavorite: 'Sauvegarder',
     days88: '88 jours',
+    days88Verified: '88 jours ✓',
+    days88Unverified: '88 jours ?',
+    payAtAward: 'Salaire ≥ minimum',
+    payBelowAward: 'Salaire < minimum',
+    payPiecework: 'Paiement à la pièce',
   },
 
   // Job Modal
@@ -863,6 +868,11 @@ const en: typeof fr = {
     removeFavorite: 'Remove from favorites',
     addFavorite: 'Save',
     days88: '88 days',
+    days88Verified: '88 days ✓',
+    days88Unverified: '88 days ?',
+    payAtAward: 'Pay ≥ award min',
+    payBelowAward: 'Pay < award min',
+    payPiecework: 'Piecework rate',
   },
 
   jobModal: {

@@ -5,6 +5,8 @@ export type ExtractionResult = {
   extraction_failed: boolean
   failure_reason: string
   raw: CandidateRaw
+  /** Original page text the extractor saw (when the proxy returns it). */
+  sourceText?: string
 }
 
 const VALID_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
@@ -73,6 +75,7 @@ export async function extractFromUrl(url: string): Promise<ExtractionResult> {
       extraction_failed: false,
       failure_reason: '',
       raw: proxyResultToRaw(data),
+      sourceText: (data as any).page_text,
     }
   } catch (e: any) {
     return {

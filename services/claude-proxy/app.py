@@ -106,6 +106,10 @@ def extract_from_url_endpoint():
             }), 200
         result = drafter.extract_job(url=url, page_text=text)
         result['fetch_status'] = fetch_result.status
+        # Echo back the cleaned source text (truncated) so callers can persist it
+        # for admin's source-vs-extracted audit. Same 8000-char ceiling we use in
+        # ingest.ts to keep DB rows reasonable.
+        result['page_text'] = text[:8000]
         return jsonify(result)
     except Exception as e:
         log.exception('extract-from-url failed')

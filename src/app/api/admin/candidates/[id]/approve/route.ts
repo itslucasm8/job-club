@@ -28,7 +28,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const raw = (candidate.rawData as any) || {}
     const title = overrides.title ?? raw.title
     const company = overrides.company ?? raw.company
-    const state = overrides.state ?? raw.state ?? 'QLD'
+    const state = overrides.state ?? raw.state ?? null
     const location = overrides.location ?? raw.location ?? ''
     const category = overrides.category ?? raw.category ?? 'other'
     const type = overrides.type ?? raw.type ?? 'casual'
@@ -41,6 +41,30 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!title || !company || !description) {
       return NextResponse.json({ error: 'Champs manquants (title/company/description)' }, { status: 400 })
     }
+    if (!state) {
+      return NextResponse.json({ error: 'State manquant — édite la candidature pour préciser un state avant d\'approuver' }, { status: 400 })
+    }
+
+    // Snapshot the deterministic eligibility verdict at approval time so the
+    // public Job carries the same 88j/award metadata that admin saw on the
+    // candidate row. Verdict fields live on rawData; we cherry-pick the ones
+    // worth exposing publicly.
+    const eligibilityData = {
+      eligibility_88_days: raw.eligibility_88_days ?? null,
+      eligibility_reason: raw.eligibility_reason ?? null,
+      eligibility_confidence: raw.eligibility_confidence ?? null,
+      industry: raw.industry ?? null,
+      postcode: raw.postcode ?? null,
+      award_id: raw.award_id ?? null,
+      award_name: raw.award_name ?? null,
+      award_min_hourly: raw.award_min_hourly ?? null,
+      award_min_casual_hourly: raw.award_min_casual_hourly ?? null,
+      pay_parsed_hourly: raw.pay_parsed_hourly ?? null,
+      pay_kind: raw.pay_kind ?? null,
+      pay_status: raw.pay_status ?? null,
+      pay_gap: raw.pay_gap ?? null,
+      pay_gap_pct: raw.pay_gap_pct ?? null,
+    }
 
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 
@@ -52,6 +76,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         applyUrl: applyUrl || null,
         sourceUrl: sourceUrl || null,
         eligible88Days,
+        eligibilityData,
         expiresAt,
       },
     })

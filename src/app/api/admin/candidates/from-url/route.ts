@@ -22,6 +22,7 @@ export async function POST(req: Request) {
     }
 
     let raw: CandidateRaw
+    let sourceText: string | undefined
     if (pasteText.length >= 200) {
       // Text paste mode — skip the headless fetch, send admin-pasted page text
       // straight to the LLM extractor. Used for sites that 403 datacenter IPs (Gumtree, Seek).
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
           }, { status: 422 })
         }
         raw = proxyResultToRaw(data)
+        sourceText = pasteText
       } catch (e: any) {
         return NextResponse.json({
           error: `Erreur proxy: ${e?.message || String(e)}`,
@@ -50,12 +52,14 @@ export async function POST(req: Request) {
         }, { status: 422 })
       }
       raw = extraction.raw
+      sourceText = extraction.sourceText
     }
 
     const result = await ingestCandidate({
       source: 'manual',
       sourceUrl: url,
       raw,
+      sourceText,
     })
 
     if (result.status === 'duplicate') {
