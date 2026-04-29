@@ -34,12 +34,27 @@ export type AdapterRunResult = {
   durationMs: number
 }
 
+/** Result of an adapter-side extraction — same shape that the LLM
+ *  extractor (extractFromUrl) returns, so the runner can treat both
+ *  paths identically downstream. */
+export type AdapterExtraction = {
+  raw: Record<string, any>
+  sourceText?: string
+  extraction_failed?: boolean
+  failure_reason?: string
+}
+
 /** A SourceAdapter is a small isolated unit that knows how to:
  *   1. Hit one source's list page
  *   2. Extract the URLs of individual job listings on that page
  *  Everything downstream (de-dupe, Claude extract, ingest) is shared
  *  pipeline. Adapters stay narrow on purpose so when a site redesigns,
- *  only that one file breaks. */
+ *  only that one file breaks.
+ *
+ *  Adapters that already have structured data after discover() (ATS APIs,
+ *  RSS feeds) can implement extractListing to bypass Playwright + Claude
+ *  entirely — the runner uses extractListing if present, else falls back
+ *  to the LLM-based extractFromUrl. This is the Flow A cost cliff. */
 export interface SourceAdapter {
   /** Stable identifier used as JobCandidate.source and JobSource.slug. */
   slug: string
@@ -53,6 +68,10 @@ export interface SourceAdapter {
   maxListings?: number
   /** Hit the source's list page and return discovered listings. */
   discover(): Promise<ListingStub[]>
+  /** Optional: build the extraction result directly from data the adapter
+   *  already has cached (e.g. ATS API response). When present, runner skips
+   *  extractFromUrl entirely — no Playwright, no Claude. Bytes ~free. */
+  extractListing?(stub: ListingStub): Promise<AdapterExtraction>
 }
 
 /** Config payload stored on JobSource.config for generic adapters. */

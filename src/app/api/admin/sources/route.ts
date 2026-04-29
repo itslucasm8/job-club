@@ -5,7 +5,12 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 const VALID_CATEGORIES = ['government', 'aggregator', 'ats_rss', 'competitor', 'manual', 'direct'] as const
-const VALID_ADAPTERS = ['workforce_australia', 'harvest_trail', 'generic_career_page', 'manual', 'extension'] as const
+const VALID_ADAPTERS = [
+  'workforce_australia', 'harvest_trail',
+  'generic_career_page',
+  'greenhouse_api', 'workable_api', 'lever_api',
+  'manual', 'extension',
+] as const
 const VALID_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
 const VALID_JOB_CATS = ['farm', 'hospitality', 'construction', 'retail', 'cleaning', 'events', 'animals', 'transport', 'other'] as const
 const VALID_SHEET_TABS = ['seek', 'gumtree', 'facebook', 'packhouse', 'station', 'website', 'mine_agency', 'job_agency', 'government', 'manual'] as const
@@ -88,6 +93,12 @@ export async function POST(req: Request) {
     }
     if (config.defaultCategory && !VALID_JOB_CATS.includes(config.defaultCategory)) {
       return NextResponse.json({ error: 'config.defaultCategory invalide' }, { status: 400 })
+    }
+  }
+  // ATS API adapters require a board slug.
+  if (adapter === 'greenhouse_api' || adapter === 'workable_api' || adapter === 'lever_api') {
+    if (!config || typeof config.boardSlug !== 'string' || !config.boardSlug.trim()) {
+      return NextResponse.json({ error: `${adapter} nécessite config.boardSlug` }, { status: 400 })
     }
   }
 

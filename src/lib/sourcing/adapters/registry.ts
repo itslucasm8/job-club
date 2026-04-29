@@ -3,6 +3,9 @@ import type { SourceAdapter, GenericCareerPageConfig } from './types'
 import { workforceAustraliaAdapter } from './workforce-australia'
 import { harvestTrailAdapter } from './harvest-trail'
 import { buildGenericCareerPageAdapter } from './generic-career-page'
+import { buildGreenhouseAdapter, type GreenhouseConfig } from './greenhouse-api'
+import { buildWorkableAdapter, type WorkableConfig } from './workable-api'
+import { buildLeverAdapter, type LeverConfig } from './lever-api'
 
 /** Static (code-defined) adapters. These have specific-site logic and live
  *  in their own files. Adding a new specific adapter = new file + entry here. */
@@ -29,6 +32,18 @@ export async function getAdapterAsync(slug: string): Promise<SourceAdapter> {
   if (row.adapter === 'generic_career_page') {
     const config = (row.config as unknown as GenericCareerPageConfig) || ({} as GenericCareerPageConfig)
     return buildGenericCareerPageAdapter(slug, row.label, config)
+  }
+  if (row.adapter === 'greenhouse_api') {
+    const config = (row.config as unknown as GreenhouseConfig) || ({} as GreenhouseConfig)
+    return buildGreenhouseAdapter(slug, row.label, config)
+  }
+  if (row.adapter === 'workable_api') {
+    const config = (row.config as unknown as WorkableConfig) || ({} as WorkableConfig)
+    return buildWorkableAdapter(slug, row.label, config)
+  }
+  if (row.adapter === 'lever_api') {
+    const config = (row.config as unknown as LeverConfig) || ({} as LeverConfig)
+    return buildLeverAdapter(slug, row.label, config)
   }
   throw new Error(`Source ${slug} has no runnable adapter (adapter=${row.adapter ?? 'null'})`)
 }

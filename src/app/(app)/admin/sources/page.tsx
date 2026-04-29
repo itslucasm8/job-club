@@ -9,6 +9,8 @@ type SourceConfig = {
   defaultCategory?: string
   defaultState?: string
   maxListings?: number
+  // ATS adapters (greenhouse_api, workable_api, lever_api) use this instead of url.
+  boardSlug?: string
 }
 
 type Source = {
@@ -84,7 +86,12 @@ const SHEET_TABS: { value: string, label: string, hint?: string }[] = [
 ]
 
 const SOURCE_CATEGORIES = ['government', 'aggregator', 'ats_rss', 'competitor', 'manual', 'direct'] as const
-const SOURCE_ADAPTERS = ['workforce_australia', 'harvest_trail', 'generic_career_page', 'manual', 'extension'] as const
+const SOURCE_ADAPTERS = [
+  'workforce_australia', 'harvest_trail',
+  'generic_career_page',
+  'greenhouse_api', 'workable_api', 'lever_api',
+  'manual', 'extension',
+] as const
 const AU_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
 const JOB_CATEGORIES = ['farm', 'hospitality', 'construction', 'retail', 'cleaning', 'events', 'animals', 'transport', 'other'] as const
 
@@ -97,6 +104,7 @@ type SourceFormState = {
   adapter: string
   enabled: boolean
   configUrl: string
+  configBoardSlug: string
   configState: string
   configCategory: string
   configSelector: string
@@ -113,6 +121,7 @@ function emptyForm(defaultTab?: string | null): SourceFormState {
     adapter: 'generic_career_page',
     enabled: true,
     configUrl: '',
+    configBoardSlug: '',
     configState: '',
     configCategory: '',
     configSelector: '',
@@ -131,12 +140,16 @@ function formFromSource(s: Source): SourceFormState {
     adapter: s.adapter || '',
     enabled: s.enabled,
     configUrl: cfg.url || '',
+    configBoardSlug: cfg.boardSlug || '',
     configState: cfg.defaultState || '',
     configCategory: cfg.defaultCategory || '',
     configSelector: cfg.jobLinkSelector || '',
     configPattern: cfg.jobLinkPattern || '',
   }
 }
+
+// Adapters that need a boardSlug (ATS APIs) instead of a free-form URL.
+const ATS_API_ADAPTERS = ['greenhouse_api', 'workable_api', 'lever_api'] as const
 
 type PerSourceResult = {
   slug: string
@@ -215,13 +228,69 @@ export default function AdminSourcesPage() {
   }
 
   function buildConfigPayload(): SourceConfig | null {
-    if (form.adapter !== 'generic_career_page') return null
-    const cfg: SourceConfig = { url: form.configUrl.trim() }
-    if (form.configState) cfg.defaultState = form.configState
-    if (form.configCategory) cfg.defaultCategory = form.configCategory
-    if (form.configSelector.trim()) cfg.jobLinkSelector = form.configSelector.trim()
-    if (form.configPattern.trim()) cfg.jobLinkPattern = form.configPattern.trim()
-    return cfg
+    if (form.adapter === 'generic_career_page') {
+      const cfg: SourceConfig = { url: form.configUrl.trim() }
+      if (form.configState) cfg.defaultState = form.configState
+      if (form.configCategory) cfg.defaultCategory = form.configCategory
+      if (form.configSelector.trim()) cfg.jobLinkSelector = form.configSelector.trim()
+      if (form.configPattern.trim()) cfg.jobLinkPattern = form.configPattern.trim()
+      return cfg
+    }
+    if (ATS_API_ADAPTERS.includes(form.adapter as any)) {
+      const cfg: SourceConfig = { boardSlug: form.configBoardSlug.trim() }
+      if (form.configState) cfg.defaultState = form.configState
+      if (form.configCategory) cfg.defaultCategory = form.configCategory
+      return cfg
+    }
+    return null
+  }
+
+  // Detect ATS button — sniffs the configured URL for embedded Greenhouse /
+  // Workable / Lever markers and offers to swap the adapter in one click.
+  const [detectStatus, setDetectStatus] = useState<{ kind: 'idle' | 'detecting' | 'found' | 'not_found' | 'error', message?: string, suggestion?: { adapter: string, boardSlug: string, evidence: string } }>({ kind: 'idle' })
+
+  async function detectAts() {
+    const url = form.configUrl.trim()
+    if (!url) {
+      setDetectStatus({ kind: 'error', message: 'Renseigne d\'abord l\'URL avant de lancer la détection.' })
+      return
+    }
+    setDetectStatus({ kind: 'detecting' })
+    try {
+      const res = await fetch('/api/admin/sources/detect-ats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setDetectStatus({ kind: 'error', message: data?.error || `Erreur ${res.status}` })
+        return
+      }
+      if (data.adapter) {
+        setDetectStatus({
+          kind: 'found',
+          suggestion: { adapter: data.adapter, boardSlug: data.boardSlug, evidence: data.evidence },
+          message: `${data.evidence} → ${data.adapter} (slug: ${data.boardSlug})`,
+        })
+      } else {
+        setDetectStatus({ kind: 'not_found', message: data.reason || 'Pas d\'ATS connu' })
+      }
+    } catch (e: any) {
+      setDetectStatus({ kind: 'error', message: e?.message || 'Erreur réseau' })
+    }
+  }
+
+  function applyDetectionSuggestion() {
+    if (detectStatus.kind !== 'found' || !detectStatus.suggestion) return
+    const sug = detectStatus.suggestion
+    setForm({
+      ...form,
+      adapter: sug.adapter,
+      ingestionStrategy: 'structured_api',
+      configBoardSlug: sug.boardSlug,
+    })
+    setDetectStatus({ kind: 'idle' })
   }
 
   async function submitForm() {
@@ -655,19 +724,102 @@ export default function AdminSourcesPage() {
             </label>
           </div>
 
+          {ATS_API_ADAPTERS.includes(form.adapter as any) && (
+            <div className="mt-4 pt-3 border-t border-stone-200">
+              <h4 className="text-xs font-bold text-stone-800 mb-2">
+                Configuration {form.adapter}
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <label className="space-y-1 sm:col-span-2">
+                  <span className="block font-semibold text-stone-700">Board slug *</span>
+                  <input
+                    type="text"
+                    value={form.configBoardSlug}
+                    onChange={e => setForm({ ...form, configBoardSlug: e.target.value })}
+                    placeholder={
+                      form.adapter === 'greenhouse_api' ? 'ex: atlassian (depuis boards.greenhouse.io/atlassian)' :
+                      form.adapter === 'workable_api'   ? 'ex: company (depuis apply.workable.com/company)' :
+                                                          'ex: company (depuis jobs.lever.co/company)'
+                    }
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded font-mono"
+                  />
+                  <span className="block text-[10px] text-stone-500">
+                    Pas besoin d&apos;URL complète — juste le slug d&apos;identifiant. La détection ATS depuis l&apos;URL le récupère automatiquement.
+                  </span>
+                </label>
+                <label className="space-y-1">
+                  <span className="block font-semibold text-stone-700">État par défaut</span>
+                  <select
+                    value={form.configState}
+                    onChange={e => setForm({ ...form, configState: e.target.value })}
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded"
+                  >
+                    <option value="">— aucun —</option>
+                    {AU_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="block font-semibold text-stone-700">Catégorie par défaut</span>
+                  <select
+                    value={form.configCategory}
+                    onChange={e => setForm({ ...form, configCategory: e.target.value })}
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded"
+                  >
+                    <option value="">— aucune —</option>
+                    {JOB_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+              </div>
+            </div>
+          )}
+
           {form.adapter === 'generic_career_page' && (
             <div className="mt-4 pt-3 border-t border-stone-200">
               <h4 className="text-xs font-bold text-stone-800 mb-2">Configuration generic_career_page</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <label className="space-y-1 sm:col-span-2">
                   <span className="block font-semibold text-stone-700">URL de la page liste *</span>
-                  <input
-                    type="url"
-                    value={form.configUrl}
-                    onChange={e => setForm({ ...form, configUrl: e.target.value })}
-                    placeholder="https://example.com/careers"
-                    className="w-full px-2 py-1.5 border border-stone-300 rounded font-mono"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={form.configUrl}
+                      onChange={e => setForm({ ...form, configUrl: e.target.value })}
+                      placeholder="https://example.com/careers"
+                      className="flex-1 px-2 py-1.5 border border-stone-300 rounded font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={detectAts}
+                      disabled={detectStatus.kind === 'detecting' || !form.configUrl.trim()}
+                      className="px-2 py-1.5 rounded bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] whitespace-nowrap disabled:opacity-50"
+                      title="Sniff la page pour Greenhouse / Workable / Lever et propose le bon adapter Flow A"
+                    >
+                      {detectStatus.kind === 'detecting' ? '…' : '🔎 Détecter ATS'}
+                    </button>
+                  </div>
+                  {detectStatus.kind === 'found' && detectStatus.suggestion && (
+                    <div className="mt-2 p-2 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px]">
+                      <div className="font-semibold">✓ ATS détecté !</div>
+                      <div>{detectStatus.message}</div>
+                      <button
+                        type="button"
+                        onClick={applyDetectionSuggestion}
+                        className="mt-1 px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[10px]"
+                      >
+                        ✓ Appliquer (basculer en {detectStatus.suggestion.adapter})
+                      </button>
+                    </div>
+                  )}
+                  {detectStatus.kind === 'not_found' && (
+                    <div className="mt-2 p-2 rounded bg-stone-100 border border-stone-200 text-stone-600 text-[11px]">
+                      ℹ {detectStatus.message}
+                    </div>
+                  )}
+                  {detectStatus.kind === 'error' && (
+                    <div className="mt-2 p-2 rounded bg-red-50 border border-red-200 text-red-700 text-[11px]">
+                      ✗ {detectStatus.message}
+                    </div>
+                  )}
                 </label>
                 <label className="space-y-1">
                   <span className="block font-semibold text-stone-700">État par défaut</span>

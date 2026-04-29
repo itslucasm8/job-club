@@ -92,7 +92,13 @@ async function runOneSource(
     const outcomes = await runWithConcurrency(news, DEFAULT_EXTRACT_CONCURRENCY, async (listing) => {
       let outcome: ListingOutcome = 'error'
       try {
-        const extraction = await extractFromUrl(listing.url)
+        // Flow A short-circuit: if the adapter has its own extractListing
+        // (Greenhouse / Workable / Lever / RSS), use it instead of the
+        // Playwright+Claude path. Same shape returned, runner treats both
+        // identically below.
+        const extraction = adapter.extractListing
+          ? await adapter.extractListing(listing)
+          : await extractFromUrl(listing.url)
         if (extraction.extraction_failed) {
           outcome = 'error'
           if (onListingDone) await onListingDone(outcome)
@@ -100,9 +106,11 @@ async function runOneSource(
         }
         // Apply the adapter's defaults so a per-source category/state survives
         // when Claude leaves them null.
-        const raw = { ...extraction.raw }
+        const raw: any = { ...extraction.raw }
         if (!raw.category && adapter.defaultCategory) raw.category = adapter.defaultCategory
-        if (!raw.state && adapter.defaultState) raw.state = adapter.defaultState as any
+        if (!raw.state && adapter.defaultState) raw.state = adapter.defaultState
+        // ingestCandidate validates required fields (title/company/description)
+        // and surfaces missing ones as a duplicate/error rather than crashing.
         const result = await ingestCandidate({
           source: adapter.slug,
           sourceUrl: listing.url,
