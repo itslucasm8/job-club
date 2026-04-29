@@ -150,6 +150,35 @@ def reassess_eligibility_endpoint():
     return jsonify(merged)
 
 
+@app.route('/fetch-html', methods=['POST'])
+def fetch_html_endpoint():
+    """Fetch a URL through headless Chromium and return its rendered HTML.
+    Used by the source-runner to scan list pages for new listings before
+    paying for per-listing Claude extracts.
+
+    Body: {"url": "https://..."}
+    Response: {"ok": bool, "status": int, "html": str, "text": str, "error"?: str}
+    """
+    if not authorized(request):
+        return jsonify({'error': 'unauthorized'}), 401
+    body = request.get_json(silent=True) or {}
+    url = (body.get('url') or '').strip()
+    if not url or not url.startswith(('http://', 'https://')):
+        return jsonify({'error': 'valid url required'}), 400
+    try:
+        result = fetcher.fetch_page(url)
+        return jsonify({
+            'ok': result.ok,
+            'status': result.status,
+            'html': result.html if result.ok else '',
+            'text': result.text if result.ok else '',
+            'error': result.error,
+        })
+    except Exception as e:
+        log.exception('fetch-html failed')
+        return jsonify({'ok': False, 'status': 0, 'html': '', 'text': '', 'error': str(e)}), 500
+
+
 @app.route('/classify', methods=['POST'])
 def classify_endpoint():
     if not authorized(request):

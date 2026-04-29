@@ -121,6 +121,8 @@ model JobSource {
   label         String
   category      String    // government | aggregator | ats_rss | competitor | manual | direct
   enabled       Boolean   @default(true)
+  adapter       String?   // adapter name for the source runner (workforce_australia | harvest_trail | generic_career_page | manual | extension)
+  config        Json?     // adapter-specific config (search URL, default state/category, selectors for generic adapter, etc.)
   lastRunAt     DateTime?
   lastRunStatus String?   // ok | error | skipped
   lastRunError  String?
@@ -128,4 +130,27 @@ model JobSource {
   totalApproved Int       @default(0)
   totalRejected Int       @default(0)
   createdAt     DateTime  @default(now())
+}
+
+model SourcingRun {
+  id                  String    @id @default(cuid())
+  status              String    @default("pending") // pending | running | completed | failed
+  startedAt           DateTime  @default(now())
+  completedAt         DateTime?
+  // Slugs of JobSources scoped to this run. Empty array = "all enabled".
+  sourceSlugs         Json      // string[]
+  totalSources        Int       @default(0)
+  processedSources    Int       @default(0)
+  // Aggregate counters across all sources in the run.
+  totalListingsFound  Int       @default(0)
+  totalListingsNew    Int       @default(0)
+  totalImported       Int       @default(0)
+  totalDuplicates     Int       @default(0)
+  totalErrors         Int       @default(0)
+  // Per-source detail: array of { slug, status, listingsFound, listingsNew, imported, duplicates, errors, errorMessage?, durationMs }
+  perSourceResults    Json?
+  errorMessage        String?
+  triggeredBy         String?   // admin user id/email
+
+  @@index([status, startedAt])
 }

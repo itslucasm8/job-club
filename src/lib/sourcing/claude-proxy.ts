@@ -104,6 +104,18 @@ export async function proxyReassessEligibility(raw: Record<string, unknown>): Pr
   return postJSON<Record<string, unknown>>('/reassess-eligibility', { raw })
 }
 
+export type ProxyFetchHtmlResult = {
+  ok: boolean
+  status: number
+  html: string
+  text: string
+  error?: string
+}
+
+export async function proxyFetchHtml(url: string, timeoutMs = 60_000): Promise<ProxyFetchHtmlResult> {
+  return fetchProxy<ProxyFetchHtmlResult>('POST', '/fetch-html', { url }, timeoutMs)
+}
+
 // Reference-data endpoints (one-off seeding from pasted regulator pages).
 
 export type ProxyParseReferenceResult = {
