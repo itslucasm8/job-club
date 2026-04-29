@@ -95,12 +95,22 @@ QLD, NSW, VIC, SA, WA, TAS, NT, ACT
 ## Signals
 88-day signals: "88 days/jours", "specified work", "regional work", "second/2nd year visa", "subclass 417", "WHV friendly", "backpackers welcome", regional postcode + ag/farm/fishing/forestry/mining/construction.
 
-Locals-only red flags: "Locals only", "Australian residents only", "permanent residents only", "must have own car / current state licence", "long-term commitment / min 12 months", "permanent role only", career-professional salary structures.
+Locals-only red flags: "Locals only", "Australian residents only", "permanent residents only", "must have own car / current state licence", "long-term commitment / min 12 months", "permanent role only".
+
+Skilled-migration / professional-role red flags (also set has_locals_only_red_flag=true and is_backpacker_suitable=false):
+- Pay quoted as annual salary above ~$50,000/year ("$70k", "$80,000 + super", "$95,000 per annum", "salary package $90,000"). WHV casual work is hourly (~$24-35/hr); annual salaries above $50k indicate professional roles, not casual labour.
+- "Permanent" / "Permanent role" / "Permanent full-time" — WHV is by definition temporary work.
+- Sponsorship/skilled-visa keywords: "sponsorship available", "we sponsor", "TSS visa", "subclass 482", "subclass 186", "skilled migration", "ENS", "DAMA", "PR pathway", "permanent residency pathway".
+- Qualification/credentialing barriers a backpacker realistically lacks: "degree required", "bachelor's required", "Master's required", "professional registration", "RN registration", "CPA", "CA qualified", "AHPRA", "Engineers Australia", "5+ years experience", "10+ years experience", "senior" + years-of-experience requirement, "leadership experience required".
+- Career titles that imply structured career roles: "Senior X", "Lead X", "Principal X", "Manager", "Head of", "Director", "Executive", "Specialist" (where it implies professional speciality not just "cleaning specialist"), "Engineer" (software/civil/mechanical/etc.), "Analyst", "Consultant", "Architect" (technical), "Account Manager", "Business Development", "Project Manager".
+  Exception: hospitality and trades titles like "Sous Chef", "Head Chef", "Bar Manager", "Site Supervisor" can still be backpacker-friendly if the listing reads as casual/short-term and pay is hourly.
 
 Scam red flags: asks for payment/fee/deposit/training cost, promises guaranteed unrealistic income, requires passport/visa scan upfront, no company name (only phone/email), vague "call for details" descriptions, generic "free accommodation" with no employer detail.
 
-is_backpacker_suitable=true if: casual/short-term, WHV-eligible, real employer + location + contact path, plausibly legal pay, fits a category.
-is_backpacker_suitable=false if: locals-only, scam, career-professional role, long-term/permanent only, requires AU residency.
+is_backpacker_suitable=true if: casual/short-term, WHV-eligible, real employer + location + contact path, plausibly legal pay (hourly or piece rate, NOT annual salary $50k+), fits a category.
+is_backpacker_suitable=false if: locals-only, scam, career-professional role, skilled-migration role, long-term/permanent only, requires AU residency, requires qualifications/credentials a typical backpacker won't have, annual salary above ~$50k.
+
+When in doubt about salary: if pay reads "$X per annum" / "$X / year" / "$X k" and X is at or above 50,000, default to is_backpacker_suitable=false and explain in reasoning. WHV casual labour does not get quoted in annual figures.
 
 Respond with ONLY a JSON object — no preamble, no markdown fencing. Exact shape:
 {
