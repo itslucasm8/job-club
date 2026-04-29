@@ -575,7 +575,10 @@ export default function AdminSourcesPage() {
               {sources.map(s => {
                 const denom = s.totalApproved + s.totalRejected
                 const approvalRate = denom > 0 ? Math.round((s.totalApproved / denom) * 100) : 0
-                const canRun = s.enabled && !!s.adapter
+                // Per-row Run button gate: just needs an adapter. The `enabled`
+                // flag only controls whether the master "scan complet" includes
+                // this source — explicit per-row Run is always allowed.
+                const canRun = !!s.adapter
                 return (
                   <tr key={s.id} className="border-b border-stone-100 text-xs">
                     <td className="px-3 py-2">
