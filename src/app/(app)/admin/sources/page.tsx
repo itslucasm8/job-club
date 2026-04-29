@@ -2,6 +2,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 
+type SourceConfig = {
+  url?: string
+  jobLinkSelector?: string
+  jobLinkPattern?: string
+  defaultCategory?: string
+  defaultState?: string
+  maxListings?: number
+}
+
 type Source = {
   id: string
   slug: string
@@ -9,12 +18,62 @@ type Source = {
   category: string
   enabled: boolean
   adapter: string | null
+  config: SourceConfig | null
   lastRunAt: string | null
   lastRunStatus: string | null
   lastRunError: string | null
   totalSeen: number
   totalApproved: number
   totalRejected: number
+}
+
+const SOURCE_CATEGORIES = ['government', 'aggregator', 'ats_rss', 'competitor', 'manual', 'direct'] as const
+const SOURCE_ADAPTERS = ['workforce_australia', 'harvest_trail', 'generic_career_page', 'manual', 'extension'] as const
+const AU_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
+const JOB_CATEGORIES = ['farm', 'hospitality', 'construction', 'retail', 'cleaning', 'events', 'animals', 'transport', 'other'] as const
+
+type SourceFormState = {
+  slug: string
+  label: string
+  category: string
+  adapter: string
+  enabled: boolean
+  configUrl: string
+  configState: string
+  configCategory: string
+  configSelector: string
+  configPattern: string
+}
+
+function emptyForm(): SourceFormState {
+  return {
+    slug: '',
+    label: '',
+    category: 'direct',
+    adapter: 'generic_career_page',
+    enabled: true,
+    configUrl: '',
+    configState: '',
+    configCategory: '',
+    configSelector: '',
+    configPattern: '',
+  }
+}
+
+function formFromSource(s: Source): SourceFormState {
+  const cfg = s.config || {}
+  return {
+    slug: s.slug,
+    label: s.label,
+    category: s.category,
+    adapter: s.adapter || '',
+    enabled: s.enabled,
+    configUrl: cfg.url || '',
+    configState: cfg.defaultState || '',
+    configCategory: cfg.defaultCategory || '',
+    configSelector: cfg.jobLinkSelector || '',
+    configPattern: cfg.jobLinkPattern || '',
+  }
 }
 
 type PerSourceResult = {
@@ -66,6 +125,110 @@ export default function AdminSourcesPage() {
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Form state — null when closed, otherwise either {mode:'create'} or {mode:'edit', originalSlug}.
+  const [editing, setEditing] = useState<{ mode: 'create' } | { mode: 'edit', originalSlug: string } | null>(null)
+  const [form, setForm] = useState<SourceFormState>(emptyForm())
+  const [formError, setFormError] = useState<string | null>(null)
+  const [formSaving, setFormSaving] = useState(false)
+
+  function openCreate() {
+    setForm(emptyForm())
+    setFormError(null)
+    setEditing({ mode: 'create' })
+  }
+  function openEdit(s: Source) {
+    setForm(formFromSource(s))
+    setFormError(null)
+    setEditing({ mode: 'edit', originalSlug: s.slug })
+  }
+  function closeForm() {
+    setEditing(null)
+    setFormError(null)
+  }
+
+  function buildConfigPayload(): SourceConfig | null {
+    if (form.adapter !== 'generic_career_page') return null
+    const cfg: SourceConfig = { url: form.configUrl.trim() }
+    if (form.configState) cfg.defaultState = form.configState
+    if (form.configCategory) cfg.defaultCategory = form.configCategory
+    if (form.configSelector.trim()) cfg.jobLinkSelector = form.configSelector.trim()
+    if (form.configPattern.trim()) cfg.jobLinkPattern = form.configPattern.trim()
+    return cfg
+  }
+
+  async function submitForm() {
+    if (!editing) return
+    setFormError(null)
+    setFormSaving(true)
+    try {
+      const payload: any = {
+        label: form.label,
+        category: form.category,
+        adapter: form.adapter || null,
+        enabled: form.enabled,
+        config: buildConfigPayload(),
+      }
+      let res: Response
+      if (editing.mode === 'create') {
+        payload.slug = form.slug
+        res = await fetch('/api/admin/sources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      } else {
+        res = await fetch(`/api/admin/sources/${encodeURIComponent(editing.originalSlug)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      }
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setFormError(data?.error || `Erreur ${res.status}`)
+        return
+      }
+      await loadSources()
+      closeForm()
+    } catch (e: any) {
+      setFormError(e?.message || 'Erreur réseau')
+    } finally {
+      setFormSaving(false)
+    }
+  }
+
+  async function deleteSource(slug: string) {
+    if (!confirm(`Supprimer la source "${slug}" ? Les candidats déjà importés ne seront pas affectés.`)) return
+    try {
+      const res = await fetch(`/api/admin/sources/${encodeURIComponent(slug)}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data?.error || `Erreur ${res.status}`)
+        return
+      }
+      await loadSources()
+    } catch (e: any) {
+      alert(e?.message || 'Erreur réseau')
+    }
+  }
+
+  async function toggleEnabled(s: Source) {
+    try {
+      const res = await fetch(`/api/admin/sources/${encodeURIComponent(s.slug)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !s.enabled }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data?.error || `Erreur ${res.status}`)
+        return
+      }
+      await loadSources()
+    } catch (e: any) {
+      alert(e?.message || 'Erreur réseau')
+    }
+  }
 
   async function loadSources() {
     const res = await fetch('/api/admin/sources')
@@ -234,6 +397,159 @@ export default function AdminSourcesPage() {
         )}
       </div>
 
+      {/* Add/Edit panel */}
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-bold text-stone-900">Sources enregistrées</h2>
+        {!editing && (
+          <button
+            onClick={openCreate}
+            className="px-3 py-1.5 rounded-md text-xs font-bold bg-stone-900 hover:bg-stone-800 text-white transition"
+          >
+            + Nouvelle source
+          </button>
+        )}
+      </div>
+
+      {editing && (
+        <div className="mb-4 p-4 bg-stone-50 border border-stone-300 rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-stone-900">
+              {editing.mode === 'create' ? 'Nouvelle source' : `Modifier ${editing.originalSlug}`}
+            </h3>
+            <button onClick={closeForm} className="text-xs text-stone-500 hover:text-stone-700">✕ Annuler</button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <label className="space-y-1">
+              <span className="block font-semibold text-stone-700">Slug (a-z, 0-9, _, -)</span>
+              <input
+                type="text"
+                value={form.slug}
+                onChange={e => setForm({ ...form, slug: e.target.value.toLowerCase() })}
+                disabled={editing.mode === 'edit'}
+                placeholder="ex: costa_careers"
+                className="w-full px-2 py-1.5 border border-stone-300 rounded font-mono disabled:bg-stone-100 disabled:text-stone-500"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="block font-semibold text-stone-700">Label</span>
+              <input
+                type="text"
+                value={form.label}
+                onChange={e => setForm({ ...form, label: e.target.value })}
+                placeholder="ex: Costa Group Careers"
+                className="w-full px-2 py-1.5 border border-stone-300 rounded"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="block font-semibold text-stone-700">Catégorie de source</span>
+              <select
+                value={form.category}
+                onChange={e => setForm({ ...form, category: e.target.value })}
+                className="w-full px-2 py-1.5 border border-stone-300 rounded"
+              >
+                {SOURCE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="block font-semibold text-stone-700">Adapter</span>
+              <select
+                value={form.adapter}
+                onChange={e => setForm({ ...form, adapter: e.target.value })}
+                className="w-full px-2 py-1.5 border border-stone-300 rounded"
+              >
+                <option value="">— aucun (manuel) —</option>
+                {SOURCE_ADAPTERS.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={form.enabled}
+                onChange={e => setForm({ ...form, enabled: e.target.checked })}
+              />
+              <span className="font-semibold text-stone-700">Actif (inclus dans les scans)</span>
+            </label>
+          </div>
+
+          {form.adapter === 'generic_career_page' && (
+            <div className="mt-4 pt-3 border-t border-stone-200">
+              <h4 className="text-xs font-bold text-stone-800 mb-2">Configuration generic_career_page</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <label className="space-y-1 sm:col-span-2">
+                  <span className="block font-semibold text-stone-700">URL de la page liste *</span>
+                  <input
+                    type="url"
+                    value={form.configUrl}
+                    onChange={e => setForm({ ...form, configUrl: e.target.value })}
+                    placeholder="https://example.com/careers"
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded font-mono"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="block font-semibold text-stone-700">État par défaut</span>
+                  <select
+                    value={form.configState}
+                    onChange={e => setForm({ ...form, configState: e.target.value })}
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded"
+                  >
+                    <option value="">— aucun —</option>
+                    {AU_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="block font-semibold text-stone-700">Catégorie par défaut</span>
+                  <select
+                    value={form.configCategory}
+                    onChange={e => setForm({ ...form, configCategory: e.target.value })}
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded"
+                  >
+                    <option value="">— aucune —</option>
+                    {JOB_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+                <label className="space-y-1 sm:col-span-2">
+                  <span className="block font-semibold text-stone-700">Sélecteur CSS des liens (optionnel)</span>
+                  <input
+                    type="text"
+                    value={form.configSelector}
+                    onChange={e => setForm({ ...form, configSelector: e.target.value })}
+                    placeholder='ex: a.job-link, .careers-list a[href*="/job/"]'
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded font-mono"
+                  />
+                  <span className="block text-[10px] text-stone-500">Vide = heuristique automatique (matche /jobs/, /careers/, /positions/, etc.)</span>
+                </label>
+                <label className="space-y-1 sm:col-span-2">
+                  <span className="block font-semibold text-stone-700">Pattern URL des liens (optionnel)</span>
+                  <input
+                    type="text"
+                    value={form.configPattern}
+                    onChange={e => setForm({ ...form, configPattern: e.target.value })}
+                    placeholder="ex: /careers/job/ ou regex"
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded font-mono"
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {formError && <div className="mt-3 text-xs text-red-700">{formError}</div>}
+
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              onClick={submitForm}
+              disabled={formSaving}
+              className="px-4 py-1.5 rounded-md text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white transition disabled:opacity-50"
+            >
+              {formSaving ? 'Enregistrement…' : editing.mode === 'create' ? 'Créer' : 'Enregistrer'}
+            </button>
+            <button onClick={closeForm} className="px-3 py-1.5 rounded-md text-xs font-semibold text-stone-600 hover:text-stone-900">
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Sources table */}
       {loading ? (
         <div className="text-center py-12 text-stone-500">Chargement…</div>
@@ -288,17 +604,40 @@ export default function AdminSourcesPage() {
                       )}
                     </td>
                     <td className="px-3 py-2 text-right">
-                      {canRun ? (
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        {canRun ? (
+                          <button
+                            onClick={() => startRun([s.slug])}
+                            disabled={starting || !!isRunning}
+                            className="px-2 py-1 rounded text-[11px] font-bold bg-purple-100 hover:bg-purple-200 text-purple-800 transition disabled:opacity-50"
+                          >
+                            ▶ Run
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-stone-400">manuel</span>
+                        )}
                         <button
-                          onClick={() => startRun([s.slug])}
-                          disabled={starting || !!isRunning}
-                          className="px-2 py-1 rounded text-[11px] font-bold bg-purple-100 hover:bg-purple-200 text-purple-800 transition disabled:opacity-50"
+                          onClick={() => toggleEnabled(s)}
+                          title={s.enabled ? 'Désactiver' : 'Activer'}
+                          className="px-1.5 py-1 rounded text-[11px] font-semibold bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
                         >
-                          ▶ Run
+                          {s.enabled ? '◐' : '◯'}
                         </button>
-                      ) : (
-                        <span className="text-[10px] text-stone-400">manuel</span>
-                      )}
+                        <button
+                          onClick={() => openEdit(s)}
+                          title="Modifier"
+                          className="px-1.5 py-1 rounded text-[11px] font-semibold bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
+                        >
+                          ✏
+                        </button>
+                        <button
+                          onClick={() => deleteSource(s.slug)}
+                          title="Supprimer"
+                          className="px-1.5 py-1 rounded text-[11px] font-semibold bg-red-50 hover:bg-red-100 text-red-700 transition"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
