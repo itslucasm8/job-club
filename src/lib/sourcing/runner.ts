@@ -115,7 +115,9 @@ async function runOneSource(
         return { kind: result.status, ...result }
       } catch (e: any) {
         outcome = 'error'
-        if (onListingDone) await onListingDone(outcome).catch(() => {})
+        if (onListingDone) {
+          try { await onListingDone(outcome) } catch {}
+        }
         return { kind: 'error' as const, reason: e?.message || String(e) }
       }
     })
