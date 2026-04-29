@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { usePostHog } from 'posthog-js/react'
 import { catLabel, typeLabel, timeAgo } from '@/lib/utils'
 import { useTranslation } from '@/components/LanguageContext'
@@ -161,7 +161,7 @@ function ModalEligibilityTags({ job, t }: { job: Job; t: any }) {
   const det = job.eligibilityData?.eligibility_88_days
   const conf = job.eligibilityData?.eligibility_confidence
   const payStatus = job.eligibilityData?.pay_status
-  const tags: JSX.Element[] = []
+  const tags: ReactNode[] = []
   if (det === true && conf === 'high') {
     tags.push(<span key="88v" className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-800">{t.jobCard.days88Verified}</span>)
   } else if (det === true || (det === null && job.eligible88Days)) {
