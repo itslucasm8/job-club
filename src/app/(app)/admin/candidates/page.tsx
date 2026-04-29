@@ -687,7 +687,9 @@ function QualityBadges({ raw }: { raw: any }) {
   const desc = String(raw.description || '')
   const pay = String(raw.pay || '').trim()
   const state = raw.state
-  const hasContact = /(?:[\w.+-]+@[\w-]+\.[\w.-]+|\b04\d{2}[\s-]?\d{3}[\s-]?\d{3}\b|\bwhatsapp\b|\bappel\w*\b)/i.test(desc)
+  // Any of: email, AU mobile (04xx), whatsapp, French "appeler" stem, or any URL/web link.
+  // A URL counts as contact because most government/aggregator postings link out to an apply portal.
+  const hasContact = /(?:[\w.+-]+@[\w-]+\.[\w.-]+|\b04\d{2}[\s-]?\d{3}[\s-]?\d{3}\b|\bwhatsapp\b|\bappel\w*\b|https?:\/\/\S+|\bwww\.\S+)/i.test(desc)
   const issues: { label: string; cls: string; title: string }[] = []
   if (desc.length < 150) issues.push({ label: 'Description courte', cls: 'text-amber-700 bg-amber-100', title: `${desc.length} caractères — vérifie qu'il ne manque rien` })
   if (!pay) issues.push({ label: 'Pay manquant', cls: 'text-amber-700 bg-amber-100', title: 'Aucun salaire indiqué' })
