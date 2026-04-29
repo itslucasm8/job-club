@@ -109,9 +109,13 @@ export type ProxyParseReferenceResult = {
   [k: string]: unknown
 }
 
-export async function proxyParseReference(kind: 'postcodes' | 'award', pageText: string): Promise<ProxyParseReferenceResult> {
+export async function proxyParseReference(
+  kind: 'postcodes' | 'award',
+  pageText: string,
+  industry?: string,
+): Promise<ProxyParseReferenceResult> {
   // Sonnet on 80K of text can take 90+ s — give it more headroom than the default.
-  return fetchProxy<ProxyParseReferenceResult>('POST', '/parse-reference', { kind, page_text: pageText }, 180_000)
+  return fetchProxy<ProxyParseReferenceResult>('POST', '/parse-reference', { kind, page_text: pageText, industry }, 180_000)
 }
 
 export async function proxySaveReferenceData(args: {

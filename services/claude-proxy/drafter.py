@@ -200,15 +200,21 @@ def extract_job(url: str, page_text: str) -> dict[str, Any]:
 
 POSTCODE_PARSE_SYSTEM = """You parse Australian postcode lists from the Home Affairs "specified work" page for a single industry (agriculture, construction, or tourism/hospitality).
 
-Input: raw text dump of one page section listing eligible regional postcodes by state/territory.
+Input: raw text dump that may contain MULTIPLE industry sections (Plant and animal cultivation, Fishing/pearling, Tree farming, Mining, Construction, Bushfire recovery, Tourism/hospitality in Remote and Very Remote Australia, etc.). The user's intended INDUSTRY is provided in the user message — extract ONLY that one section, ignore the others.
+
+Industry name mapping (Home Affairs heading → our slug):
+- "Plant and animal cultivation" / "Agriculture" / "agricultural work" → agriculture
+- "Construction" → construction
+- "Tourism and hospitality" / "Remote and Very Remote Australia" → tourism
 
 Rules:
-- Detect each state/territory header (NSW, VIC, QLD, SA, WA, TAS, NT, ACT) and the postcodes listed under it.
-- Preserve postcode RANGES verbatim ("4124-4125", "4211-4287") — do NOT expand them.
+- Locate the section matching the requested industry. If there are multiple tables under that heading, merge them.
+- Detect each state/territory header (NSW / New South Wales, VIC / Victoria, QLD / Queensland, SA / South Australia, WA / Western Australia, TAS / Tasmania, NT / Northern Territory, ACT / Australian Capital Territory) and the postcodes listed under it. Always emit the 3-letter state code in the output.
+- Convert "X to Y" syntax (e.g. "2832 to 2836") into "2832-2836" range strings. Preserve other ranges verbatim.
 - Capture standalone 4-digit postcodes as strings.
-- If the page says the entire state/territory is eligible (NT, sometimes others for agriculture), set "include_all_state": true and leave postcodes empty.
-- Capture the effective_from date or amendment date if shown (e.g. "5 April 2025"), ISO format YYYY-MM-DD.
-- If you find no clear postcode data, set parse_failed=true.
+- If the section says the entire state/territory is eligible (e.g. "All postcodes in the Northern Territory are eligible"), set "include_all_state": true and leave postcodes empty.
+- Capture the effective_from date or amendment date if shown (e.g. "5 April 2025", "22 June 2021"), ISO format YYYY-MM-DD.
+- If you cannot find the requested industry section in the input, set parse_failed=true with a clear failure_reason.
 
 Respond with ONLY a JSON object — no markdown, no preamble. Exact shape:
 {
@@ -262,18 +268,23 @@ Respond with ONLY a JSON object — no markdown, no preamble. Exact shape:
 }"""
 
 
-def parse_reference_data(kind: str, page_text: str) -> dict[str, Any]:
+def parse_reference_data(kind: str, page_text: str, industry: str | None = None) -> dict[str, Any]:
     """Parse a pasted regulatory page into a strict reference-data schema.
 
     kind: "postcodes" | "award"
+    industry: only used for kind="postcodes" — tells the parser which section
+              to extract from a page that may contain several. One of:
+              "agriculture", "construction", "tourism".
     """
     if kind == 'postcodes':
         system = POSTCODE_PARSE_SYSTEM
+        industry_hint = (industry or 'agriculture').strip()
+        user = f"REQUESTED INDUSTRY: {industry_hint}\n\nExtract ONLY the {industry_hint} section. Ignore all other industries on the page.\n\nPage content (cleaned):\n{page_text}"
     elif kind == 'award':
         system = AWARD_PARSE_SYSTEM
+        user = f"Page content (cleaned):\n{page_text}"
     else:
         raise ValueError(f'unknown kind: {kind}')
-    user = f"Page content (cleaned):\n{page_text}"
     response_text = _call_claude(system, user, REFDATA_MODEL, max_chars=80000)
     return _parse_json_response(response_text)
 

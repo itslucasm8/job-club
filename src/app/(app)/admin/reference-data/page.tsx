@@ -19,33 +19,42 @@ type PasteConfig = {
   helpUrl: string
   helpText: string
   parseKind: 'postcodes' | 'award'
+  /** For postcodes parses: tells the backend which section to extract from a
+   *  multi-section Home Affairs page. Ignored for awards. */
+  industry?: 'agriculture' | 'construction' | 'tourism'
   // For postcodes: deterministic filename. For award: filename derived after parsing (awards.json + key=award_id).
   filename?: string
 }
+
+const HA_URL = 'https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/work-holiday-417/specified-work'
+const HA_HELP = "Toutes les industries 88 jours sont sur la MÊME page Home Affairs. Pas besoin de filtrer la section — fais juste Ctrl+A puis Ctrl+C sur toute la page, l'IA extraira automatiquement la section qui correspond à l'onglet sélectionné."
 
 const PASTE_OPTIONS: PasteConfig[] = [
   {
     key: 'postcodes_agriculture',
     label: 'Postcodes — Agriculture',
-    helpUrl: 'https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/work-holiday-417/specified-work',
-    helpText: "Page Home Affairs — section 'Plant and animal cultivation' / 'Agriculture'. Copie tout le texte de la page (Ctrl+A, Ctrl+C) puis colle ici.",
+    helpUrl: HA_URL,
+    helpText: HA_HELP + " Cible: section 'Plant and animal cultivation' (cattle stations, farms, vergers, packhouses).",
     parseKind: 'postcodes',
+    industry: 'agriculture',
     filename: 'postcodes_agriculture.json',
   },
   {
     key: 'postcodes_construction',
     label: 'Postcodes — Construction',
-    helpUrl: 'https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/work-holiday-417/specified-work',
-    helpText: "Page Home Affairs — section 'Construction'. Même page que ci-dessus, faire défiler jusqu'à la section construction.",
+    helpUrl: HA_URL,
+    helpText: HA_HELP + " Cible: section 'Construction' (bâtiment, chantiers).",
     parseKind: 'postcodes',
+    industry: 'construction',
     filename: 'postcodes_construction.json',
   },
   {
     key: 'postcodes_tourism',
     label: 'Postcodes — Tourisme/Hospitalité (Northern AU)',
-    helpUrl: 'https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/work-holiday-417/specified-work',
-    helpText: "Page Home Affairs — section 'Tourism and hospitality in Northern Australia'.",
+    helpUrl: HA_URL,
+    helpText: HA_HELP + " Cible: 'Tourism and hospitality in Remote and Very Remote Australia' (= zones touristiques nord, applicable depuis le 22 juin 2021).",
     parseKind: 'postcodes',
+    industry: 'tourism',
     filename: 'postcodes_tourism.json',
   },
   {
@@ -108,7 +117,11 @@ export default function AdminReferenceDataPage() {
       const res = await fetch('/api/admin/reference-data/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: config.parseKind, page_text: pasteText }),
+        body: JSON.stringify({
+          kind: config.parseKind,
+          page_text: pasteText,
+          industry: config.industry,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {

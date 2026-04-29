@@ -138,12 +138,13 @@ def parse_reference_endpoint():
     body = request.get_json(silent=True) or {}
     kind = (body.get('kind') or '').strip()
     page_text = body.get('page_text') or ''
+    industry = (body.get('industry') or '').strip() or None
     if kind not in ('postcodes', 'award'):
         return jsonify({'error': 'kind must be "postcodes" or "award"'}), 400
     if len(page_text) < 200:
         return jsonify({'error': 'page_text too short (min 200 chars)'}), 400
     try:
-        result = drafter.parse_reference_data(kind=kind, page_text=page_text[:80000])
+        result = drafter.parse_reference_data(kind=kind, page_text=page_text[:80000], industry=industry)
         return jsonify(result)
     except Exception as e:
         log.exception('parse-reference failed')

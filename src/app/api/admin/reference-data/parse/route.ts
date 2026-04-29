@@ -19,6 +19,7 @@ export async function POST(req: Request) {
     const body = await req.json()
     const kind = (body.kind || '').toString().trim()
     const pageText = (body.page_text || '').toString()
+    const industry = (body.industry || '').toString().trim() || undefined
     if (kind !== 'postcodes' && kind !== 'award') {
       return NextResponse.json({ error: 'kind doit être "postcodes" ou "award"' }, { status: 400 })
     }
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Texte trop court (min 200 caractères)' }, { status: 400 })
     }
 
-    const parsed = await proxyParseReference(kind, pageText.slice(0, 80000))
+    const parsed = await proxyParseReference(kind, pageText.slice(0, 80000), industry)
     return NextResponse.json(parsed)
   } catch (e: any) {
     Sentry.captureException(e, { tags: { route: 'admin-reference-data-parse' } })
