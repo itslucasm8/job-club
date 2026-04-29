@@ -14,6 +14,8 @@ type SourceConfig = {
   boardSlug?: string
 }
 
+type HealthStatus = 'working' | 'partial' | 'broken' | 'unverified' | 'disabled'
+
 type Source = {
   id: string
   slug: string
@@ -25,7 +27,7 @@ type Source = {
   adapter: string | null
   config: SourceConfig | null
   profile: any | null
-  healthStatus: string | null
+  healthStatus: HealthStatus | null
   consecutiveFailures: number
   lastRunAt: string | null
   lastRunStatus: string | null
@@ -56,24 +58,17 @@ const INGESTION_STRATEGIES: { value: string, label: string, badge: string }[] = 
 ]
 
 // Operational status of a source — drives sort and status pill.
-// healthStatus (persistent, written by runner) wins when set; otherwise we
-// fall back to legacy runtime computation from totalApproved + lastRunStatus.
 type SourceStatus = 'productive' | 'partial' | 'broken' | 'attention' | 'configured_off' | 'inventory'
 
 function statusOf(s: Source): SourceStatus {
-  // 1. No adapter → just inventory, regardless of anything else.
   if (!s.adapter) return 'inventory'
-  // 2. Persistent health signals (broken/partial) win over enabled state — a
-  //    broken source is broken whether you've toggled it off or not, and
-  //    hiding it under "configured_off" buries the signal you need to act on.
+  // broken/partial outrank disabled — actionable signals must not hide under "configured (off)".
   if (s.healthStatus === 'broken') return 'broken'
   if (s.healthStatus === 'partial') return 'partial'
-  // 3. Disabled + not-flagged-broken-or-partial: it's just "configured but off."
   if (!s.enabled) return 'configured_off'
-  // 4. Enabled with healthy or implicit-working state.
   if (s.healthStatus === 'working') return 'productive'
   if (s.healthStatus === 'unverified') return 'attention'
-  // Legacy fallback for rows the runner hasn't touched since healthStatus shipped.
+  // Pre-healthStatus rows: infer from run history.
   if (s.totalApproved > 0 || s.lastRunStatus === 'ok') return 'productive'
   return 'attention'
 }
