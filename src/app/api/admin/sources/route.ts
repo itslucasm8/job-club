@@ -8,6 +8,7 @@ const VALID_CATEGORIES = ['government', 'aggregator', 'ats_rss', 'competitor', '
 const VALID_ADAPTERS = ['workforce_australia', 'harvest_trail', 'generic_career_page', 'manual', 'extension'] as const
 const VALID_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
 const VALID_JOB_CATS = ['farm', 'hospitality', 'construction', 'retail', 'cleaning', 'events', 'animals', 'transport', 'other'] as const
+const VALID_SHEET_TABS = ['seek', 'gumtree', 'facebook', 'packhouse', 'station', 'website', 'mine_agency', 'job_agency', 'government', 'manual'] as const
 
 const SLUG_RE = /^[a-z0-9_-]+$/
 
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Body JSON invalide' }, { status: 400 })
   }
 
-  const { slug, label, category, adapter, enabled, config } = body || {}
+  const { slug, label, category, sheetTab, adapter, enabled, config } = body || {}
 
   if (typeof slug !== 'string' || !SLUG_RE.test(slug)) {
     return NextResponse.json({ error: 'Slug requis (a-z, 0-9, _, -)' }, { status: 400 })
@@ -54,6 +55,9 @@ export async function POST(req: Request) {
   }
   if (adapter != null && !VALID_ADAPTERS.includes(adapter)) {
     return NextResponse.json({ error: `Adapter invalide. Valeurs: ${VALID_ADAPTERS.join(', ')}` }, { status: 400 })
+  }
+  if (sheetTab != null && !VALID_SHEET_TABS.includes(sheetTab)) {
+    return NextResponse.json({ error: `Onglet invalide. Valeurs: ${VALID_SHEET_TABS.join(', ')}` }, { status: 400 })
   }
 
   // Generic adapter requires a URL in config — otherwise the runner can't discover anything.
@@ -75,6 +79,7 @@ export async function POST(req: Request) {
         slug,
         label: label.trim(),
         category,
+        sheetTab: sheetTab ?? null,
         adapter: adapter ?? null,
         enabled: enabled !== false,
         config: config ?? null,

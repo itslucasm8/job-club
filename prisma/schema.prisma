@@ -120,6 +120,7 @@ model JobSource {
   slug          String    @unique
   label         String
   category      String    // government | aggregator | ats_rss | competitor | manual | direct
+  sheetTab      String?   // organizational grouping from Lucas's source sheet: seek | gumtree | facebook | packhouse | station | website | mine_agency | job_agency | government | manual
   enabled       Boolean   @default(true)
   adapter       String?   // adapter name for the source runner (workforce_australia | harvest_trail | generic_career_page | manual | extension)
   config        Json?     // adapter-specific config (search URL, default state/category, selectors for generic adapter, etc.)

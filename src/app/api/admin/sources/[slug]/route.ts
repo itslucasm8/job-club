@@ -8,6 +8,7 @@ const VALID_CATEGORIES = ['government', 'aggregator', 'ats_rss', 'competitor', '
 const VALID_ADAPTERS = ['workforce_australia', 'harvest_trail', 'generic_career_page', 'manual', 'extension'] as const
 const VALID_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
 const VALID_JOB_CATS = ['farm', 'hospitality', 'construction', 'retail', 'cleaning', 'events', 'animals', 'transport', 'other'] as const
+const VALID_SHEET_TABS = ['seek', 'gumtree', 'facebook', 'packhouse', 'station', 'website', 'mine_agency', 'job_agency', 'government', 'manual'] as const
 
 export async function PATCH(req: Request, { params }: { params: { slug: string } }) {
   const session = await getServerSession(authOptions)
@@ -35,6 +36,12 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
       return NextResponse.json({ error: `Catégorie invalide` }, { status: 400 })
     }
     data.category = body.category
+  }
+  if ('sheetTab' in body) {
+    if (body.sheetTab != null && !VALID_SHEET_TABS.includes(body.sheetTab)) {
+      return NextResponse.json({ error: `Onglet invalide` }, { status: 400 })
+    }
+    data.sheetTab = body.sheetTab ?? null
   }
   if ('adapter' in body) {
     if (body.adapter != null && !VALID_ADAPTERS.includes(body.adapter)) {

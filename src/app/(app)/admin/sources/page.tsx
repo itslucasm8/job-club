@@ -16,6 +16,7 @@ type Source = {
   slug: string
   label: string
   category: string
+  sheetTab: string | null
   enabled: boolean
   adapter: string | null
   config: SourceConfig | null
@@ -27,6 +28,20 @@ type Source = {
   totalRejected: number
 }
 
+// Tabs mirror Lucas's source sheet structure. Order = display order.
+const SHEET_TABS: { value: string, label: string, hint?: string }[] = [
+  { value: 'job_agency', label: 'Job Agencies' },
+  { value: 'mine_agency', label: 'Mine Agencies' },
+  { value: 'station', label: 'Stations' },
+  { value: 'packhouse', label: 'Packhouses' },
+  { value: 'website', label: 'Websites' },
+  { value: 'government', label: 'Government', hint: 'Workforce Australia, Harvest Trail' },
+  { value: 'facebook', label: 'Facebook', hint: 'Groupes — utilise l\'extension' },
+  { value: 'gumtree', label: 'Gumtree', hint: 'Mots-clés de recherche' },
+  { value: 'seek', label: 'Seek', hint: 'Mots-clés de recherche' },
+  { value: 'manual', label: 'Manuel' },
+]
+
 const SOURCE_CATEGORIES = ['government', 'aggregator', 'ats_rss', 'competitor', 'manual', 'direct'] as const
 const SOURCE_ADAPTERS = ['workforce_australia', 'harvest_trail', 'generic_career_page', 'manual', 'extension'] as const
 const AU_STATES = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT'] as const
@@ -36,6 +51,7 @@ type SourceFormState = {
   slug: string
   label: string
   category: string
+  sheetTab: string
   adapter: string
   enabled: boolean
   configUrl: string
@@ -45,11 +61,12 @@ type SourceFormState = {
   configPattern: string
 }
 
-function emptyForm(): SourceFormState {
+function emptyForm(defaultTab?: string | null): SourceFormState {
   return {
     slug: '',
     label: '',
     category: 'direct',
+    sheetTab: defaultTab || '',
     adapter: 'generic_career_page',
     enabled: true,
     configUrl: '',
@@ -66,6 +83,7 @@ function formFromSource(s: Source): SourceFormState {
     slug: s.slug,
     label: s.label,
     category: s.category,
+    sheetTab: s.sheetTab || '',
     adapter: s.adapter || '',
     enabled: s.enabled,
     configUrl: cfg.url || '',
@@ -130,9 +148,11 @@ export default function AdminSourcesPage() {
   const [form, setForm] = useState<SourceFormState>(emptyForm())
   const [formError, setFormError] = useState<string | null>(null)
   const [formSaving, setFormSaving] = useState(false)
+  // Active tab filter. null = "Tous". When creating, pre-fill with selectedTab.
+  const [selectedTab, setSelectedTab] = useState<string | null>(null)
 
   function openCreate() {
-    setForm(emptyForm())
+    setForm(emptyForm(selectedTab))
     setFormError(null)
     setEditing({ mode: 'create' })
   }
@@ -164,6 +184,7 @@ export default function AdminSourcesPage() {
       const payload: any = {
         label: form.label,
         category: form.category,
+        sheetTab: form.sheetTab || null,
         adapter: form.adapter || null,
         enabled: form.enabled,
         config: buildConfigPayload(),
@@ -397,9 +418,62 @@ export default function AdminSourcesPage() {
         )}
       </div>
 
+      {/* Tab navigation — mirrors Lucas's source sheet structure */}
+      {!loading && sources.length > 0 && (() => {
+        const counts = new Map<string, number>()
+        let untagged = 0
+        for (const s of sources) {
+          if (s.sheetTab) counts.set(s.sheetTab, (counts.get(s.sheetTab) || 0) + 1)
+          else untagged++
+        }
+        return (
+          <div className="mb-4 flex flex-wrap gap-1.5 border-b border-stone-200 pb-1">
+            <button
+              onClick={() => setSelectedTab(null)}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
+                selectedTab === null ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+              }`}
+            >
+              Tous <span className="opacity-70 font-mono">{sources.length}</span>
+            </button>
+            {SHEET_TABS.map(tab => {
+              const count = counts.get(tab.value) || 0
+              if (count === 0) return null
+              const active = selectedTab === tab.value
+              return (
+                <button
+                  key={tab.value}
+                  onClick={() => setSelectedTab(tab.value)}
+                  title={tab.hint}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
+                    active ? 'bg-purple-700 text-white' : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
+                  }`}
+                >
+                  {tab.label} <span className="opacity-70 font-mono">{count}</span>
+                </button>
+              )
+            })}
+            {untagged > 0 && (
+              <button
+                onClick={() => setSelectedTab('__untagged__')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
+                  selectedTab === '__untagged__' ? 'bg-amber-700 text-white' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                }`}
+              >
+                Sans onglet <span className="opacity-70 font-mono">{untagged}</span>
+              </button>
+            )}
+          </div>
+        )
+      })()}
+
       {/* Add/Edit panel */}
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-bold text-stone-900">Sources enregistrées</h2>
+        <h2 className="text-sm font-bold text-stone-900">
+          {selectedTab === null && 'Toutes les sources'}
+          {selectedTab === '__untagged__' && 'Sources sans onglet'}
+          {selectedTab && selectedTab !== '__untagged__' && (SHEET_TABS.find(t => t.value === selectedTab)?.label || selectedTab)}
+        </h2>
         {!editing && (
           <button
             onClick={openCreate}
@@ -449,6 +523,17 @@ export default function AdminSourcesPage() {
                 className="w-full px-2 py-1.5 border border-stone-300 rounded"
               >
                 {SOURCE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="block font-semibold text-stone-700">Onglet (sheet)</span>
+              <select
+                value={form.sheetTab}
+                onChange={e => setForm({ ...form, sheetTab: e.target.value })}
+                className="w-full px-2 py-1.5 border border-stone-300 rounded"
+              >
+                <option value="">— aucun —</option>
+                {SHEET_TABS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </label>
             <label className="space-y-1">
@@ -550,12 +635,20 @@ export default function AdminSourcesPage() {
         </div>
       )}
 
-      {/* Sources table */}
-      {loading ? (
-        <div className="text-center py-12 text-stone-500">Chargement…</div>
-      ) : sources.length === 0 ? (
-        <div className="text-center py-12 text-stone-500">Aucune source enregistrée.</div>
-      ) : (
+      {/* Sources table — filtered by selected tab */}
+      {(() => {
+        const filteredSources = selectedTab === null
+          ? sources
+          : selectedTab === '__untagged__'
+            ? sources.filter(s => !s.sheetTab)
+            : sources.filter(s => s.sheetTab === selectedTab)
+        return loading ? (
+          <div className="text-center py-12 text-stone-500">Chargement…</div>
+        ) : sources.length === 0 ? (
+          <div className="text-center py-12 text-stone-500">Aucune source enregistrée.</div>
+        ) : filteredSources.length === 0 ? (
+          <div className="text-center py-12 text-stone-500">Aucune source dans cet onglet.</div>
+        ) : (
         <div className="overflow-x-auto bg-white border border-stone-200 rounded-lg">
           <table className="w-full border-collapse">
             <thead>
@@ -572,7 +665,7 @@ export default function AdminSourcesPage() {
               </tr>
             </thead>
             <tbody>
-              {sources.map(s => {
+              {filteredSources.map(s => {
                 const denom = s.totalApproved + s.totalRejected
                 const approvalRate = denom > 0 ? Math.round((s.totalApproved / denom) * 100) : 0
                 // Per-row Run button gate: just needs an adapter. The `enabled`
@@ -648,7 +741,8 @@ export default function AdminSourcesPage() {
             </tbody>
           </table>
         </div>
-      )}
+        )
+      })()}
 
       {/* Recent runs history */}
       {runs.length > 0 && (
