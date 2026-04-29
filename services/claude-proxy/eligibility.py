@@ -53,6 +53,29 @@ def reload_data() -> None:
     """Clear all reference-data caches. Call after a save-reference-data write."""
     _load_json.cache_clear()
     _load_postcodes.cache_clear()
+    _load_localities.cache_clear()
+
+
+@lru_cache(maxsize=2)
+def _load_localities() -> dict[str, dict[str, int]]:
+    """Returns {STATE_CODE: {locality_lower: postcode}} or empty dict if missing."""
+    data = _load_json('au_localities.json')
+    if not data or not isinstance(data, dict):
+        return {}
+    raw = data.get('localities') or {}
+    out: dict[str, dict[str, int]] = {}
+    for state, entries in raw.items():
+        if not isinstance(entries, dict):
+            continue
+        clean: dict[str, int] = {}
+        for name, pc in entries.items():
+            try:
+                clean[str(name).strip().lower()] = int(pc)
+            except (ValueError, TypeError):
+                continue
+        if clean:
+            out[state.upper()] = clean
+    return out
 
 
 @lru_cache(maxsize=8)
@@ -129,6 +152,46 @@ _POSTCODE_AFTER_STATE_RE = re.compile(
     r'\b(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\s*[,\s]\s*(\d{4})\b',
     re.IGNORECASE,
 )
+
+
+# Tokens we strip when normalising a location string for locality matching.
+# Keeps the scan to the actual place name: "Hallam, VIC 3803" → "hallam"
+_STATE_TOKEN_RE = re.compile(r'\b(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\b', re.IGNORECASE)
+_PUNCT_RE = re.compile(r'[,;/()\[\]\-–—]')
+
+
+def infer_postcode_from_locality(location: str | None, state: str | None) -> int | None:
+    """Best-effort lookup: 'Hallam, VIC' + state='VIC' → 3803.
+
+    Strategy:
+      - Drop the state token and punctuation, lowercase.
+      - Try multi-word locality keys (e.g. 'byron bay', 'mount gambier') first
+        so longer matches win — otherwise 'mount' alone could greedy-match.
+      - Match as a substring on word boundaries.
+
+    Returns the postcode (int) or None. Always treat the result as
+    medium-confidence — explicit text postcodes from parse_postcode() take
+    precedence at the call site.
+    """
+    if not location or not state:
+        return None
+    state_code = state.strip().upper()
+    state_dict = _load_localities().get(state_code)
+    if not state_dict:
+        return None
+    # Normalise: drop state tokens + punctuation, collapse whitespace.
+    cleaned = _STATE_TOKEN_RE.sub(' ', location)
+    cleaned = _PUNCT_RE.sub(' ', cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip().lower()
+    if not cleaned:
+        return None
+    # Try longer keys first so 'mount gambier' beats 'mount'.
+    keys_by_len = sorted(state_dict.keys(), key=lambda k: -len(k))
+    padded = f' {cleaned} '
+    for key in keys_by_len:
+        if f' {key} ' in padded:
+            return state_dict[key]
+    return None
 
 
 def parse_postcode(*texts: str | None) -> int | None:
@@ -245,11 +308,20 @@ def parse_pay_to_hourly(pay: str | None, employment_type: str = 'casual') -> dic
 
 # ─── 88-day eligibility ────────────────────────────────────────────────────
 
-def compute_88day(category: str | None, postcode: int | None, state: str | None) -> dict[str, Any]:
+def compute_88day(
+    category: str | None,
+    postcode: int | None,
+    state: str | None,
+    postcode_inferred: bool = False,
+) -> dict[str, Any]:
     """Returns {eligible, reason, confidence, industry}.
 
     eligible: True | False | None  (None = cannot determine)
     confidence: 'high' | 'medium' | 'low'
+
+    postcode_inferred=True signals the postcode came from a city→postcode
+    locality lookup rather than explicit text. We downgrade 'high' verdicts
+    to 'medium' so admin reviewers know the location anchor is softer.
     """
     industry = _industry_for_category(category)
 
@@ -278,19 +350,22 @@ def compute_88day(category: str | None, postcode: int | None, state: str | None)
             'reason': f'Liste postcodes_{industry}.json non disponible — données de référence manquantes',
         }
     codes, all_state_codes = loaded
+    inferred_suffix = ' (postcode déduit du nom de ville — confiance moyenne)' if postcode_inferred else ''
+    confidence = 'medium' if postcode_inferred else 'high'
+
     if state and state.upper() in all_state_codes:
         return {
-            'eligible': True, 'industry': industry, 'confidence': 'high',
-            'reason': f'État {state} entièrement éligible pour {industry} (toutes zones)',
+            'eligible': True, 'industry': industry, 'confidence': confidence,
+            'reason': f'État {state} entièrement éligible pour {industry} (toutes zones){inferred_suffix}',
         }
     if postcode in codes:
         return {
-            'eligible': True, 'industry': industry, 'confidence': 'high',
-            'reason': f'Postcode {postcode} dans la liste officielle {industry}',
+            'eligible': True, 'industry': industry, 'confidence': confidence,
+            'reason': f'Postcode {postcode} dans la liste officielle {industry}{inferred_suffix}',
         }
     return {
-        'eligible': False, 'industry': industry, 'confidence': 'high',
-        'reason': f'Postcode {postcode} pas dans la liste officielle {industry} (zone non régionale au sens 88 jours)',
+        'eligible': False, 'industry': industry, 'confidence': confidence,
+        'reason': f'Postcode {postcode} pas dans la liste officielle {industry} (zone non régionale au sens 88 jours){inferred_suffix}',
     }
 
 
@@ -385,10 +460,20 @@ def assess(raw: dict[str, Any]) -> dict[str, Any]:
     pay = raw.get('pay') or ''
 
     postcode = parse_postcode(location, state, description)
+    postcode_source = 'explicit' if postcode else None
     if not postcode:
-        notes.append(f'Aucun postcode détecté dans location/state — éligibilité 88 jours non vérifiable. Location="{location[:60]}"')
+        # Fallback: look up city+state in the curated locality dict.
+        # 'Hallam, VIC' → 3803. Inferred postcodes flow through compute_88day
+        # with confidence='medium' so admin sees the softer anchor.
+        inferred = infer_postcode_from_locality(location, state)
+        if inferred:
+            postcode = inferred
+            postcode_source = 'inferred_from_city'
+            notes.append(f'Postcode {postcode} déduit du nom de ville dans "{location[:60]}" (confiance moyenne)')
+        else:
+            notes.append(f'Aucun postcode détecté dans location/state — éligibilité 88 jours non vérifiable. Location="{location[:60]}"')
 
-    elig = compute_88day(category, postcode, state)
+    elig = compute_88day(category, postcode, state, postcode_inferred=(postcode_source == 'inferred_from_city'))
     notes.append(f'88j: {elig["reason"]}')
 
     award = compute_award(category, employment_type)
@@ -417,6 +502,7 @@ def assess(raw: dict[str, Any]) -> dict[str, Any]:
         'eligibility_reason': elig['reason'],
         'eligibility_confidence': elig['confidence'],
         'postcode': postcode,
+        'postcode_source': postcode_source,
         'industry': elig['industry'],
         'award_id': award.get('award_id'),
         'award_name': award.get('award_name'),
