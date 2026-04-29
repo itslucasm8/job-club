@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import Link from 'next/link'
 
 type SourceConfig = {
   url?: string
@@ -23,6 +24,7 @@ type Source = {
   enabled: boolean
   adapter: string | null
   config: SourceConfig | null
+  profile: any | null
   lastRunAt: string | null
   lastRunStatus: string | null
   lastRunError: string | null
@@ -994,8 +996,22 @@ export default function AdminSourcesPage() {
                       )}
                     </td>
                     <td className="px-3 py-2">
-                      <div className="font-bold text-stone-900">{s.label}</div>
-                      <div className="text-[10px] text-stone-500 font-mono">{s.slug}</div>
+                      <Link
+                        href={`/admin/sources/${encodeURIComponent(s.slug)}`}
+                        className="font-bold text-stone-900 hover:text-purple-700 hover:underline transition"
+                        title="Voir la fiche détaillée + analytics"
+                      >
+                        {s.label}
+                      </Link>
+                      <div className="text-[10px] text-stone-500 font-mono flex items-center gap-1">
+                        <span>{s.slug}</span>
+                        {s.profile?.notes && (
+                          <span title={s.profile.notes.slice(0, 200)} className="text-purple-600">📝</span>
+                        )}
+                        {s.profile?.fixHistory?.length > 0 && (
+                          <span title={`${s.profile.fixHistory.length} fix(es) enregistrés`} className="text-stone-500">🔧</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-stone-600 font-mono text-[11px]">
                       {s.adapter || '—'}

@@ -1,0 +1,439 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
+import Link from 'next/link'
+
+type SourceDetail = {
+  id: string
+  slug: string
+  label: string
+  category: string
+  sheetTab: string | null
+  ingestionStrategy: string | null
+  enabled: boolean
+  adapter: string | null
+  config: any
+  profile: any
+  lastRunAt: string | null
+  lastRunStatus: string | null
+  lastRunError: string | null
+  totalSeen: number
+  totalApproved: number
+  totalRejected: number
+  createdAt: string
+}
+
+type Analytics = {
+  slug: string
+  label: string
+  summary: { total: number; pending: number; approved: number; rejected: number; auto_rejected: number; duplicate: number }
+  last30Days: { total: number; pending: number; approved: number; rejected: number; auto_rejected: number; duplicate: number }
+  approvalRate: number | null
+  avgListingsPerRun: number | null
+  daily: Array<{ date: string; count: number }>
+  recentRuns: Array<{
+    startedAt: string
+    status: 'ok' | 'error' | 'skipped'
+    listingsFound: number
+    listingsNew: number
+    imported: number
+    duplicates: number
+    errors: number
+    durationMs: number
+    errorMessage?: string
+  }>
+}
+
+type FixHistoryEntry = {
+  date: string
+  author: string
+  note: string
+}
+
+type Profile = {
+  notes?: string
+  expectedMinListings?: number | null
+  fixHistory?: FixHistoryEntry[]
+}
+
+function fmtDate(s: string | null | undefined): string {
+  if (!s) return '—'
+  return new Date(s).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return '—'
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return "à l'instant"
+  if (mins < 60) return `${mins} min`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} h`
+  return `${Math.floor(hours / 24)} j`
+}
+
+export default function SourceDetailPage({ params }: { params: { slug: string } }) {
+  const { data: session } = useSession()
+  const slug = params.slug
+  const [source, setSource] = useState<SourceDetail | null>(null)
+  const [analytics, setAnalytics] = useState<Analytics | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Profile editing state — local copy synced to backend on blur/save.
+  const [notes, setNotes] = useState('')
+  const [expectedMin, setExpectedMin] = useState<string>('')
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [profileMsg, setProfileMsg] = useState<string | null>(null)
+
+  // Fix-history add form
+  const [newFixNote, setNewFixNote] = useState('')
+  const [addingFix, setAddingFix] = useState(false)
+
+  async function load() {
+    setLoading(true)
+    setError(null)
+    try {
+      const [srcRes, anRes] = await Promise.all([
+        fetch(`/api/admin/sources`).then(r => r.ok ? r.json() : null),
+        fetch(`/api/admin/sources/${encodeURIComponent(slug)}/analytics`),
+      ])
+      if (Array.isArray(srcRes)) {
+        const found = srcRes.find((s: SourceDetail) => s.slug === slug)
+        if (!found) {
+          setNotFound(true)
+          return
+        }
+        setSource(found)
+        const profile = (found.profile as Profile) || {}
+        setNotes(profile.notes || '')
+        setExpectedMin(profile.expectedMinListings != null ? String(profile.expectedMinListings) : '')
+      }
+      if (anRes.ok) {
+        setAnalytics(await anRes.json())
+      } else if (anRes.status === 404) {
+        setNotFound(true)
+      } else {
+        setError(`Analytics: HTTP ${anRes.status}`)
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Erreur réseau')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug])
+
+  async function saveProfile(nextProfile: Profile) {
+    setSavingProfile(true)
+    setProfileMsg(null)
+    try {
+      const res = await fetch(`/api/admin/sources/${encodeURIComponent(slug)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile: nextProfile }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setProfileMsg(`✗ ${data?.error || `HTTP ${res.status}`}`)
+        return
+      }
+      const updated = await res.json() as SourceDetail
+      setSource(updated)
+      setProfileMsg('✓ Enregistré')
+      setTimeout(() => setProfileMsg(null), 2000)
+    } catch (e: any) {
+      setProfileMsg(`✗ ${e?.message || 'Erreur réseau'}`)
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  async function saveNotesAndExpected() {
+    const profile: Profile = (source?.profile as Profile) || {}
+    const next: Profile = {
+      ...profile,
+      notes: notes,
+      expectedMinListings: expectedMin.trim() === '' ? null : Number(expectedMin),
+    }
+    await saveProfile(next)
+  }
+
+  async function addFixNote() {
+    if (!newFixNote.trim()) return
+    setAddingFix(true)
+    const profile: Profile = (source?.profile as Profile) || {}
+    const entry: FixHistoryEntry = {
+      date: new Date().toISOString().slice(0, 10),
+      author: (session?.user as any)?.email || 'admin',
+      note: newFixNote.trim(),
+    }
+    const next: Profile = {
+      ...profile,
+      fixHistory: [entry, ...(profile.fixHistory || [])],
+    }
+    await saveProfile(next)
+    setNewFixNote('')
+    setAddingFix(false)
+  }
+
+  async function runNow() {
+    try {
+      const res = await fetch('/api/admin/sources/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slugs: [slug] }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        alert(d?.error || `Erreur ${res.status}`)
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Erreur réseau')
+    }
+  }
+
+  if (!session || (session.user as any)?.role !== 'admin') {
+    return <div className="px-4 sm:px-5 lg:px-7 py-5"><p className="text-stone-500">Non autorisé</p></div>
+  }
+
+  if (loading) return <div className="px-4 sm:px-5 lg:px-7 py-12 text-center text-stone-500">Chargement…</div>
+  if (notFound) return (
+    <div className="px-4 sm:px-5 lg:px-7 py-12 text-center">
+      <p className="text-stone-500 mb-3">Source introuvable.</p>
+      <Link href="/admin/sources" className="text-purple-700 hover:underline text-sm">← Retour aux sources</Link>
+    </div>
+  )
+  if (error || !source || !analytics) return (
+    <div className="px-4 sm:px-5 lg:px-7 py-12 text-center">
+      <p className="text-red-600 mb-3">Erreur: {error || 'données manquantes'}</p>
+      <Link href="/admin/sources" className="text-purple-700 hover:underline text-sm">← Retour aux sources</Link>
+    </div>
+  )
+
+  const profile = (source.profile as Profile) || {}
+  const fixHistory = profile.fixHistory || []
+  const maxDaily = Math.max(1, ...analytics.daily.map(d => d.count))
+  const expectedMinNum = profile.expectedMinListings
+  const lastRun = analytics.recentRuns[0]
+  const driftWarning = expectedMinNum != null && lastRun && lastRun.status === 'ok' && lastRun.listingsFound < expectedMinNum
+
+  return (
+    <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-5xl">
+      <Link href="/admin/sources" className="text-xs text-stone-500 hover:text-stone-900 mb-2 inline-block">← Retour aux sources</Link>
+
+      {/* Header */}
+      <div className="mb-5 flex flex-wrap items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900 break-words">{source.label}</h1>
+          <div className="flex flex-wrap gap-1.5 items-center text-[11px] mt-1.5">
+            <span className="font-mono text-stone-500">{source.slug}</span>
+            {source.enabled
+              ? <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">actif</span>
+              : <span className="px-2 py-0.5 rounded-full bg-stone-200 text-stone-600 font-semibold">désactivé</span>}
+            {source.adapter && <span className="px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-mono">{source.adapter}</span>}
+            {source.ingestionStrategy && <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-semibold">{source.ingestionStrategy}</span>}
+            {source.sheetTab && <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800">tab: {source.sheetTab}</span>}
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {source.adapter && (
+            <button
+              onClick={runNow}
+              className="px-3 py-1.5 rounded-md text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white transition"
+            >
+              ▶ Run maintenant
+            </button>
+          )}
+          <Link
+            href="/admin/sources"
+            className="px-3 py-1.5 rounded-md text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
+          >
+            ✏ Modifier (depuis la table)
+          </Link>
+        </div>
+      </div>
+
+      {/* Drift warning */}
+      {driftWarning && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs">
+          <span className="font-bold">⚠ Drift détecté.</span> Le dernier run a trouvé <span className="font-mono">{lastRun.listingsFound}</span> annonces,
+          mais le profile attend au moins <span className="font-mono">{expectedMinNum}</span>. Le sélecteur a peut-être changé sur le site source.
+        </div>
+      )}
+
+      {/* Stats card */}
+      <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard label="Importées (30j)" value={analytics.last30Days.total} />
+        <StatCard label="Approuvées (30j)" value={analytics.last30Days.approved} className="text-green-700" />
+        <StatCard
+          label="Taux d'approbation"
+          value={analytics.approvalRate != null ? `${Math.round(analytics.approvalRate * 100)}%` : '—'}
+        />
+        <StatCard
+          label="Annonces moy. / run"
+          value={analytics.avgListingsPerRun != null ? analytics.avgListingsPerRun : '—'}
+        />
+      </div>
+
+      {/* Daily histogram */}
+      <div className="mb-5 p-3 bg-white border border-stone-200 rounded-lg">
+        <div className="text-xs font-bold text-stone-700 mb-2">Imports — 14 derniers jours</div>
+        <div className="flex items-end gap-0.5 h-16">
+          {analytics.daily.map((d) => {
+            const pct = (d.count / maxDaily) * 100
+            return (
+              <div
+                key={d.date}
+                title={`${d.date}: ${d.count} importées`}
+                className="flex-1 bg-purple-100 hover:bg-purple-200 rounded-t transition"
+                style={{ height: `${Math.max(2, pct)}%`, minHeight: '2px' }}
+              />
+            )
+          })}
+        </div>
+        <div className="flex justify-between text-[9px] text-stone-400 mt-1 font-mono">
+          <span>{analytics.daily[0]?.date}</span>
+          <span>{analytics.daily[analytics.daily.length - 1]?.date}</span>
+        </div>
+      </div>
+
+      {/* Recent runs */}
+      <div className="mb-5">
+        <h2 className="text-sm font-bold text-stone-900 mb-2">10 derniers runs</h2>
+        {analytics.recentRuns.length === 0 ? (
+          <div className="p-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-500">
+            Aucun run enregistré pour cette source.
+          </div>
+        ) : (
+          <div className="overflow-x-auto bg-white border border-stone-200 rounded-lg">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-stone-200 text-[11px]">
+                  <th className="text-left px-3 py-2 font-semibold text-stone-700">Quand</th>
+                  <th className="text-center px-3 py-2 font-semibold text-stone-700">Statut</th>
+                  <th className="text-right px-3 py-2 font-semibold text-stone-700">Vues</th>
+                  <th className="text-right px-3 py-2 font-semibold text-stone-700">Nouvelles</th>
+                  <th className="text-right px-3 py-2 font-semibold text-stone-700">Importées</th>
+                  <th className="text-right px-3 py-2 font-semibold text-stone-700">Erreurs</th>
+                  <th className="text-right px-3 py-2 font-semibold text-stone-700">Durée</th>
+                  <th className="text-left px-3 py-2 font-semibold text-stone-700">Erreur</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analytics.recentRuns.map((r, i) => (
+                  <tr key={i} className="border-b border-stone-100">
+                    <td className="px-3 py-1.5 text-stone-700">{timeAgo(r.startedAt)}</td>
+                    <td className="px-3 py-1.5 text-center">
+                      <span className={r.status === 'ok' ? 'text-green-700' : 'text-red-600'}>
+                        {r.status === 'ok' ? '✓' : '✗'} {r.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{r.listingsFound}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-blue-700">{r.listingsNew}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-green-700">{r.imported}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-red-600">{r.errors}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-stone-500">{Math.round(r.durationMs / 1000)}s</td>
+                    <td className="px-3 py-1.5 text-red-600 max-w-md truncate">{r.errorMessage}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Profile */}
+      <div className="mb-5 p-4 bg-stone-50 border border-stone-200 rounded-lg">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-stone-900">📝 Profile</h2>
+          {profileMsg && <span className="text-[11px] text-stone-600">{profileMsg}</span>}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          <label className="space-y-1 text-xs sm:col-span-2">
+            <span className="block font-semibold text-stone-700">Notes admin</span>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              onBlur={saveNotesAndExpected}
+              rows={4}
+              placeholder="Quirks, sélecteurs custom, contacts internes, anything à savoir avant de toucher cette source…"
+              className="w-full px-2 py-1.5 border border-stone-300 rounded text-xs"
+            />
+          </label>
+          <label className="space-y-1 text-xs">
+            <span className="block font-semibold text-stone-700">Annonces minimum attendues / run</span>
+            <input
+              type="number"
+              min={0}
+              value={expectedMin}
+              onChange={e => setExpectedMin(e.target.value)}
+              onBlur={saveNotesAndExpected}
+              placeholder="ex: 3"
+              className="w-full px-2 py-1.5 border border-stone-300 rounded text-xs"
+            />
+            <span className="block text-[10px] text-stone-500">
+              Si un run réussi trouve moins que ça, on déclenche un avertissement de drift.
+            </span>
+          </label>
+        </div>
+
+        {/* Fix history */}
+        <div className="mt-4">
+          <h3 className="text-xs font-bold text-stone-800 mb-2">Historique de fixes</h3>
+          <div className="flex gap-2 mb-3">
+            <input
+              type="text"
+              value={newFixNote}
+              onChange={e => setNewFixNote(e.target.value)}
+              placeholder="ex: Sélecteur changé de .job-card à .position-row"
+              className="flex-1 px-2 py-1.5 border border-stone-300 rounded text-xs"
+              onKeyDown={e => { if (e.key === 'Enter' && newFixNote.trim()) addFixNote() }}
+            />
+            <button
+              onClick={addFixNote}
+              disabled={addingFix || !newFixNote.trim() || savingProfile}
+              className="px-3 py-1.5 rounded text-xs font-bold bg-stone-900 hover:bg-stone-800 text-white disabled:opacity-50"
+            >
+              + Ajouter
+            </button>
+          </div>
+          {fixHistory.length === 0 ? (
+            <p className="text-[11px] text-stone-500 italic">Aucun fix enregistré pour cette source.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {fixHistory.map((f, i) => (
+                <li key={i} className="text-xs border-l-2 border-stone-300 pl-2 py-0.5">
+                  <span className="font-mono text-stone-500 text-[10px]">{f.date}</span>
+                  <span className="text-stone-400 text-[10px] ml-1">— {f.author}</span>
+                  <div className="text-stone-800">{f.note}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* Source created info */}
+      <div className="text-[11px] text-stone-400">
+        Source créée: {fmtDate(source.createdAt)}
+        {source.lastRunAt && <> • Dernier run: {fmtDate(source.lastRunAt)}</>}
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ label, value, className }: { label: string; value: string | number; className?: string }) {
+  return (
+    <div className="p-3 bg-white border border-stone-200 rounded-lg">
+      <div className="text-[11px] text-stone-500 mb-0.5">{label}</div>
+      <div className={`text-xl font-extrabold tabular-nums ${className || 'text-stone-900'}`}>{value}</div>
+    </div>
+  )
+}

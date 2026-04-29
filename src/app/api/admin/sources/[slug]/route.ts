@@ -59,6 +59,15 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
     }
     data.ingestionStrategy = body.ingestionStrategy ?? null
   }
+  if ('profile' in body) {
+    // Profile is free-form Json — admin notes, expectations, fix history.
+    // We don't enforce a strict shape because future Claude auto-fix flows
+    // will extend it. Just sanity-check the type.
+    if (body.profile != null && typeof body.profile !== 'object') {
+      return NextResponse.json({ error: 'profile doit être un objet JSON ou null' }, { status: 400 })
+    }
+    data.profile = body.profile ?? null
+  }
   if ('adapter' in body) {
     if (body.adapter != null && !VALID_ADAPTERS.includes(body.adapter)) {
       return NextResponse.json({ error: `Adapter invalide` }, { status: 400 })

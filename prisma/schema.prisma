@@ -129,6 +129,11 @@ model JobSource {
   //   keyword_search  → search-keyword inventory (Seek/Gumtree prompts)  — Flow C
   //   manual          → manual entry / catch-all
   ingestionStrategy String?
+  // Per-source admin profile — free-form knowledge file. Holds notes,
+  // expected behaviour ({ expectedMinListings: number }), and an
+  // append-only fix history changelog ({ fixHistory: [{ date, author, note }] }).
+  // Future Claude auto-fix flow will read + propose updates to this field.
+  profile       Json?
   enabled       Boolean   @default(true)
   adapter       String?   // adapter name for the source runner (workforce_australia | harvest_trail | generic_career_page | manual | extension)
   config        Json?     // adapter-specific config (search URL, default state/category, selectors for generic adapter, etc.)

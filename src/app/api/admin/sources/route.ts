@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Body JSON invalide' }, { status: 400 })
   }
 
-  const { slug, label, category, sheetTab, ingestionStrategy, adapter, enabled, config } = body || {}
+  const { slug, label, category, sheetTab, ingestionStrategy, adapter, enabled, config, profile } = body || {}
 
   if (typeof slug !== 'string' || !SLUG_RE.test(slug)) {
     return NextResponse.json({ error: 'Slug requis (a-z, 0-9, _, -)' }, { status: 400 })
@@ -113,6 +113,7 @@ export async function POST(req: Request) {
         adapter: adapter ?? null,
         enabled: enabled !== false,
         config: config ?? null,
+        profile: profile ?? null,
       },
     })
     return NextResponse.json(created, { status: 201 })
