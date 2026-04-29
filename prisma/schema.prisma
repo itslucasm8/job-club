@@ -134,6 +134,15 @@ model JobSource {
   // append-only fix history changelog ({ fixHistory: [{ date, author, note }] }).
   // Future Claude auto-fix flow will read + propose updates to this field.
   profile       Json?
+  // Persistent operational health, written by the runner after each scan.
+  // null  → fall back to runtime statusOf() (no run history yet)
+  // 'working'   → last run ok + yield within expectations
+  // 'partial'   → last run ok BUT yield below profile.expectedMinListings (drift signal)
+  // 'broken'    → consecutiveFailures >= 2
+  // 'unverified'→ explicitly marked needs-verification (not auto-set)
+  // 'disabled'  → soft mirror of enabled=false
+  healthStatus  String?
+  consecutiveFailures Int  @default(0)
   enabled       Boolean   @default(true)
   adapter       String?   // adapter name for the source runner (workforce_australia | harvest_trail | generic_career_page | manual | extension)
   config        Json?     // adapter-specific config (search URL, default state/category, selectors for generic adapter, etc.)

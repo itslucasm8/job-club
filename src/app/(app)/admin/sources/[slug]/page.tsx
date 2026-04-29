@@ -14,6 +14,8 @@ type SourceDetail = {
   adapter: string | null
   config: any
   profile: any
+  healthStatus: string | null
+  consecutiveFailures: number
   lastRunAt: string | null
   lastRunStatus: string | null
   lastRunError: string | null
@@ -21,6 +23,14 @@ type SourceDetail = {
   totalApproved: number
   totalRejected: number
   createdAt: string
+}
+
+const HEALTH_META: Record<string, { label: string, dot: string, pillClass: string }> = {
+  working:    { label: 'Working',    dot: '🟢', pillClass: 'bg-green-100 text-green-800' },
+  partial:    { label: 'Partiel',    dot: '🟠', pillClass: 'bg-orange-100 text-orange-800' },
+  broken:     { label: 'Cassée',     dot: '🔴', pillClass: 'bg-red-100 text-red-800' },
+  unverified: { label: 'Non vérifiée', dot: '⚪', pillClass: 'bg-stone-100 text-stone-600' },
+  disabled:   { label: 'Désactivée', dot: '⚫', pillClass: 'bg-stone-200 text-stone-500' },
 }
 
 type Analytics = {
@@ -198,6 +208,36 @@ export default function SourceDetailPage({ params }: { params: { slug: string } 
     }
   }
 
+  // Verify state — shows the latest verification result inline.
+  const [verifyResult, setVerifyResult] = useState<{
+    ok: boolean
+    listingsFound?: number
+    healthStatus?: string
+    durationMs?: number
+    message?: string
+    sampleTitles?: string[]
+  } | null>(null)
+  const [verifying, setVerifying] = useState(false)
+
+  async function verifyNow() {
+    setVerifying(true)
+    setVerifyResult(null)
+    try {
+      const res = await fetch(`/api/admin/sources/${encodeURIComponent(slug)}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const data = await res.json().catch(() => ({}))
+      setVerifyResult(data)
+      // Refresh the source row so the header health pill reflects the new state.
+      load()
+    } catch (e: any) {
+      setVerifyResult({ ok: false, message: e?.message || 'Erreur réseau' })
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   if (!session || (session.user as any)?.role !== 'admin') {
     return <div className="px-4 sm:px-5 lg:px-7 py-5"><p className="text-stone-500">Non autorisé</p></div>
   }
@@ -233,22 +273,41 @@ export default function SourceDetailPage({ params }: { params: { slug: string } 
           <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900 break-words">{source.label}</h1>
           <div className="flex flex-wrap gap-1.5 items-center text-[11px] mt-1.5">
             <span className="font-mono text-stone-500">{source.slug}</span>
+            {source.healthStatus && HEALTH_META[source.healthStatus] && (() => {
+              const m = HEALTH_META[source.healthStatus]
+              return (
+                <span className={`px-2 py-0.5 rounded-full font-bold ${m.pillClass}`}>
+                  {m.dot} Santé: {m.label}
+                  {source.consecutiveFailures > 0 && ` (${source.consecutiveFailures} échecs consécutifs)`}
+                </span>
+              )
+            })()}
             {source.enabled
-              ? <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">actif</span>
+              ? <span className="px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-semibold">actif</span>
               : <span className="px-2 py-0.5 rounded-full bg-stone-200 text-stone-600 font-semibold">désactivé</span>}
             {source.adapter && <span className="px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-mono">{source.adapter}</span>}
             {source.ingestionStrategy && <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-semibold">{source.ingestionStrategy}</span>}
             {source.sheetTab && <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800">tab: {source.sheetTab}</span>}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {source.adapter && (
-            <button
-              onClick={runNow}
-              className="px-3 py-1.5 rounded-md text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white transition"
-            >
-              ▶ Run maintenant
-            </button>
+            <>
+              <button
+                onClick={verifyNow}
+                disabled={verifying}
+                className="px-3 py-1.5 rounded-md text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition disabled:opacity-50"
+                title="Lance discover() seulement (pas d'extract Claude). Met à jour healthStatus."
+              >
+                {verifying ? 'Vérification…' : '✓ Vérifier'}
+              </button>
+              <button
+                onClick={runNow}
+                className="px-3 py-1.5 rounded-md text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white transition"
+              >
+                ▶ Run maintenant
+              </button>
+            </>
           )}
           <Link
             href="/admin/sources"
@@ -258,6 +317,28 @@ export default function SourceDetailPage({ params }: { params: { slug: string } 
           </Link>
         </div>
       </div>
+
+      {/* Verify result inline panel */}
+      {verifyResult && (
+        <div className={`mb-4 p-3 rounded-lg border text-xs ${
+          verifyResult.ok && verifyResult.healthStatus === 'working' ? 'bg-emerald-50 border-emerald-300 text-emerald-900' :
+          verifyResult.healthStatus === 'partial' ? 'bg-amber-50 border-amber-300 text-amber-900' :
+          'bg-red-50 border-red-300 text-red-900'
+        }`}>
+          <div className="font-bold mb-1">
+            {verifyResult.ok && verifyResult.healthStatus === 'working' && '✓ Vérification réussie'}
+            {verifyResult.healthStatus === 'partial' && '⚠ Vérification partielle'}
+            {!verifyResult.ok && '✗ Vérification échouée'}
+            {verifyResult.durationMs != null && <span className="ml-2 font-normal opacity-70">({Math.round(verifyResult.durationMs)}ms)</span>}
+          </div>
+          <div>{verifyResult.message}</div>
+          {verifyResult.sampleTitles && verifyResult.sampleTitles.length > 0 && (
+            <div className="mt-2 text-[11px]">
+              Échantillon : {verifyResult.sampleTitles.map((t, i) => <span key={i} className="inline-block bg-white border border-current rounded px-1.5 py-0.5 mr-1 mt-1">{t.slice(0, 60)}</span>)}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Drift warning */}
       {driftWarning && (

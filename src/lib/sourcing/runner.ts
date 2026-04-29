@@ -53,6 +53,62 @@ async function runWithConcurrency<T, R>(items: T[], limit: number, fn: (x: T) =>
 
 type ListingOutcome = 'inserted' | 'duplicate' | 'error'
 
+// Number of consecutive errors that flips healthStatus → 'broken'.
+// 1 is too noisy (a transient WAF blip shouldn't burn a source's reputation);
+// 2 means "happened twice in a row" which is a real signal.
+const FAIL_BROKEN_THRESHOLD = 2
+
+/** Persist a successful run to JobSource: bumps totalSeen, resets failure
+ *  counter, and computes healthStatus from listingsFound vs profile expectations.
+ *
+ *  partial = succeeded but yield is below expectedMinListings (drift indicator).
+ *  working = succeeded with yield at or above expectations (or no expectation set).
+ */
+async function markSourceSuccess(slug: string, listingsFound: number): Promise<void> {
+  const row = await prisma.jobSource.findUnique({
+    where: { slug },
+    select: { profile: true },
+  })
+  const expectedMin = (row?.profile as any)?.expectedMinListings as number | undefined
+  const newHealth: 'working' | 'partial' =
+    typeof expectedMin === 'number' && expectedMin > 0 && listingsFound < expectedMin
+      ? 'partial'
+      : 'working'
+  await prisma.jobSource.update({
+    where: { slug },
+    data: {
+      lastRunAt: new Date(),
+      lastRunStatus: 'ok',
+      lastRunError: null,
+      totalSeen: { increment: listingsFound },
+      healthStatus: newHealth,
+      consecutiveFailures: 0,
+    },
+  })
+}
+
+/** Persist a failed run: increments consecutiveFailures and flips health to
+ *  'broken' once the threshold is crossed. Two-step write because Prisma can't
+ *  conditionally branch on the post-increment value in a single update. */
+async function markSourceFailure(slug: string, errorMessage: string): Promise<void> {
+  const updated = await prisma.jobSource.update({
+    where: { slug },
+    data: {
+      lastRunAt: new Date(),
+      lastRunStatus: 'error',
+      lastRunError: errorMessage,
+      consecutiveFailures: { increment: 1 },
+    },
+    select: { consecutiveFailures: true, healthStatus: true },
+  })
+  if (updated.consecutiveFailures >= FAIL_BROKEN_THRESHOLD && updated.healthStatus !== 'broken') {
+    await prisma.jobSource.update({
+      where: { slug },
+      data: { healthStatus: 'broken' },
+    })
+  }
+}
+
 async function runOneSource(
   adapter: SourceAdapter,
   onListingDone?: (outcome: ListingOutcome) => Promise<void> | void,
@@ -65,6 +121,10 @@ async function runOneSource(
   try {
     listings = await adapter.discover()
   } catch (e: any) {
+    const errorMessage = `discover failed: ${e?.message || String(e)}`
+    // Persist the failure so the per-source row's lastRunStatus + health stay
+    // honest. Two consecutive failures flip healthStatus to 'broken'.
+    await markSourceFailure(adapter.slug, errorMessage).catch(() => {})
     return {
       slug: adapter.slug,
       status: 'error',
@@ -73,7 +133,7 @@ async function runOneSource(
       imported: 0,
       duplicates: 0,
       errors: 1,
-      errorMessage: `discover failed: ${e?.message || String(e)}`,
+      errorMessage,
       durationMs: Date.now() - start,
     }
   }
@@ -137,21 +197,13 @@ async function runOneSource(
     }
   }
 
-  // Update JobSource counters opportunistically. totalSeen is "listings the
-  // source surfaced this run" — useful for yield % later.
-  try {
-    await prisma.jobSource.update({
-      where: { slug: adapter.slug },
-      data: {
-        lastRunAt: new Date(),
-        lastRunStatus: 'ok',
-        lastRunError: null,
-        totalSeen: { increment: capped.length },
-      },
-    })
-  } catch {
+  // Update JobSource counters + health status. totalSeen is "listings the
+  // source surfaced this run" — useful for yield % later. healthStatus
+  // reflects whether the run came back as expected (working) or below
+  // profile.expectedMinListings (partial / drift signal).
+  await markSourceSuccess(adapter.slug, capped.length).catch(() => {
     // Source row may not exist if seed missed — runner shouldn't break on this.
-  }
+  })
 
   return {
     slug: adapter.slug,

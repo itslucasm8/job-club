@@ -25,6 +25,8 @@ type Source = {
   adapter: string | null
   config: SourceConfig | null
   profile: any | null
+  healthStatus: string | null
+  consecutiveFailures: number
   lastRunAt: string | null
   lastRunStatus: string | null
   lastRunError: string | null
@@ -53,24 +55,31 @@ const INGESTION_STRATEGIES: { value: string, label: string, badge: string }[] = 
   { value: 'manual',          label: 'Manuel',                                          badge: 'Man' },
 ]
 
-// Operational status of a source — drives the sort order and the status pill.
-// Sorted: productive first, then needs attention, then configured-off, then inventory.
-type SourceStatus = 'productive' | 'attention' | 'configured_off' | 'inventory'
+// Operational status of a source — drives sort and status pill.
+// healthStatus (persistent, written by runner) wins when set; otherwise we
+// fall back to legacy runtime computation from totalApproved + lastRunStatus.
+type SourceStatus = 'productive' | 'partial' | 'broken' | 'attention' | 'configured_off' | 'inventory'
 
 function statusOf(s: Source): SourceStatus {
   if (!s.adapter) return 'inventory'
   if (!s.enabled) return 'configured_off'
-  // Has adapter + enabled. "Productive" = real signs of life.
+  // Persistent health takes priority — runner has written real state here.
+  if (s.healthStatus === 'working') return 'productive'
+  if (s.healthStatus === 'partial') return 'partial'
+  if (s.healthStatus === 'broken') return 'broken'
+  if (s.healthStatus === 'unverified') return 'attention'
+  // Legacy fallback for rows the runner hasn't touched since healthStatus shipped.
   if (s.totalApproved > 0 || s.lastRunStatus === 'ok') return 'productive'
-  // Otherwise it needs attention (never run yet, or last run errored).
   return 'attention'
 }
 
 const STATUS_META: Record<SourceStatus, { label: string, dot: string, pillClass: string, sortRank: number }> = {
-  productive:    { label: 'Productive',     dot: '🟢', sortRank: 0, pillClass: 'bg-green-100 text-green-800' },
-  attention:     { label: 'À tester',       dot: '🟡', sortRank: 1, pillClass: 'bg-amber-100 text-amber-800' },
-  configured_off:{ label: 'Configurée (off)', dot: '🔵', sortRank: 2, pillClass: 'bg-blue-100 text-blue-700' },
-  inventory:     { label: 'Inventaire',     dot: '⚪', sortRank: 3, pillClass: 'bg-stone-100 text-stone-500' },
+  productive:    { label: 'Productive',       dot: '🟢', sortRank: 0, pillClass: 'bg-green-100 text-green-800' },
+  partial:       { label: 'Partielle',        dot: '🟠', sortRank: 1, pillClass: 'bg-orange-100 text-orange-800' },
+  broken:        { label: 'Cassée',           dot: '🔴', sortRank: 2, pillClass: 'bg-red-100 text-red-800' },
+  attention:     { label: 'À tester',         dot: '🟡', sortRank: 3, pillClass: 'bg-amber-100 text-amber-800' },
+  configured_off:{ label: 'Configurée (off)', dot: '🔵', sortRank: 4, pillClass: 'bg-blue-100 text-blue-700' },
+  inventory:     { label: 'Inventaire',       dot: '⚪', sortRank: 5, pillClass: 'bg-stone-100 text-stone-500' },
 }
 
 // Tabs mirror Lucas's source sheet structure. Order = display order.
@@ -890,7 +899,7 @@ export default function AdminSourcesPage() {
       {/* Quick-filter chips + search — orthogonal to sheet-tab filter */}
       {!loading && sources.length > 0 && (() => {
         const statusCounts: Record<SourceStatus, number> = {
-          productive: 0, attention: 0, configured_off: 0, inventory: 0,
+          productive: 0, partial: 0, broken: 0, attention: 0, configured_off: 0, inventory: 0,
         }
         for (const s of sources) statusCounts[statusOf(s)]++
         return (
@@ -903,17 +912,20 @@ export default function AdminSourcesPage() {
             >
               Toutes <span className="opacity-70 font-mono">{sources.length}</span>
             </button>
-            {(['productive', 'attention', 'configured_off', 'inventory'] as SourceStatus[]).map(st => (
-              <button
-                key={st}
-                onClick={() => setStatusFilter(statusFilter === st ? null : st)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
-                  statusFilter === st ? `${STATUS_META[st].pillClass} ring-2 ring-offset-1 ring-stone-400` : `${STATUS_META[st].pillClass} hover:opacity-90`
-                }`}
-              >
-                {STATUS_META[st].dot} {STATUS_META[st].label} <span className="opacity-70 font-mono">{statusCounts[st]}</span>
-              </button>
-            ))}
+            {(['productive', 'partial', 'broken', 'attention', 'configured_off', 'inventory'] as SourceStatus[]).map(st => {
+              if (statusCounts[st] === 0 && st !== statusFilter) return null
+              return (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(statusFilter === st ? null : st)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
+                    statusFilter === st ? `${STATUS_META[st].pillClass} ring-2 ring-offset-1 ring-stone-400` : `${STATUS_META[st].pillClass} hover:opacity-90`
+                  }`}
+                >
+                  {STATUS_META[st].dot} {STATUS_META[st].label} <span className="opacity-70 font-mono">{statusCounts[st]}</span>
+                </button>
+              )
+            })}
             <input
               type="text"
               value={searchQuery}
