@@ -24,6 +24,12 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     stripParams: ['type', 'ref', 'origin', 'sol', 'savedjob', 'searchrequesttoken'],
     stripFragment: true,
   },
+  // FB injects __cft__ / __tn__ / fbclid into post permalinks for tracking;
+  // strip so the same /groups/<gid>/posts/<pid> URL doesn't dedupe-leak.
+  facebook_groups: {
+    stripParams: ['fbclid', '__cft__', '__tn__', 'comment_id', 'reply_comment_id', 'notif_id', 'notif_t'],
+    stripFragment: true,
+  },
 }
 
 export function canonicalizeUrl(rawUrl: string, siteSlug?: string | null): string {

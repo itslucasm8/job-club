@@ -611,6 +611,91 @@ export async function extractWithPlaybook(
   }
 }
 
+/** Same logic as extractWithPlaybook but skips the proxy fetch — caller
+ *  already has the HTML in hand (e.g. browser-extension FB scraping where
+ *  the post HTML comes in via the ingest endpoint, no fetch needed).
+ *
+ *  The text param is optional; if absent we extract a plain-text version
+ *  from the HTML for the LLM fallback path and the known-error matcher.
+ */
+export async function extractWithPlaybookFromHtml(
+  playbook: EffectivePlaybook,
+  url: string,
+  html: string,
+  text?: string,
+): Promise<PlaybookExtractionResult> {
+  const fingerprint = computeLayoutFingerprint(html)
+  const plainText = text ?? cheerio.load(html).root().text().replace(/\s+/g, ' ').trim().slice(0, 25000)
+
+  for (const ke of playbook.mergedKnownErrors) {
+    if (ke.action === 'skip' && matchesKnownError(ke.pattern, plainText)) {
+      return {
+        mode: 'failed',
+        outcome: { rulesFired: [], fingerprint },
+        extraction: {
+          extraction_failed: true,
+          failure_reason: `known: ${ke.diagnosis}`,
+          raw: { title: '', company: '', description: '' },
+        },
+      }
+    }
+  }
+
+  const tryResult = tryExtract(playbook, html, url)
+  if (tryResult.missing.length === 0) {
+    let raw: any = { ...tryResult.fields }
+    try {
+      const enriched = await proxyReassessEligibility(raw)
+      raw = enriched
+    } catch {/* swallow */}
+    return {
+      mode: 'playbook',
+      outcome: { rulesFired: tryResult.rulesFired, fingerprint },
+      extraction: {
+        extraction_failed: false,
+        failure_reason: '',
+        raw,
+        sourceText: plainText,
+      },
+    }
+  }
+
+  try {
+    const data = await proxyExtract(url, plainText)
+    if (data.extraction_failed) {
+      return {
+        mode: 'failed',
+        outcome: { rulesFired: tryResult.rulesFired, fingerprint },
+        extraction: {
+          extraction_failed: true,
+          failure_reason: data.failure_reason || 'unspecified',
+          raw: { title: '', company: '', description: '' },
+        },
+      }
+    }
+    return {
+      mode: 'full',
+      outcome: { rulesFired: tryResult.rulesFired, fingerprint },
+      extraction: {
+        extraction_failed: false,
+        failure_reason: '',
+        raw: proxyResultToRaw(data),
+        sourceText: plainText,
+      },
+    }
+  } catch (e: any) {
+    return {
+      mode: 'failed',
+      outcome: { rulesFired: tryResult.rulesFired, fingerprint },
+      extraction: {
+        extraction_failed: true,
+        failure_reason: `Proxy error: ${e?.message || String(e)}`,
+        raw: { title: '', company: '', description: '' },
+      },
+    }
+  }
+}
+
 function matchesKnownError(pattern: string, text: string): boolean {
   try {
     const re = parseRegex(pattern)

@@ -24,6 +24,9 @@ model User {
   only88Days           Boolean   @default(false) // Only notify about 88-day eligible jobs
   preferredLanguage    String    @default("fr") // "fr" or "en"
   onboardingCompleted  Boolean   @default(false)
+  // Long-lived bearer token used by the FB-group browser extension. Issued
+  // from /admin/extensions; nulling it revokes the token. Admin role only.
+  extensionToken       String?   @unique
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   savedJobs            SavedJob[]
@@ -208,4 +211,21 @@ model SourcingRun {
   triggeredBy         String?   // admin user id/email
 
   @@index([status, startedAt])
+}
+
+// One row per browser-extension scrape run (FB groups). Created by the
+// extension's heartbeat call so the admin UI can show "extension last ran
+// at X, scraped Y posts across Z groups" without polling the extension.
+model ExtensionRun {
+  id           String    @id @default(cuid())
+  startedAt    DateTime  @default(now())
+  completedAt  DateTime?
+  totalPosts   Int       @default(0)
+  totalErrors  Int       @default(0)
+  // Per-group breakdown: [{ sourceSlug, postsCaptured, scrollDuration, error? }]
+  groupRuns    Json?
+  triggeredBy  String?   // 'scheduled' | 'manual' | <user email for dev>
+  errorMessage String?
+
+  @@index([startedAt])
 }
