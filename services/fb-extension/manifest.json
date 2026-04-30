@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Job Club — Facebook Group Scraper",
+  "version": "0.1.0",
+  "description": "Harvests posts from configured Facebook groups and ships them to Job Club for classification.",
+
+  "host_permissions": [
+    "*://*.facebook.com/*",
+    "https://thejobclub.com.au/*",
+    "http://localhost:3000/*"
+  ],
+
+  "permissions": [
+    "storage",
+    "scripting",
+    "alarms",
+    "tabs"
+  ],
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Job Club FB Scraper"
+  },
+
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["*://*.facebook.com/groups/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": ["run.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Job Club FB Scraper — Run</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 600px;
+      margin: 60px auto;
+      padding: 0 20px;
+      color: #1c1917;
+    }
+    h1 { font-size: 22px; }
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .running { background: #fef3c7; color: #92400e; }
+    .ok { background: #dcfce7; color: #166534; }
+    .err { background: #fee2e2; color: #991b1b; }
+    pre { background: #f5f5f4; padding: 8px; border-radius: 4px; font-size: 11px; max-height: 200px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <h1>🔵 Job Club — Daily Run</h1>
+  <div class="status running" id="status">Démarrage du run programmé…</div>
+  <pre id="detail"></pre>
+
+  <script>
+    // Triggered by Windows Task Scheduler:
+    //   chrome.exe --app=chrome-extension://<extension-id>/run.html
+    //
+    // Sends a message to the background service worker, displays progress,
+    // closes itself on completion (so Chrome exits cleanly).
+    const status = document.getElementById('status')
+    const detail = document.getElementById('detail')
+
+    chrome.runtime.sendMessage({ type: 'runNow', triggeredBy: 'scheduled' }, (resp) => {
+      if (chrome.runtime.lastError) {
+        status.className = 'status err'
+        status.textContent = '✗ ' + chrome.runtime.lastError.message
+        return
+      }
+      if (resp?.ok) {
+        const s = resp.summary
+        status.className = 'status ok'
+        status.textContent = `✓ Terminé. ${s.totalPosts} posts capturés sur ${s.groupRuns.length} groupes.`
+        detail.textContent = JSON.stringify(s, null, 2)
+        // Close the window after 5s so Chrome can exit if Task Scheduler launched it.
+        setTimeout(() => window.close(), 5000)
+      } else {
+        status.className = 'status err'
+        status.textContent = '✗ ' + (resp?.error || 'Erreur inconnue')
+        detail.textContent = JSON.stringify(resp, null, 2)
+      }
+    })
+  </script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Job Club FB Scraper — Options</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 0 20px;
+      color: #1c1917;
+      line-height: 1.5;
+    }
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    .subtitle { color: #57534e; font-size: 13px; margin-bottom: 24px; }
+    label { display: block; margin-top: 18px; font-weight: 600; font-size: 13px; }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      margin-top: 4px;
+      border: 1px solid #d6d3d1;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    input[type="text"]:focus, input[type="password"]:focus {
+      outline: 2px solid #6b21a8;
+      border-color: transparent;
+    }
+    .help { font-size: 11px; color: #78716c; margin-top: 4px; }
+    button {
+      margin-top: 24px;
+      padding: 8px 16px;
+      background: #1c1917;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button:hover { background: #292524; }
+    .status {
+      margin-top: 12px;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      display: none;
+    }
+    .status.ok { background: #dcfce7; color: #166534; display: block; }
+    .status.err { background: #fee2e2; color: #991b1b; display: block; }
+    code {
+      background: #f5f5f4;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Job Club — FB Scraper</h1>
+  <div class="subtitle">Configuration de l'extension Chrome</div>
+
+  <label>
+    URL du backend
+    <input type="text" id="backend" placeholder="https://thejobclub.com.au">
+    <div class="help">Production: <code>https://thejobclub.com.au</code> · Dev local: <code>http://localhost:3000</code></div>
+  </label>
+
+  <label>
+    Token d'authentification
+    <input type="password" id="token" placeholder="64 caractères hex">
+    <div class="help">Génère depuis <code>/admin/extensions</code> côté Job Club. Ne se montre qu'une seule fois — copie-le immédiatement après génération.</div>
+  </label>
+
+  <button id="save">Sauvegarder</button>
+  <button id="test" style="margin-left: 8px; background: #6b21a8;">Tester la connexion</button>
+
+  <div class="status" id="status"></div>
+
+  <hr style="margin-top: 32px; border: none; border-top: 1px solid #e7e5e4;">
+  <div style="font-size: 12px; color: #57534e; margin-top: 16px;">
+    <strong>Comment ça marche</strong>
+    <ol style="padding-left: 20px;">
+      <li>Reste connecté au compte Facebook qui est membre des groupes ciblés.</li>
+      <li>L'extension lit la liste des groupes depuis Job Club (<code>GET /api/extension/groups</code>).</li>
+      <li>Pour chaque groupe: ouvre l'onglet, scrolle au rythme humain, capture les posts, ferme l'onglet.</li>
+      <li>Les posts sont POSTés à <code>/api/extension/ingest-batch</code> et passent par le pipeline normal (extraction Claude, classification, queue admin).</li>
+      <li>Un heartbeat est envoyé à la fin pour <code>/admin/extensions</code>.</li>
+    </ol>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
