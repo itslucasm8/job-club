@@ -74,6 +74,13 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
     }
     data.adapter = body.adapter ?? null
   }
+  if ('siteSlug' in body) {
+    // siteSlug is a free-text key linking the source to a SitePlaybook row.
+    // We don't validate against existing rows on write — playbook proposer
+    // can seed rows lazily if needed. Empty string normalised to null.
+    const v = body.siteSlug
+    data.siteSlug = (typeof v === 'string' && v.trim()) ? v.trim() : null
+  }
   if ('enabled' in body) {
     data.enabled = !!body.enabled
   }

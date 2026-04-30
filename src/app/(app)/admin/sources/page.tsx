@@ -25,6 +25,7 @@ type Source = {
   ingestionStrategy: string | null
   enabled: boolean
   adapter: string | null
+  siteSlug: string | null
   config: SourceConfig | null
   profile: any | null
   healthStatus: HealthStatus | null
@@ -113,6 +114,9 @@ type SourceFormState = {
   sheetTab: string
   ingestionStrategy: string
   adapter: string
+  // SitePlaybook key (e.g. 'seek_au', 'facebook_groups'). Sources sharing
+  // a siteSlug share DOM extraction rules — see playbook.ts. Optional.
+  siteSlug: string
   enabled: boolean
   configUrl: string
   configBoardSlug: string
@@ -130,6 +134,7 @@ function emptyForm(defaultTab?: string | null): SourceFormState {
     sheetTab: defaultTab || '',
     ingestionStrategy: 'generic_web',
     adapter: 'generic_career_page',
+    siteSlug: '',
     enabled: true,
     configUrl: '',
     configBoardSlug: '',
@@ -149,6 +154,7 @@ function formFromSource(s: Source): SourceFormState {
     sheetTab: s.sheetTab || '',
     ingestionStrategy: s.ingestionStrategy || '',
     adapter: s.adapter || '',
+    siteSlug: (s as any).siteSlug || '',
     enabled: s.enabled,
     configUrl: cfg.url || '',
     configBoardSlug: cfg.boardSlug || '',
@@ -315,6 +321,7 @@ export default function AdminSourcesPage() {
         sheetTab: form.sheetTab || null,
         ingestionStrategy: form.ingestionStrategy || null,
         adapter: form.adapter || null,
+        siteSlug: form.siteSlug.trim() || null,
         enabled: form.enabled,
         config: buildConfigPayload(),
       }
@@ -724,6 +731,19 @@ export default function AdminSourcesPage() {
                 <option value="">— aucun (manuel) —</option>
                 {SOURCE_ADAPTERS.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
+            </label>
+            <label className="space-y-1">
+              <span className="block font-semibold text-stone-700">Site Slug (playbook partagé)</span>
+              <input
+                type="text"
+                value={form.siteSlug}
+                onChange={e => setForm({ ...form, siteSlug: e.target.value })}
+                placeholder="ex: seek_au, facebook_groups (optionnel)"
+                className="w-full px-2 py-1.5 border border-stone-300 rounded"
+              />
+              <span className="block text-[10px] text-stone-500">
+                Sources partageant le même siteSlug partagent leur playbook d'extraction.
+              </span>
             </label>
             <label className="flex items-center gap-2 sm:col-span-2">
               <input

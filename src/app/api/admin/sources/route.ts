@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Body JSON invalide' }, { status: 400 })
   }
 
-  const { slug, label, category, sheetTab, ingestionStrategy, adapter, enabled, config, profile } = body || {}
+  const { slug, label, category, sheetTab, ingestionStrategy, adapter, siteSlug, enabled, config, profile } = body || {}
 
   if (typeof slug !== 'string' || !SLUG_RE.test(slug)) {
     return NextResponse.json({ error: 'Slug requis (a-z, 0-9, _, -)' }, { status: 400 })
@@ -111,6 +111,7 @@ export async function POST(req: Request) {
         sheetTab: sheetTab ?? null,
         ingestionStrategy: ingestionStrategy ?? null,
         adapter: adapter ?? null,
+        siteSlug: siteSlug ?? null,
         enabled: enabled !== false,
         config: config ?? null,
         profile: profile ?? null,
