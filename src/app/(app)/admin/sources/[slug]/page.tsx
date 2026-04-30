@@ -88,6 +88,35 @@ type Profile = {
   fixHistory?: FixHistoryEntry[]
 }
 
+// Per-source / per-site playbook (see src/lib/sourcing/playbook.ts).
+type PlaybookRule = {
+  id: string
+  kind: 'css_selector' | 'regex'
+  expression: string
+  successCount: number
+  failureCount: number
+  status: 'candidate' | 'active'
+  source: 'observed' | 'llm_proposed'
+  scope: 'site' | 'source'
+  createdAt: string
+  promotedAt?: string
+  lastFiredAt?: string
+}
+
+type EffectivePlaybook = {
+  sourceSlug: string
+  site: {
+    slug: string
+    label: string
+    version: number
+    layoutFingerprint: { hash: string; capturedAt: string } | null
+  } | null
+  source: { version: number; updatedAt: string }
+  mergedFieldRules: Partial<Record<'title'|'company'|'pay'|'location'|'description', PlaybookRule[]>>
+  mergedIgnorePatterns: string[]
+  mergedKnownErrors: { pattern: string; diagnosis: string; action: string }[]
+}
+
 function fmtDate(s: string | null | undefined): string {
   if (!s) return '—'
   return new Date(s).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
@@ -122,6 +151,10 @@ export default function SourceDetailPage({ params }: { params: { slug: string } 
   // Fix-history add form
   const [newFixNote, setNewFixNote] = useState('')
   const [addingFix, setAddingFix] = useState(false)
+
+  // Playbook (merged site + source) — fetched lazily.
+  const [playbook, setPlaybook] = useState<EffectivePlaybook | null>(null)
+  const [playbookLoading, setPlaybookLoading] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -158,8 +191,19 @@ export default function SourceDetailPage({ params }: { params: { slug: string } 
 
   useEffect(() => {
     load()
+    loadPlaybook()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
+
+  async function loadPlaybook() {
+    setPlaybookLoading(true)
+    try {
+      const res = await fetch(`/api/admin/sources/${encodeURIComponent(slug)}/playbook`)
+      if (res.ok) setPlaybook(await res.json())
+    } catch {/* swallow */} finally {
+      setPlaybookLoading(false)
+    }
+  }
 
   async function saveProfile(nextProfile: Profile) {
     setSavingProfile(true)
@@ -690,6 +734,97 @@ export default function SourceDetailPage({ params }: { params: { slug: string } 
             </ul>
           )}
         </div>
+      </div>
+
+      {/* Playbook panel — merged view of site + source rules. */}
+      <div className="mb-5">
+        <h2 className="text-sm font-bold text-stone-900 mb-2">
+          Playbook
+          {playbook?.site && (
+            <span className="ml-2 text-[10px] font-normal text-stone-500">
+              site: <Link className="text-purple-600 hover:underline" href={`/admin/sites/${playbook.site.slug}`}>{playbook.site.label}</Link>
+            </span>
+          )}
+        </h2>
+        {playbookLoading ? (
+          <div className="text-xs text-stone-500">Chargement…</div>
+        ) : !playbook ? (
+          <div className="p-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-500">
+            Aucun playbook pour cette source.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {/* Field rules */}
+            {(['title','company','pay','location','description'] as const).map(field => {
+              const rules = playbook.mergedFieldRules[field] ?? []
+              return (
+                <div key={field} className="p-2 bg-white border border-stone-200 rounded-lg">
+                  <div className="text-[11px] font-bold text-stone-700 mb-1 capitalize">{field}</div>
+                  {rules.length === 0 ? (
+                    <div className="text-[11px] text-stone-400 italic">Aucune règle — fallback Claude complet.</div>
+                  ) : (
+                    <ul className="space-y-1">
+                      {rules.map(r => {
+                        const total = r.successCount + r.failureCount
+                        const hitRate = total > 0 ? Math.round((r.successCount / total) * 100) : null
+                        return (
+                          <li key={r.id} className="flex items-center gap-2 text-[11px]">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${r.scope === 'site' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+                              {r.scope}
+                            </span>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${r.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-stone-200 text-stone-600'}`}>
+                              {r.status}
+                            </span>
+                            <span className="text-stone-400 text-[9px] uppercase">{r.kind === 'css_selector' ? 'css' : 'regex'}</span>
+                            <code className="font-mono text-stone-800 truncate flex-1">{r.expression}</code>
+                            <span className="text-stone-500 tabular-nums whitespace-nowrap">
+                              {hitRate !== null ? `${hitRate}% • ${r.successCount}/${total}` : 'jamais déclenchée'}
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )
+            })}
+
+            {/* Ignore patterns + known errors */}
+            {(playbook.mergedIgnorePatterns.length > 0 || playbook.mergedKnownErrors.length > 0) && (
+              <div className="p-2 bg-white border border-stone-200 rounded-lg space-y-2">
+                {playbook.mergedIgnorePatterns.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-bold text-stone-700 mb-1">Patterns ignorés</div>
+                    <ul className="text-[11px] font-mono text-stone-700 space-y-0.5">
+                      {playbook.mergedIgnorePatterns.map((p, i) => <li key={i}>{p}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {playbook.mergedKnownErrors.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-bold text-stone-700 mb-1">Erreurs connues</div>
+                    <ul className="text-[11px] space-y-0.5">
+                      {playbook.mergedKnownErrors.map((e, i) => (
+                        <li key={i}>
+                          <span className="font-mono text-stone-800">{e.pattern}</span>
+                          <span className="text-stone-500"> → {e.diagnosis} ({e.action})</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Layout fingerprint */}
+            {playbook.site?.layoutFingerprint && (
+              <div className="text-[10px] text-stone-400 font-mono">
+                Empreinte page (site): {playbook.site.layoutFingerprint.hash}
+                {' • capturée '}{fmtDate(playbook.site.layoutFingerprint.capturedAt)}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Source created info */}

@@ -400,6 +400,82 @@ Discipline:
 """
 
 
+PROPOSE_PLAYBOOK_MODEL = 'claude-haiku-4-5'
+
+PROPOSE_PLAYBOOK_SYSTEM = """You author extraction playbooks for Job Club's per-source self-learning pipeline.
+
+A "playbook" tells the runner how to extract a job listing from a specific website's pages WITHOUT calling an LLM. Two layers:
+
+- SITE playbook: rules shared across every source on the same website (e.g. all seek_* sources). DOM-level: CSS selectors for fields, ignore patterns for noise regions, known-error patterns for skip cases.
+- SOURCE playbook: per-source overrides. Same shape, used only when one search term needs different rules from its siblings.
+
+Rule kinds:
+- "css_selector": jQuery-style CSS selector. The runner extracts .text() of the first match.
+- "regex": JavaScript regex. Runs against the page's plain body text. Capture group 1 (if any) is the value, else the full match.
+
+Required fields a playbook must produce: title, company, description. Optional but useful: pay, location.
+
+You receive:
+- the current site + source playbook (so you don't propose what already exists)
+- 1-5 failing pages — page text + a failure tag
+- 1-3 successful pages for contrast — page text + the values that were extracted
+
+Your job: propose ADDITIONS that would let the playbook handle the failing pages. Do NOT delete or modify existing rules — that's handled by the success/failure counter system. Tag each proposal as 'site' (DOM-level, applies to all sources on this website) or 'source' (specific to this search term).
+
+Default to 'site' for selectors of required fields — those are properties of the website, not the search term. Default to 'source' for ignore/known-error patterns that name a specific search-term widget.
+
+Respond with ONLY a JSON object — no preamble, no markdown:
+{
+  "diagnosis": "1-2 sentence plain-language explanation of why the failing pages broke",
+  "reasoning": "what you observed in the failing vs successful pages that informs the proposed rules",
+  "confidence": "low" | "medium" | "high",
+  "siteUpdates": {
+    "addRules": { "title": [{"kind":"css_selector","expression":"h1[data-automation='job-detail-title']"}], "pay": [...] } | null,
+    "addIgnorePatterns": ["section[data-automation='related-jobs']"] | null,
+    "addKnownErrors": [{"pattern":"page contains 'Sign in to continue'","diagnosis":"Listing expired","action":"skip"}] | null
+  } | null,
+  "sourceUpdates": { "addRules": ..., "addIgnorePatterns": ..., "addKnownErrors": ... } | null
+}
+
+Discipline:
+- Propose at most 2-3 new rules per field — don't pad.
+- For css_selector, prefer attribute selectors (h1[data-automation='...']) over class chains. Sites change classes more often than data-* attributes.
+- For regex, write JavaScript-flavoured patterns ("/\\$\\d+(\\.\\d+)?\\s*per hour/i" form). Use capture groups for values you want to keep; raw match works if the whole match is the value.
+- Never propose a rule you can't justify from the supplied page text.
+- When in doubt: confidence="low" and addRules=null. Better to wait for more data than to pollute the playbook.
+"""
+
+
+def propose_playbook(payload: dict[str, Any]) -> dict[str, Any]:
+    """Per-source playbook proposer. Inputs:
+       sourceSlug, siteSlug (str | None), currentSite (dict | None), currentSource (dict),
+       failureSamples [{url, failureTag, pageText}], successSamples [{url, pageText, extracted}].
+    """
+    user_lines = [
+        f"Source: {payload.get('sourceSlug', '')}",
+        f"Site slug: {payload.get('siteSlug') or 'standalone (no shared site playbook)'}",
+        '',
+        '── Current site playbook (read-only context) ──',
+        json.dumps(payload.get('currentSite') or {}, indent=2)[:3000],
+        '',
+        '── Current source playbook (read-only context) ──',
+        json.dumps(payload.get('currentSource') or {}, indent=2)[:2000],
+        '',
+        '── Failure samples ──',
+    ]
+    for i, s in enumerate((payload.get('failureSamples') or [])[:5]):
+        user_lines.append(f"\n[failure {i+1}] tag={s.get('failureTag','')} url={s.get('url','')}")
+        user_lines.append((s.get('pageText') or '')[:3500])
+    user_lines.append('\n── Success samples ──')
+    for i, s in enumerate((payload.get('successSamples') or [])[:3]):
+        user_lines.append(f"\n[success {i+1}] url={s.get('url','')}")
+        user_lines.append('extracted: ' + json.dumps(s.get('extracted') or {})[:600])
+        user_lines.append((s.get('pageText') or '')[:2500])
+    user = '\n'.join(user_lines)
+    response_text = _call_claude(PROPOSE_PLAYBOOK_SYSTEM, user, PROPOSE_PLAYBOOK_MODEL, max_chars=30000, timeout=120)
+    return _parse_json_response(response_text)
+
+
 def suggest_source_fix(payload: dict[str, Any]) -> dict[str, Any]:
     """Propose a config fix for a source with a high error rate. Inputs:
        sourceLabel, sourceSlug, currentConfig (dict), sampleFailedUrls (list[str]),

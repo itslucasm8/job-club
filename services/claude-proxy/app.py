@@ -214,6 +214,26 @@ def suggest_source_fix_endpoint():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/propose-playbook', methods=['POST'])
+def propose_playbook_endpoint():
+    """Per-source playbook proposer. Given the current site + source playbooks
+    and a few failing/successful page samples, asks Claude to propose new
+    extraction rules, ignore patterns, or known-error entries. Caller (Node
+    runner) is responsible for storing proposals as 'candidate' rules.
+    """
+    if not authorized(request):
+        return jsonify({'error': 'unauthorized'}), 401
+    body = request.get_json(silent=True) or {}
+    if not body.get('sourceSlug'):
+        return jsonify({'error': 'sourceSlug required'}), 400
+    try:
+        result = drafter.propose_playbook(body)
+        return jsonify(result)
+    except Exception as e:
+        log.exception('propose-playbook failed')
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/parse-reference', methods=['POST'])
 def parse_reference_endpoint():
     """Parse a pasted regulatory page (Home Affairs postcodes or Fair Work pay guide)

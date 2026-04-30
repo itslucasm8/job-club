@@ -105,6 +105,14 @@ model JobCandidate {
   rejectReason    String?
   classifierScore Json?
   promotedJobId   String?
+  // Per-listing extraction telemetry (populated by the playbook runner).
+  // 'playbook' = all required fields landed via deterministic rules (no LLM call)
+  // 'full'     = fell back to extractFromUrl (today's full-page Claude extraction)
+  // 'failed'   = both paths failed; the candidate was not ingested cleanly
+  extractionMode    String?
+  // Stable hash of the page's structural skeleton at extraction time.
+  // Compared against SitePlaybook.layoutFingerprint to detect drift.
+  layoutFingerprint String?
   createdAt       DateTime  @default(now())
   reviewedAt      DateTime?
   reviewedBy      String?
@@ -146,6 +154,10 @@ model JobSource {
   enabled       Boolean   @default(true)
   adapter       String?   // adapter name for the source runner (workforce_australia | harvest_trail | generic_career_page | manual | extension)
   config        Json?     // adapter-specific config (search URL, default state/category, selectors for generic adapter, etc.)
+  // Cross-source playbook sharing key. All sources hitting the same website
+  // (e.g. every seek_*) share one SitePlaybook keyed by this slug. null =
+  // standalone site (no shared layer; per-source playbook only).
+  siteSlug      String?
   lastRunAt     DateTime?
   lastRunStatus String?   // ok | error | skipped
   lastRunError  String?
@@ -153,6 +165,26 @@ model JobSource {
   totalApproved Int       @default(0)
   totalRejected Int       @default(0)
   createdAt     DateTime  @default(now())
+}
+
+// Shared per-website extraction knowledge. All JobSource rows whose
+// siteSlug equals this row's slug merge their per-source playbook on top
+// of the rules stored here. The DOM-level stuff (field selectors, ignore
+// patterns, known errors, layout fingerprint) lives here so a fix learned
+// on one Seek source instantly benefits every other Seek source.
+model SitePlaybook {
+  slug              String    @id              // 'seek_au', 'gumtree_au', ...
+  label             String                     // human-readable for admin UI
+  version           Int       @default(1)
+  // Field rules per required job field. Each entry follows the Rule shape
+  // documented in src/lib/sourcing/playbook.ts (id, kind, expression,
+  // successCount, failureCount, status, source, scope='site').
+  fieldRules        Json      @default("{}")
+  ignorePatterns    Json      @default("[]")   // string[]
+  knownErrors       Json      @default("[]")   // { pattern, diagnosis, action }[]
+  layoutFingerprint Json?                      // { hash, capturedAt }
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
 
 model SourcingRun {

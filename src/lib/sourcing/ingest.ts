@@ -41,6 +41,14 @@ export type IngestInput = {
   /** Original page text the extractor saw. Stored as `_source_text` on rawData
    *  (truncated to 8000 chars) so admin can audit what Claude dropped or kept. */
   sourceText?: string
+  /** Per-listing telemetry from the playbook runner.
+   *  'playbook' = playbook produced all required fields, no full LLM call
+   *  'full'     = playbook missed, fell back to today's full extraction
+   *  'failed'   = both paths failed (this candidate isn't ingested anyway) */
+  extractionMode?: 'playbook' | 'full' | 'failed'
+  /** Stable hash of the page's structural skeleton (see playbook.ts).
+   *  Compared against SitePlaybook.layoutFingerprint to detect drift. */
+  layoutFingerprint?: string
 }
 
 export type IngestResult =
@@ -93,6 +101,8 @@ export async function ingestCandidate(input: IngestInput): Promise<IngestResult>
         rawData: rawWithSource as any,
         dedupeHash,
         status: 'pending',
+        extractionMode: input.extractionMode ?? null,
+        layoutFingerprint: input.layoutFingerprint ?? null,
       },
       select: { id: true },
     })

@@ -1,11 +1,35 @@
 import { prisma } from '@/lib/prisma'
-import { extractFromUrl } from './extractor'
 import { ingestCandidate } from './ingest'
 import type { ListingStub, SourceAdapter, AdapterRunResult } from './adapters/types'
 import { getAdapter, listAdaptersForSlugsAsync } from './adapters/registry'
+import { canonicalizeUrl } from './url-canonical'
+import {
+  loadEffectivePlaybook,
+  extractWithPlaybook,
+  updateFromOutcome,
+  proposeUpdates,
+  applyProposal,
+  isLayoutDrifting,
+  type EffectivePlaybook,
+  type ListingOutcome,
+} from './playbook'
 
 const DEFAULT_MAX_LISTINGS_PER_SOURCE = 30
 const DEFAULT_EXTRACT_CONCURRENCY = 4
+
+/** Map a free-text failure_reason from the extractor into a coarse tag the
+ *  playbook proposer can group on. Keep the set small — Claude only needs
+ *  to know the failure mode, not parse English. */
+function classifyFailureReason(reason: string | undefined): string {
+  const r = (reason || '').toLowerCase()
+  if (r.includes('http 4') || r.includes('blocked') || r.includes('403') || r.includes('captcha')) return 'page_blocked'
+  if (r.includes('timeout') || r.includes('timed out')) return 'page_timeout'
+  if (r.includes('fetch') && r.includes('error')) return 'fetch_error'
+  if (r.includes('title') || r.includes('company') || r.includes('description')) return 'parse_required_field_missing'
+  if (r.startsWith('known:')) return 'known_error_skip'
+  if (r.includes('proxy')) return 'proxy_unreachable'
+  return 'parse_failed'
+}
 
 /** Cheap: filter listings down to ones we don't already have. We avoid calling
  *  the LLM for anything we can identify by URL or (source, sourceJobId). */
@@ -51,7 +75,7 @@ async function runWithConcurrency<T, R>(items: T[], limit: number, fn: (x: T) =>
   return results
 }
 
-type ListingOutcome = 'inserted' | 'duplicate' | 'error'
+type ListingResultKind = 'inserted' | 'duplicate' | 'error'
 
 // Number of consecutive errors that flips healthStatus → 'broken'.
 // 1 is too noisy (a transient WAF blip shouldn't burn a source's reputation);
@@ -132,7 +156,7 @@ async function markSourceFailure(slug: string, errorMessage: string): Promise<vo
 
 async function runOneSource(
   adapter: SourceAdapter,
-  onListingDone?: (outcome: ListingOutcome) => Promise<void> | void,
+  onListingDone?: (outcome: ListingResultKind) => Promise<void> | void,
   onListingsDiscovered?: (count: number) => Promise<void> | void,
 ): Promise<AdapterRunResult> {
   const start = Date.now()
@@ -159,11 +183,30 @@ async function runOneSource(
     }
   }
 
+  // Canonicalize URLs before any dedupe. Removes Seek-style tracking params
+  // (?origin=, &ref=, #sol=...) that would otherwise let the same /job/<id>
+  // sneak past filterToNew as 2-4 separate listings per run.
+  const sourceRow = await prisma.jobSource.findUnique({
+    where: { slug: adapter.slug },
+    select: { siteSlug: true },
+  }).catch(() => null)
+  const siteSlug = sourceRow?.siteSlug ?? null
+  const canonicalized: ListingStub[] = listings.map(l => ({
+    ...l,
+    url: canonicalizeUrl(l.url, siteSlug),
+  }))
+
   // Trim to cap before any DB roundtrip — avoids loading hundreds of URLs
   // from a chatty source into memory just to drop them.
-  const capped = listings.slice(0, cap)
+  const capped = canonicalized.slice(0, cap)
   const news = await filterToNew(adapter.slug, capped)
   if (onListingsDiscovered) await onListingsDiscovered(capped.length)
+
+  // Load the merged (site + source) playbook once for this run. All
+  // playbook-aware extractions use this snapshot. Adapters with their own
+  // structured extractListing() bypass the playbook entirely (ATS APIs etc.)
+  // because their data is already structured.
+  const playbook = await loadEffectivePlaybook(adapter.slug)
 
   let imported = 0
   let duplicates = 0
@@ -171,15 +214,42 @@ async function runOneSource(
   // Per-listing failure trail. Used to append a structured fixHistory entry
   // on the source when error rate is high — feeds the AI fix-suggestion flow.
   const failures: { url: string; reason: string }[] = []
+  // Per-listing playbook outcomes — drives end-of-run hit/miss accounting
+  // (so candidate rules can promote and stale rules deprecate). Captures
+  // the layout fingerprint per page for drift detection too.
+  const listingOutcomes: ListingOutcome[] = []
+  // Page-text samples gathered during the run, used by the playbook proposer
+  // at end-of-run when failure rate triggers a re-learn.
+  const failurePageTexts: { url: string; failureTag: string; pageText: string }[] = []
+  const successPageTexts: { url: string; pageText: string; extracted: Record<string, any> }[] = []
 
   if (news.length > 0) {
     const outcomes = await runWithConcurrency(news, DEFAULT_EXTRACT_CONCURRENCY, async (listing) => {
-      let outcome: ListingOutcome = 'error'
+      let outcome: ListingResultKind = 'error'
       try {
-        const extraction = adapter.extractListing
-          ? await adapter.extractListing(listing)
-          : await extractFromUrl(listing.url)
+        // Adapter with structured extractListing → bypass playbook (already
+        // has structured data, no DOM scraping needed).
+        // Otherwise → playbook-first path with full-Claude fallback.
+        let extraction
+        let extractionMode: 'playbook' | 'full' | 'failed' = 'failed'
+        let listingOutcome: ListingOutcome = { rulesFired: [] }
+        if (adapter.extractListing) {
+          extraction = await adapter.extractListing(listing)
+          extractionMode = extraction.extraction_failed ? 'failed' : 'full'
+        } else {
+          const r = await extractWithPlaybook(playbook, listing.url)
+          extraction = r.extraction
+          extractionMode = r.mode
+          listingOutcome = r.outcome
+          listingOutcomes.push(r.outcome)
+        }
         if (extraction.extraction_failed) {
+          // Capture failure context for the proposer.
+          failurePageTexts.push({
+            url: listing.url,
+            failureTag: classifyFailureReason(extraction.failure_reason),
+            pageText: (extraction.sourceText || '').slice(0, 6000),
+          })
           outcome = 'error'
           if (onListingDone) await onListingDone(outcome)
           return { kind: 'error' as const, reason: extraction.failure_reason, url: listing.url }
@@ -187,12 +257,22 @@ async function runOneSource(
         const raw: any = { ...extraction.raw }
         if (!raw.category && adapter.defaultCategory) raw.category = adapter.defaultCategory
         if (!raw.state && adapter.defaultState) raw.state = adapter.defaultState
+        // Capture success context for the proposer (only first 3 — diminishing returns).
+        if (successPageTexts.length < 3 && extraction.sourceText) {
+          successPageTexts.push({
+            url: listing.url,
+            pageText: extraction.sourceText.slice(0, 6000),
+            extracted: { title: raw.title, company: raw.company, pay: raw.pay, location: raw.location },
+          })
+        }
         const result = await ingestCandidate({
           source: adapter.slug,
           sourceUrl: listing.url,
           sourceJobId: listing.sourceJobId,
           raw,
           sourceText: extraction.sourceText,
+          extractionMode,
+          layoutFingerprint: listingOutcome.fingerprint,
         })
         outcome = result.status === 'inserted' ? 'inserted' : result.status === 'duplicate' ? 'duplicate' : 'error'
         if (onListingDone) await onListingDone(outcome)
@@ -213,6 +293,50 @@ async function runOneSource(
         errors++
         failures.push({ url: (o as any).url, reason: (o as any).reason || 'unknown' })
       }
+    }
+  }
+
+  // Apply the run's hit/miss tallies back to the right playbook layer
+  // (site rules update SitePlaybook, source rules update profile.playbook).
+  // Promotions of candidate → active happen here.
+  if (!adapter.extractListing && listingOutcomes.length > 0) {
+    await updateFromOutcome({ sourceSlug: adapter.slug, listings: listingOutcomes })
+      .catch(e => console.error('[playbook] updateFromOutcome failed', e))
+  }
+
+  // Trigger the playbook proposer when the run shows clear signs of trouble:
+  //   - At least 3 failures with captured page text (so Claude has data to reason from)
+  //   - OR layout drift across the run (fingerprint diverges from the playbook's expected hash)
+  // We always need at least one success sample to give Claude something to compare.
+  const observedFingerprints = listingOutcomes.map(o => o.fingerprint).filter((x): x is string => !!x)
+  const drifting = isLayoutDrifting(playbook, observedFingerprints)
+  const shouldPropose =
+    !adapter.extractListing &&
+    successPageTexts.length > 0 &&
+    (failurePageTexts.length >= 3 || drifting)
+  if (shouldPropose) {
+    try {
+      const proposal = await proposeUpdates({
+        sourceSlug: adapter.slug,
+        failureSamples: failurePageTexts.slice(0, 5),
+        successSamples: successPageTexts,
+      })
+      if (proposal) {
+        await applyProposal(adapter.slug, proposal)
+        await appendFixHistoryEntry(adapter.slug, {
+          date: new Date().toISOString(),
+          kind: 'playbook_proposal',
+          status: 'applied',
+          confidence: proposal.confidence,
+          diagnosis: proposal.diagnosis,
+          reasoning: proposal.reasoning,
+          siteUpdates: proposal.siteUpdates ?? null,
+          sourceUpdates: proposal.sourceUpdates ?? null,
+          drifted: drifting,
+        }).catch(() => {})
+      }
+    } catch (e) {
+      console.error('[playbook] proposer failed', e)
     }
   }
 
@@ -283,7 +407,7 @@ export async function executeRun(runId: string, slugs: string[]) {
     const adapter = adapters[i]
     // Live progress: bump SourcingRun totals after each listing completes
     // (not just after each source). Otherwise a 5-minute source looks frozen.
-    const onListingDone = async (outcome: ListingOutcome) => {
+    const onListingDone = async (outcome: ListingResultKind) => {
       if (outcome === 'inserted') totals.totalImported += 1
       else if (outcome === 'duplicate') totals.totalDuplicates += 1
       else totals.totalErrors += 1

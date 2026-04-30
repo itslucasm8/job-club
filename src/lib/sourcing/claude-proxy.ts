@@ -136,6 +136,22 @@ export async function proxySuggestSourceFix(args: {
   return postJSON<ProxySuggestionResult>('/suggest-source-fix', args)
 }
 
+// Playbook proposer — given the current site + source playbooks plus a few
+// failing/successful page samples, asks Claude to propose new selectors,
+// regex patterns, ignore patterns, or known-error entries. Used by the
+// per-source self-learning loop in src/lib/sourcing/playbook.ts.
+export async function proxyProposePlaybook(args: {
+  sourceSlug: string
+  siteSlug: string | null
+  currentSite: Record<string, any> | null
+  currentSource: Record<string, any>
+  failureSamples: { url: string; failureTag: string; pageText: string }[]
+  successSamples: { url: string; pageText: string; extracted: Record<string, any> }[]
+}): Promise<any> {
+  // Longer timeout: this prompt carries multiple page snippets.
+  return fetchProxy<any>('POST', '/propose-playbook', args, 180_000)
+}
+
 // Reference-data endpoints (one-off seeding from pasted regulator pages).
 
 export type ProxyParseReferenceResult = {
