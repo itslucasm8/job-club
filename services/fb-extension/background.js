@@ -176,8 +176,14 @@ async function runOneGroup(group) {
 }
 
 async function runAll(triggeredBy = 'manual') {
-  // Recover from any stale lock left by a previously-killed worker.
-  await clearStaleLock()
+  // Manual clicks always win — clear any leftover lock. Scheduled triggers
+  // respect the 5-min stale threshold to avoid clobbering a slow legitimate
+  // run.
+  if (triggeredBy === 'manual') {
+    await chrome.storage.local.set({ runBusy: false, runBusySince: null })
+  } else {
+    await clearStaleLock()
+  }
   const runId = `ext-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   await setRunBusy(true)
 

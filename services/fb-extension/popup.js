@@ -43,6 +43,9 @@ async function refresh() {
     if (resp.running) {
       $('run-btn').disabled = true
       $('run-btn').textContent = '⌛ Run en cours…'
+    } else {
+      $('run-btn').disabled = false
+      $('run-btn').textContent = '▶ Run now'
     }
     // Show useful detail when something went wrong: top-level run error,
     // or per-group failures (capture failed, ingest errored, extraction
