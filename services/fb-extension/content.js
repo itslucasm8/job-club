@@ -12,30 +12,22 @@ console.log('[fb-ext content] loaded on', location.href)
 // FB rotates class names but role-based attributes are stable across rotations.
 // Multiple selectors with graceful degradation — first non-empty wins.
 
-// FB group feeds use multiple structural conventions across rollouts. We probe
-// every selector and pick the one with the most matches above the threshold
-// (real feeds have 10–30+ items; stray "Recommended" cards have 1–2). Picking
-// "first ≥2" was a bug: a 2-match recommended-card selector would beat a
-// 22-match virtualized-feed selector that came later in the list.
-//
-// As of FB's mid-2026 rollout, virtualized groups expose feed items via
-// [aria-posinset]; legacy rollouts still use [role="article"]. Both shapes
-// are tried, and we filter non-feed candidates downstream via the
-// MIN_POST_TEXT_CHARS check + the permalink-anchor requirement.
-const POST_SELECTORS = [
-  '[role="feed"] [aria-posinset]',                   // virtualized + scoped to feed
-  '[role="main"] [aria-posinset]',
-  '[aria-posinset]',                                 // virtualized fallback
-  '[role="feed"] > div > [role="article"]',
-  '[role="feed"] [role="article"]',
+// FB group pages have *two* virtualized regions: the feed itself, and the
+// "Suggested Groups" / "People You May Know" sidebar. Both use [aria-posinset]
+// and the sidebar usually has MORE elements than the visible feed slice —
+// so picking by max-count would always grab the sidebar. We scope every
+// selector inside [role="feed"] (FB's canonical feed container, stable for
+// years) to eliminate sidebar contamination.
+const FEED_SELECTORS = [
+  '[aria-posinset]',                                 // virtualized feed item (current rollout)
+  '[role="article"]',                                // legacy feed item
+  '> div > [role="article"]',                        // direct children of the feed
   '[data-pagelet^="GroupFeed"] [role="article"]',
   '[data-pagelet*="FeedUnit"]',
-  '[role="main"] [role="article"]',
-  '[role="article"]',
 ]
 
 // Used by the diagnostic probe. Helps identify which selector flavor is live
-// when none of POST_SELECTORS match — every value is reported in the response.
+// when none of FEED_SELECTORS match — every value is reported in the response.
 const DIAGNOSTIC_SELECTORS = [
   '[role="feed"]',
   '[role="main"]',
@@ -50,14 +42,33 @@ const DIAGNOSTIC_SELECTORS = [
 ]
 
 function findPosts() {
-  // Probe every selector and pick the one with the most matches. A real feed
-  // produces 10–30+ items; stray sidebar/recommended cards produce 1–2.
-  // Picking "first selector with >=2" is wrong because a 2-match noise
-  // selector earlier in the list will beat a 20-match feed selector later.
+  // Step 1: locate the feed container. There may be multiple [role=feed]
+  // regions (e.g. main feed + secondary). Pick the one with the most direct
+  // children — that's the visible scroll area.
+  const feeds = Array.from(document.querySelectorAll('[role="feed"]'))
+  let feed = null
+  let bestChildCount = -1
+  for (const f of feeds) {
+    const n = f.children.length
+    if (n > bestChildCount) { bestChildCount = n; feed = f }
+  }
+  if (!feed) return { selector: null, elements: [] }
+
+  // Step 2: within the feed, try each FEED_SELECTORS variant and pick the
+  // one with the most matches. Scoping inside the feed means sidebar
+  // discovery cards (which use the same [aria-posinset] attribute) cannot
+  // contaminate the result.
   let best = { selector: null, elements: [] }
-  for (const sel of POST_SELECTORS) {
-    const els = Array.from(document.querySelectorAll(sel))
-    if (els.length > best.elements.length) best = { selector: sel, elements: els }
+  for (const sel of FEED_SELECTORS) {
+    let els
+    try {
+      els = sel.startsWith('>')
+        ? Array.from(feed.querySelectorAll(`:scope ${sel}`))
+        : Array.from(feed.querySelectorAll(sel))
+    } catch { continue }
+    if (els.length > best.elements.length) {
+      best = { selector: `[role="feed"] ${sel}`, elements: els }
+    }
   }
   return best
 }
@@ -360,13 +371,22 @@ function diagnoseDom() {
     if (v) pagelets.add(v)
     if (pagelets.size >= 20) break
   }
+  // Compare global vs feed-scoped element counts so we can see whether
+  // [aria-posinset] is contaminated by sidebar cards.
+  const feedScoped = {}
+  const feedEl = document.querySelector('[role="feed"]')
+  if (feedEl) {
+    feedScoped['[role="feed"] [aria-posinset]'] = feedEl.querySelectorAll('[aria-posinset]').length
+    feedScoped['[role="feed"] [role="article"]'] = feedEl.querySelectorAll('[role="article"]').length
+    feedScoped['[role="feed"] > *'] = feedEl.children.length
+  }
   // Inspect the first 3 elements from the winning selector so we can see
-  // why extractPost() rejected them. This is the most useful piece of info
-  // when findPosts succeeds but capturePosts returns nothing.
+  // why extractPost() rejected them.
   const { selector: winner, elements: candidates } = findPosts()
   const candidateInspections = candidates.slice(0, 3).map(inspectCandidate)
   return {
     probes,
+    feedScoped,
     pageletsSeen: Array.from(pagelets),
     bodyTextLength: (document.body?.innerText || '').length,
     title: document.title,

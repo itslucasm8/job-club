@@ -44,7 +44,23 @@ async function getConfig() {
 }
 
 async function setRunBusy(busy) {
-  await chrome.storage.local.set({ [STATE_KEYS.RUN_BUSY]: !!busy })
+  await chrome.storage.local.set({
+    [STATE_KEYS.RUN_BUSY]: !!busy,
+    runBusySince: busy ? Date.now() : null,
+  })
+}
+
+// A run that started more than this long ago is presumed dead (service
+// worker eviction, network hang, or browser crash) — clear the lock so a
+// new run can start.
+const STALE_LOCK_MS = 5 * 60 * 1000
+
+async function clearStaleLock() {
+  const { runBusy, runBusySince } = await chrome.storage.local.get(['runBusy', 'runBusySince'])
+  if (runBusy && runBusySince && Date.now() - runBusySince > STALE_LOCK_MS) {
+    console.warn('[fb-ext] clearing stale runBusy lock from', new Date(runBusySince).toISOString())
+    await chrome.storage.local.set({ runBusy: false, runBusySince: null })
+  }
 }
 
 async function setLastRun(summary) {
@@ -160,6 +176,8 @@ async function runOneGroup(group) {
 }
 
 async function runAll(triggeredBy = 'manual') {
+  // Recover from any stale lock left by a previously-killed worker.
+  await clearStaleLock()
   const runId = `ext-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   await setRunBusy(true)
 
