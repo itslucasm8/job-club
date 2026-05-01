@@ -84,88 +84,43 @@ function findPostsByPermalink() {
   return { selector: 'permalink-walk', elements }
 }
 
-// FB's own aria-label tells us EXACTLY what each [role=article] is:
-//   Comment: aria-label="Comment by {name} {time} ago"
-//   Post:    no comment-shaped aria-label on the wrapper (or "Post by ...")
-//
-// This is the most reliable discriminator possible — it's FB's literal
-// accessibility annotation, used by screen readers. Rotating it would
-// break a11y for millions of users, so it's effectively immutable.
-//
-// Localized variants observed:
-//   English: "Comment by"
-//   French:  "Commentaire de"
-//   German:  "Kommentar von"
-//   Spanish: "Comentario de"
-//   Portuguese: "Comentário de"
-const COMMENT_ARIA_PATTERNS = [
-  /^comment by /i,
-  /^commentaire de /i,
-  /^kommentar von /i,
-  /^comentario de /i,
-  /^comentário de /i,
-]
-
-/** True if FB's own aria-label identifies this element as a comment. */
-function isCommentArticle(el) {
-  const aria = (el.getAttribute('aria-label') || '').trim()
-  if (!aria) return false
-  return COMMENT_ARIA_PATTERNS.some(re => re.test(aria))
-}
-
-/** True if `el` has any <article> ancestor (legacy filter). Kept for desktop
- *  fallback paths since desktop comments ARE nested inside post articles. */
-function isTopLevelArticle(el) {
-  let p = el.parentElement
-  while (p && p !== document.body) {
-    if (p.tagName === 'ARTICLE') return false
-    p = p.parentElement
-  }
-  return true
-}
+// Design principle: scrape everything that looks like a feed item, let
+// the backend playbook + LLM decide what's a job and what isn't. NO
+// client-side filtering of comments / sidebar cards / engagement cards —
+// the LLM rejects those cleanly with structured failure reasons stored in
+// ExtensionCapture. False negatives at the capture layer are far worse
+// than false positives, because the admin debug page can review
+// false-positives but never sees what was filtered out.
 
 function findPosts() {
-  // Mobile FB (m.facebook.com): plain <article> tags. Try first since this
-  // is the primary path now — the extension rewrites group URLs to mobile.
+  // Mobile path: plain <article> tags. Capture everything that looks
+  // like a feed item — the LLM will distinguish jobs from non-jobs.
   if (IS_MOBILE) {
     for (const sel of MOBILE_SELECTORS) {
-      const all = Array.from(document.querySelectorAll(sel))
-      const els = all.filter(el => !isCommentArticle(el))
-      if (els.length >= 2) return { selector: sel + ' (non-comment)', elements: els }
+      const els = Array.from(document.querySelectorAll(sel))
+      if (els.length >= 2) return { selector: sel, elements: els }
     }
   }
 
-  // Desktop / mobile-redirected-to-desktop. Find [role=article] elements
-  // that are NOT comments (per FB's own aria-label) AND are inside the
-  // main feed container.
-  const allArticles = Array.from(document.querySelectorAll('[role="feed"] [role="article"]'))
-  const nonComments = allArticles.filter(el => !isCommentArticle(el))
-  if (nonComments.length >= 2) {
-    return { selector: '[role="feed"] [role="article"]:not(comment)', elements: nonComments }
+  // Desktop / mobile-redirected-to-desktop: every [role=article] inside
+  // the main feed container is fair game. We deliberately do NOT filter
+  // out comments here — the LLM does that downstream by recognizing
+  // comment-shaped content and rejecting it with a structured reason
+  // stored in ExtensionCapture.
+  const articles = Array.from(document.querySelectorAll('[role="feed"] [role="article"]'))
+  if (articles.length >= 1) {
+    return { selector: '[role="feed"] [role="article"]', elements: articles }
   }
-  if (nonComments.length >= 1) {
-    // Even 1 is useful — mobile feed often shows just a few visible posts.
-    return { selector: '[role="feed"] [role="article"]:not(comment)', elements: nonComments }
-  }
-  // Last resort: same selector globally (no [role=feed] scope), still
-  // filtering out comments by aria-label.
+
+  // Fallback: any [role=article] anywhere on the page.
   const globalArticles = Array.from(document.querySelectorAll('[role="article"]'))
-  const globalNonComments = globalArticles.filter(el => !isCommentArticle(el))
-  if (globalNonComments.length >= 2) {
-    return { selector: '[role="article"]:not(comment)', elements: globalNonComments }
+  if (globalArticles.length >= 1) {
+    return { selector: '[role="article"]', elements: globalArticles }
   }
 
-  for (const sel of DESKTOP_FEED_SELECTORS) {
-    const els = Array.from(document.querySelectorAll(`[role="feed"] ${sel}`)).filter(el => !isCommentArticle(el))
-    if (els.length >= 2) return { selector: `[role="feed"] ${sel}`, elements: els }
-  }
-
-  // Strategy 2: permalink-anchor walk. Useful when DOM has posts but no
-  // role attributes (some FB rollouts).
+  // Last resort: walk for permalink anchors and climb up. Catches rollouts
+  // where the wrapper isn't a [role=article].
   const byPermalink = findPostsByPermalink()
-  if (byPermalink.elements.length >= 2) return byPermalink
-
-  // Last resort: whatever the permalink walk found, even if just 1, or empty.
   return byPermalink
 }
 
