@@ -46,19 +46,22 @@ function jitter(min, max) {
   return min + Math.random() * (max - min)
 }
 
-async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleStopAfter = 3 }) {
+async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleStopAfter = 3, warmupSeconds = 12 }) {
   const start = Date.now()
   let staleScrolls = 0
   let lastSeenCount = 0
   while (true) {
     const elapsed = (Date.now() - start) / 1000
-    if (elapsed >= maxScrollSeconds) return { stopReason: 'time', seconds: elapsed }
+    if (elapsed >= maxScrollSeconds) return { stopReason: 'time', seconds: elapsed, finalCount: lastSeenCount }
     const { elements } = findPosts()
-    if (elements.length >= maxPostsPerRun) return { stopReason: 'count', seconds: elapsed }
-    if (elements.length === lastSeenCount) {
+    if (elements.length >= maxPostsPerRun) return { stopReason: 'count', seconds: elapsed, finalCount: elements.length }
+    // Warmup: don't count stale scrolls during the first N seconds if we haven't
+    // seen a post yet. FB SPAs sometimes take 5–10s to hydrate after pageload.
+    const inWarmup = elapsed < warmupSeconds && lastSeenCount === 0
+    if (elements.length === lastSeenCount && !inWarmup) {
       staleScrolls += 1
-      if (staleScrolls >= staleStopAfter) return { stopReason: 'stale', seconds: elapsed }
-    } else {
+      if (staleScrolls >= staleStopAfter) return { stopReason: 'stale', seconds: elapsed, finalCount: lastSeenCount }
+    } else if (elements.length !== lastSeenCount) {
       staleScrolls = 0
       lastSeenCount = elements.length
     }

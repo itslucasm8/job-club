@@ -93,11 +93,16 @@ async function sendMessageWithRetry(tabId, msg, retries = 5) {
 
 async function runOneGroup(group) {
   const start = Date.now()
-  const tab = await chrome.tabs.create({ url: group.groupUrl, active: false })
+  // active: true is REQUIRED — FB throttles SPA hydration (IntersectionObserver,
+  // requestIdleCallback) on background tabs, so the feed never renders any
+  // [role="article"] elements. The tradeoff is the tab visibly pops open during
+  // a run; on the office machine that's fine and the tab closes when done.
+  const tab = await chrome.tabs.create({ url: group.groupUrl, active: true })
   try {
     await waitForTabReady(tab.id)
-    // Give the FB feed a moment to start rendering content before content.js scrapes
-    await new Promise(r => setTimeout(r, 3000))
+    // Give the FB feed time to hydrate + render initial posts before scraping.
+    // 5s is conservative; FB's first-paint is usually 2-3s on broadband.
+    await new Promise(r => setTimeout(r, 5000))
     const result = await sendMessageWithRetry(tab.id, {
       type: 'scrape',
       maxScrollSeconds: group.maxScrollSeconds || 60,
