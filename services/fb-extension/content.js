@@ -13,19 +13,23 @@ console.log('[fb-ext content] loaded on', location.href)
 // Multiple selectors with graceful degradation — first non-empty wins.
 
 // FB group feeds use multiple structural conventions across rollouts. We probe
-// in order of specificity and take the first selector that yields >=2 elements
-// (a single match usually means we hit a stray article outside the feed, like
-// a pinned announcement or a "Related" sidebar).
+// every selector and pick the one with the most matches above the threshold
+// (real feeds have 10–30+ items; stray "Recommended" cards have 1–2). Picking
+// "first ≥2" was a bug: a 2-match recommended-card selector would beat a
+// 22-match virtualized-feed selector that came later in the list.
 //
-// Order matters: more specific selectors first so we don't grab unrelated
-// articles (sidebars, recommended-groups cards) when the feed selector misses.
+// As of FB's mid-2026 rollout, virtualized groups expose feed items via
+// [aria-posinset]; legacy rollouts still use [role="article"]. Both shapes
+// are tried, and we filter non-feed candidates downstream via the
+// MIN_POST_TEXT_CHARS check + the permalink-anchor requirement.
 const POST_SELECTORS = [
-  '[role="feed"] > div > [role="article"]',          // direct children of the feed
+  '[role="feed"] [aria-posinset]',                   // virtualized + scoped to feed
+  '[role="main"] [aria-posinset]',
+  '[aria-posinset]',                                 // virtualized fallback
+  '[role="feed"] > div > [role="article"]',
   '[role="feed"] [role="article"]',
   '[data-pagelet^="GroupFeed"] [role="article"]',
-  '[data-pagelet*="FeedUnit"]',                      // newer FB rollout
-  '[aria-posinset]',                                 // virtualized feed item attribute
-  '[role="main"] [aria-posinset]',
+  '[data-pagelet*="FeedUnit"]',
   '[role="main"] [role="article"]',
   '[role="article"]',
 ]
@@ -46,18 +50,16 @@ const DIAGNOSTIC_SELECTORS = [
 ]
 
 function findPosts() {
-  // First pass: prefer selectors that produce >=2 elements — a single article
-  // outside the feed (sidebar / pinned card) is a false positive.
+  // Probe every selector and pick the one with the most matches. A real feed
+  // produces 10–30+ items; stray sidebar/recommended cards produce 1–2.
+  // Picking "first selector with >=2" is wrong because a 2-match noise
+  // selector earlier in the list will beat a 20-match feed selector later.
+  let best = { selector: null, elements: [] }
   for (const sel of POST_SELECTORS) {
     const els = Array.from(document.querySelectorAll(sel))
-    if (els.length >= 2) return { selector: sel, elements: els }
+    if (els.length > best.elements.length) best = { selector: sel, elements: els }
   }
-  // Fallback: accept any selector with at least 1 element.
-  for (const sel of POST_SELECTORS) {
-    const els = Array.from(document.querySelectorAll(sel))
-    if (els.length > 0) return { selector: sel, elements: els }
-  }
-  return { selector: null, elements: [] }
+  return best
 }
 
 // ─── Auto-scroll helper (used in Day 3 — skeleton here for review) ────────
