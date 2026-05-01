@@ -111,9 +111,14 @@ export default function ExtensionsPage() {
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl md:text-2xl font-extrabold text-stone-900">Extension navigateur</h1>
-        <Link href="/admin/sources?sheetTab=facebook" className="text-xs text-purple-700 hover:text-purple-900 underline">
-          Gérer les groupes FB →
-        </Link>
+        <div className="flex gap-3 text-xs">
+          <Link href="/admin/extensions/captures" className="text-purple-700 hover:text-purple-900 underline">
+            Voir captures brutes →
+          </Link>
+          <Link href="/admin/sources?sheetTab=facebook" className="text-purple-700 hover:text-purple-900 underline">
+            Gérer les groupes FB →
+          </Link>
+        </div>
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900">

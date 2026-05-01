@@ -84,10 +84,56 @@ function findPostsByPermalink() {
   return { selector: 'permalink-walk', elements }
 }
 
-/** True if `el` has any <article> ancestor. Mobile FB uses <article> for
- *  both top-level posts AND inline comments — comments are nested inside
- *  the post's article. Filtering to "no article ancestor" gives us only
- *  top-level feed posts. */
+// Mobile FB renders top-level posts AND inline comments as <article data-ft>.
+// Earlier we tried "no <article> ancestor" but mobile renders comments as
+// SIBLINGS to their parent post, not children, so the ancestor walk fails.
+//
+// The reliable discriminator is the reaction footer: top-level posts have
+// "Like / Comment / Share" action buttons; comments have only "Reply / Like"
+// (or sometimes nothing). Match on the localized button text — covers French
+// (J'aime/Commenter/Partager), English (Like/Comment/Share), and a few others.
+const POST_FOOTER_KEYWORDS = [
+  'comment', 'commenter', 'commentaires',           // Comment / Commenter
+  'share', 'partager',                              // Share / Partager
+  'partage'
+]
+const COMMENT_ONLY_KEYWORDS = ['reply', 'répondre', 'repondre']
+
+/** True if the article contains a reaction-footer that looks like a
+ *  top-level post (Comment + Share buttons). Comments don't have these —
+ *  they only have Reply (and sometimes Like). */
+function looksLikePostFooter(el) {
+  const text = (el.innerText || '').toLowerCase()
+  if (!text) return false
+  // Require both a "comment" and a "share" word — comments-on-posts have
+  // "Reply" + "Like" but NOT "Share". This is the cleanest available signal
+  // across FB locales.
+  let hasComment = false
+  let hasShare = false
+  for (const kw of POST_FOOTER_KEYWORDS) {
+    if (text.includes(kw)) {
+      if (kw.startsWith('comm')) hasComment = true
+      if (kw.startsWith('share') || kw.startsWith('partag')) hasShare = true
+    }
+  }
+  if (hasComment && hasShare) return true
+  // Looser fallback: presence of action buttons via aria-label on the
+  // article tree. Mobile FB sometimes uses aria-label="Comment" without the
+  // word in visible text.
+  const ariaButtons = el.querySelectorAll('[aria-label]')
+  let ariaComment = false, ariaShare = false
+  for (const a of ariaButtons) {
+    const lbl = (a.getAttribute('aria-label') || '').toLowerCase()
+    if (POST_FOOTER_KEYWORDS.some(k => lbl.includes(k) && (k.startsWith('comm') || k.startsWith('partag') || k.startsWith('share')))) {
+      if (lbl.includes('comm') || lbl.includes('comment')) ariaComment = true
+      if (lbl.includes('share') || lbl.includes('partag')) ariaShare = true
+    }
+  }
+  return ariaComment && ariaShare
+}
+
+/** True if `el` has any <article> ancestor (legacy filter). Kept for desktop
+ *  fallback paths since desktop comments ARE nested inside post articles. */
 function isTopLevelArticle(el) {
   let p = el.parentElement
   while (p && p !== document.body) {
@@ -102,8 +148,16 @@ function findPosts() {
   // is the primary path now — the extension rewrites group URLs to mobile.
   if (IS_MOBILE) {
     for (const sel of MOBILE_SELECTORS) {
-      const els = Array.from(document.querySelectorAll(sel)).filter(isTopLevelArticle)
-      if (els.length >= 2) return { selector: sel, elements: els }
+      // Filter to articles with a top-level post footer (Comment+Share
+      // buttons). This catches sibling-rendered comments that the ancestor
+      // walk missed.
+      const all = Array.from(document.querySelectorAll(sel))
+      const els = all.filter(looksLikePostFooter)
+      if (els.length >= 2) return { selector: sel + ' (footer-discriminated)', elements: els }
+      // Fallback: if footer detection didn't yield ≥2, try ancestor walk
+      // (works for some rollouts).
+      const elsByAncestor = all.filter(isTopLevelArticle)
+      if (elsByAncestor.length >= 2) return { selector: sel + ' (ancestor-discriminated)', elements: elsByAncestor }
     }
     // Fall through if mobile selectors found nothing (shouldn't happen on
     // a real m.facebook.com group page — but be safe).

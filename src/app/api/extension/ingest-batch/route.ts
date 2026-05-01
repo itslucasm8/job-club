@@ -62,9 +62,38 @@ export async function POST(req: Request) {
   const byMode = { playbook: 0, full: 0, failed: 0 }
   const errorDetails: { postId: string; reason: string }[] = []
 
+  // Persist every received post to ExtensionCapture — even failures. Lets
+  // /admin/extensions/captures show exactly what the scraper got, so we can
+  // tune selectors and adjust playbook without re-running scrapes.
+  async function recordCapture(p: FbPostInput, canonical: string, status: string, opts: {
+    failureReason?: string
+    extractionMode?: string
+    extractionResult?: any
+    layoutFingerprint?: string
+  } = {}) {
+    try {
+      await prisma.extensionCapture.create({
+        data: {
+          source: sourceSlug,
+          sourceJobId: p.postId,
+          sourceUrl: canonical,
+          html: p.html.slice(0, 200_000),  // hard cap — should already be 50KB but defend
+          postedAt: p.postedAt || null,
+          authorName: p.authorName || null,
+          ingestStatus: status,
+          failureReason: opts.failureReason ? opts.failureReason.slice(0, 1000) : null,
+          extractionMode: opts.extractionMode || null,
+          extractionResult: opts.extractionResult || undefined,
+          layoutFingerprint: opts.layoutFingerprint || null,
+        },
+      })
+    } catch (e) {
+      // Capture write should never block the ingest pipeline.
+      console.warn('[ingest-batch] capture write failed', e)
+    }
+  }
+
   // Process serially — keeps DB writes orderly and avoids hammering the proxy.
-  // 100 posts × ~15s each in the worst (full-LLM) case = ~25 min. Once playbook
-  // hits >50% of posts, this drops to ~5 min for the same batch.
   for (const p of postsRaw as FbPostInput[]) {
     if (!p?.postId || !p?.postUrl || !p?.html) {
       errors++
@@ -77,7 +106,9 @@ export async function POST(req: Request) {
       if (r.extraction.extraction_failed) {
         errors++
         byMode.failed++
-        errorDetails.push({ postId: p.postId, reason: r.extraction.failure_reason || 'unspecified' })
+        const reason = r.extraction.failure_reason || 'unspecified'
+        errorDetails.push({ postId: p.postId, reason })
+        await recordCapture(p, canonical, 'extraction_failed', { failureReason: reason, extractionMode: r.mode })
         continue
       }
       const raw: any = { ...r.extraction.raw }
@@ -103,17 +134,27 @@ export async function POST(req: Request) {
         ingested++
         if (r.mode === 'playbook') byMode.playbook++
         else byMode.full++
+        await recordCapture(p, canonical, 'ingested', {
+          extractionMode: r.mode,
+          extractionResult: raw,
+          layoutFingerprint: r.outcome.fingerprint,
+        })
       } else if (result.status === 'duplicate') {
         duplicates++
+        await recordCapture(p, canonical, 'duplicate', { extractionMode: r.mode })
       } else {
         errors++
-        errorDetails.push({ postId: p.postId, reason: (result as any).error || 'ingest error' })
+        const reason = (result as any).error || 'ingest error'
+        errorDetails.push({ postId: p.postId, reason })
+        await recordCapture(p, canonical, 'error', { failureReason: reason, extractionMode: r.mode })
       }
     } catch (e: any) {
       Sentry.captureException(e, { tags: { route: 'extension-ingest-batch', sourceSlug, postId: p.postId } })
       errors++
       byMode.failed++
-      errorDetails.push({ postId: p.postId, reason: e?.message || String(e) })
+      const reason = e?.message || String(e)
+      errorDetails.push({ postId: p.postId, reason })
+      await recordCapture(p, canonical, 'error', { failureReason: reason })
     }
   }
 

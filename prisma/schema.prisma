@@ -229,3 +229,29 @@ model ExtensionRun {
 
   @@index([startedAt])
 }
+
+// Every post received by /api/extension/ingest-batch — including extraction
+// failures. Lets the admin debug page show exactly what the scraper captured
+// (raw HTML, rendered preview, extraction outcome) so we can tune selectors
+// without re-running scrapes.
+//
+// Distinct from JobCandidate which only stores successfully-extracted posts.
+// This table also stores comments / non-jobs / fragments we couldn't extract.
+model ExtensionCapture {
+  id                String   @id @default(cuid())
+  source            String   // JobSource slug
+  sourceJobId       String   // FB postId (real or synthetic)
+  sourceUrl         String
+  html              String   @db.Text
+  postedAt          String?
+  authorName        String?
+  scrapedAt         DateTime @default(now())
+  ingestStatus      String   // 'ingested' | 'duplicate' | 'extraction_failed' | 'error'
+  failureReason     String?
+  extractionMode    String?  // 'playbook' | 'full' | null
+  extractionResult  Json?    // raw extraction.raw output for debugging
+  layoutFingerprint String?
+
+  @@index([source, scrapedAt])
+  @@index([scrapedAt])
+}
