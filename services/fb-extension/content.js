@@ -41,10 +41,52 @@ const DIAGNOSTIC_SELECTORS = [
   'div[data-ft]',                                    // legacy FB instrumentation
 ]
 
+/** Anchor selector for "this looks like a post permalink". Used by both
+ *  postIdFromHref-based filtering and by findPostsByPermalink. */
+const PERMALINK_ANCHOR_SELECTOR = 'a[href*="/posts/"], a[href*="/permalink"], a[href*="story_fbid="], a[href*="/share/p/"], a[href*="/share/v/"], a[href*="/share/r/"], a[href*="pfbid"]'
+
+const POST_CONTAINER_MIN_TEXT = 100   // climb until ancestor has at least this much text
+
+/** Find posts by walking the page for permalink anchors and climbing up to
+ *  each anchor's enclosing post container. Far more robust than structural
+ *  selectors because FB cannot rotate permalink URL shapes (the share/embed
+ *  ecosystem depends on them) — they're the most stable post signal.
+ *
+ *  Returns deduped containers. Walking up stops at the smallest ancestor
+ *  with at least POST_CONTAINER_MIN_TEXT characters of innerText, which
+ *  is the post wrapper (header + body + footer). */
+function findPostsByPermalink() {
+  const anchors = document.querySelectorAll(PERMALINK_ANCHOR_SELECTOR)
+  const seen = new Set()
+  const elements = []
+  for (const a of anchors) {
+    const href = a.getAttribute('href') || ''
+    if (!postIdFromHref(href)) continue
+    let el = a
+    let hops = 0
+    while (el && el !== document.body && hops < 12) {
+      const text = (el.innerText || '').trim()
+      if (text.length >= POST_CONTAINER_MIN_TEXT) break
+      el = el.parentElement
+      hops++
+    }
+    if (!el || el === document.body || seen.has(el)) continue
+    seen.add(el)
+    elements.push(el)
+  }
+  return { selector: 'permalink-walk', elements }
+}
+
 function findPosts() {
-  // Step 1: locate the feed container. There may be multiple [role=feed]
-  // regions (e.g. main feed + secondary). Pick the one with the most direct
-  // children — that's the visible scroll area.
+  // Strategy 1 (preferred): find by permalink anchor + climb to richest
+  // ancestor. Insensitive to FB's role/aria/pagelet rotations.
+  const byPermalink = findPostsByPermalink()
+  if (byPermalink.elements.length >= 2) return byPermalink
+
+  // Strategy 2 (fallback): structural selectors scoped inside [role=feed].
+  // Used only when permalink walking finds nothing — usually means we're
+  // on a rollout where post anchors haven't rendered yet, or the page is
+  // showing a "see more" overlay.
   const feeds = Array.from(document.querySelectorAll('[role="feed"]'))
   let feed = null
   let bestChildCount = -1
@@ -52,25 +94,24 @@ function findPosts() {
     const n = f.children.length
     if (n > bestChildCount) { bestChildCount = n; feed = f }
   }
-  if (!feed) return { selector: null, elements: [] }
-
-  // Step 2: within the feed, try each FEED_SELECTORS variant and pick the
-  // one with the most matches. Scoping inside the feed means sidebar
-  // discovery cards (which use the same [aria-posinset] attribute) cannot
-  // contaminate the result.
-  let best = { selector: null, elements: [] }
-  for (const sel of FEED_SELECTORS) {
-    let els
-    try {
-      els = sel.startsWith('>')
-        ? Array.from(feed.querySelectorAll(`:scope ${sel}`))
-        : Array.from(feed.querySelectorAll(sel))
-    } catch { continue }
-    if (els.length > best.elements.length) {
-      best = { selector: `[role="feed"] ${sel}`, elements: els }
+  if (feed) {
+    let best = { selector: null, elements: [] }
+    for (const sel of FEED_SELECTORS) {
+      let els
+      try {
+        els = sel.startsWith('>')
+          ? Array.from(feed.querySelectorAll(`:scope ${sel}`))
+          : Array.from(feed.querySelectorAll(sel))
+      } catch { continue }
+      if (els.length > best.elements.length) {
+        best = { selector: `[role="feed"] ${sel}`, elements: els }
+      }
     }
+    if (best.elements.length > 0) return best
   }
-  return best
+
+  // Last resort: whatever the permalink walk found, even if just 1.
+  return byPermalink
 }
 
 // ─── Auto-scroll helper (used in Day 3 — skeleton here for review) ────────
