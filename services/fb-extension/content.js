@@ -84,12 +84,25 @@ function findPostsByPermalink() {
   return { selector: 'permalink-walk', elements }
 }
 
+/** True if `el` has any <article> ancestor. Mobile FB uses <article> for
+ *  both top-level posts AND inline comments — comments are nested inside
+ *  the post's article. Filtering to "no article ancestor" gives us only
+ *  top-level feed posts. */
+function isTopLevelArticle(el) {
+  let p = el.parentElement
+  while (p && p !== document.body) {
+    if (p.tagName === 'ARTICLE') return false
+    p = p.parentElement
+  }
+  return true
+}
+
 function findPosts() {
   // Mobile FB (m.facebook.com): plain <article> tags. Try first since this
   // is the primary path now — the extension rewrites group URLs to mobile.
   if (IS_MOBILE) {
     for (const sel of MOBILE_SELECTORS) {
-      const els = Array.from(document.querySelectorAll(sel))
+      const els = Array.from(document.querySelectorAll(sel)).filter(isTopLevelArticle)
       if (els.length >= 2) return { selector: sel, elements: els }
     }
     // Fall through if mobile selectors found nothing (shouldn't happen on
@@ -322,9 +335,12 @@ function cleanPostHtml(postEl) {
 }
 
 // A post needs at least this much visible body text to be worth submitting.
-// Threshold deliberately low — short job posts ("Hiring kitchen hand $30/hr,
-// DM me") are common and valuable. Backend filters non-jobs after extraction.
-const MIN_POST_TEXT_CHARS = 30
+// Mobile FB renders inline comments as <article> too — even with the
+// top-level filter, very short articles are usually fragment cards or
+// "X liked Y's comment" notifications. Real job posts are at least a few
+// sentences. Desktop keeps a lower threshold since posts there have less
+// rendered chrome.
+const MIN_POST_TEXT_CHARS = IS_MOBILE ? 80 : 30
 
 /** Extract one post into the wire format consumed by /api/extension/ingest-batch.
  *  Always tries to produce a post if there is *any* meaningful content.
