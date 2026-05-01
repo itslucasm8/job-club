@@ -84,52 +84,33 @@ function findPostsByPermalink() {
   return { selector: 'permalink-walk', elements }
 }
 
-// Mobile FB renders top-level posts AND inline comments as <article data-ft>.
-// Earlier we tried "no <article> ancestor" but mobile renders comments as
-// SIBLINGS to their parent post, not children, so the ancestor walk fails.
+// FB's own aria-label tells us EXACTLY what each [role=article] is:
+//   Comment: aria-label="Comment by {name} {time} ago"
+//   Post:    no comment-shaped aria-label on the wrapper (or "Post by ...")
 //
-// The reliable discriminator is the reaction footer: top-level posts have
-// "Like / Comment / Share" action buttons; comments have only "Reply / Like"
-// (or sometimes nothing). Match on the localized button text — covers French
-// (J'aime/Commenter/Partager), English (Like/Comment/Share), and a few others.
-const POST_FOOTER_KEYWORDS = [
-  'comment', 'commenter', 'commentaires',           // Comment / Commenter
-  'share', 'partager',                              // Share / Partager
-  'partage'
+// This is the most reliable discriminator possible — it's FB's literal
+// accessibility annotation, used by screen readers. Rotating it would
+// break a11y for millions of users, so it's effectively immutable.
+//
+// Localized variants observed:
+//   English: "Comment by"
+//   French:  "Commentaire de"
+//   German:  "Kommentar von"
+//   Spanish: "Comentario de"
+//   Portuguese: "Comentário de"
+const COMMENT_ARIA_PATTERNS = [
+  /^comment by /i,
+  /^commentaire de /i,
+  /^kommentar von /i,
+  /^comentario de /i,
+  /^comentário de /i,
 ]
-const COMMENT_ONLY_KEYWORDS = ['reply', 'répondre', 'repondre']
 
-/** True if the article contains a reaction-footer that looks like a
- *  top-level post (Comment + Share buttons). Comments don't have these —
- *  they only have Reply (and sometimes Like). */
-function looksLikePostFooter(el) {
-  const text = (el.innerText || '').toLowerCase()
-  if (!text) return false
-  // Require both a "comment" and a "share" word — comments-on-posts have
-  // "Reply" + "Like" but NOT "Share". This is the cleanest available signal
-  // across FB locales.
-  let hasComment = false
-  let hasShare = false
-  for (const kw of POST_FOOTER_KEYWORDS) {
-    if (text.includes(kw)) {
-      if (kw.startsWith('comm')) hasComment = true
-      if (kw.startsWith('share') || kw.startsWith('partag')) hasShare = true
-    }
-  }
-  if (hasComment && hasShare) return true
-  // Looser fallback: presence of action buttons via aria-label on the
-  // article tree. Mobile FB sometimes uses aria-label="Comment" without the
-  // word in visible text.
-  const ariaButtons = el.querySelectorAll('[aria-label]')
-  let ariaComment = false, ariaShare = false
-  for (const a of ariaButtons) {
-    const lbl = (a.getAttribute('aria-label') || '').toLowerCase()
-    if (POST_FOOTER_KEYWORDS.some(k => lbl.includes(k) && (k.startsWith('comm') || k.startsWith('partag') || k.startsWith('share')))) {
-      if (lbl.includes('comm') || lbl.includes('comment')) ariaComment = true
-      if (lbl.includes('share') || lbl.includes('partag')) ariaShare = true
-    }
-  }
-  return ariaComment && ariaShare
+/** True if FB's own aria-label identifies this element as a comment. */
+function isCommentArticle(el) {
+  const aria = (el.getAttribute('aria-label') || '').trim()
+  if (!aria) return false
+  return COMMENT_ARIA_PATTERNS.some(re => re.test(aria))
 }
 
 /** True if `el` has any <article> ancestor (legacy filter). Kept for desktop
@@ -148,27 +129,34 @@ function findPosts() {
   // is the primary path now — the extension rewrites group URLs to mobile.
   if (IS_MOBILE) {
     for (const sel of MOBILE_SELECTORS) {
-      // Filter to articles with a top-level post footer (Comment+Share
-      // buttons). This catches sibling-rendered comments that the ancestor
-      // walk missed.
       const all = Array.from(document.querySelectorAll(sel))
-      const els = all.filter(looksLikePostFooter)
-      if (els.length >= 2) return { selector: sel + ' (footer-discriminated)', elements: els }
-      // Fallback: if footer detection didn't yield ≥2, try ancestor walk
-      // (works for some rollouts).
-      const elsByAncestor = all.filter(isTopLevelArticle)
-      if (elsByAncestor.length >= 2) return { selector: sel + ' (ancestor-discriminated)', elements: elsByAncestor }
+      const els = all.filter(el => !isCommentArticle(el))
+      if (els.length >= 2) return { selector: sel + ' (non-comment)', elements: els }
     }
-    // Fall through if mobile selectors found nothing (shouldn't happen on
-    // a real m.facebook.com group page — but be safe).
   }
 
-  // Desktop fallback. Strategy 1: find posts by their canonical
-  // [role=feed] + [role=article] + [aria-posinset] discriminator. The
-  // combo eliminates sidebar cards which have role=article but no
-  // aria-posinset and no [role=feed] ancestor.
+  // Desktop / mobile-redirected-to-desktop. Find [role=article] elements
+  // that are NOT comments (per FB's own aria-label) AND are inside the
+  // main feed container.
+  const allArticles = Array.from(document.querySelectorAll('[role="feed"] [role="article"]'))
+  const nonComments = allArticles.filter(el => !isCommentArticle(el))
+  if (nonComments.length >= 2) {
+    return { selector: '[role="feed"] [role="article"]:not(comment)', elements: nonComments }
+  }
+  if (nonComments.length >= 1) {
+    // Even 1 is useful — mobile feed often shows just a few visible posts.
+    return { selector: '[role="feed"] [role="article"]:not(comment)', elements: nonComments }
+  }
+  // Last resort: same selector globally (no [role=feed] scope), still
+  // filtering out comments by aria-label.
+  const globalArticles = Array.from(document.querySelectorAll('[role="article"]'))
+  const globalNonComments = globalArticles.filter(el => !isCommentArticle(el))
+  if (globalNonComments.length >= 2) {
+    return { selector: '[role="article"]:not(comment)', elements: globalNonComments }
+  }
+
   for (const sel of DESKTOP_FEED_SELECTORS) {
-    const els = Array.from(document.querySelectorAll(`[role="feed"] ${sel}`))
+    const els = Array.from(document.querySelectorAll(`[role="feed"] ${sel}`)).filter(el => !isCommentArticle(el))
     if (els.length >= 2) return { selector: `[role="feed"] ${sel}`, elements: els }
   }
 
