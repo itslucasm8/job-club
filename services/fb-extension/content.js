@@ -14,12 +14,13 @@ console.log('[fb-ext content] loaded on', location.href)
 
 const IS_MOBILE = location.hostname === 'm.facebook.com' || location.hostname === 'mbasic.facebook.com'
 
-// Mobile FB uses plain <article> tags with real <a href> permalinks. Far
-// simpler than desktop. We try mobile selectors first, then desktop.
+// Mobile FB uses plain <article> tags with real <a href> permalinks.
+// data-ft is FB's instrumentation attribute that ONLY appears on top-level
+// feed posts, not on comments or sub-elements. Requiring it eliminates the
+// "captured a comment as a post" failure mode we saw on the first run.
 const MOBILE_SELECTORS = [
-  'article[data-ft]',                                // m.facebook.com — has data-ft JSON
-  'div[data-ft] article',
-  'article',                                          // last resort
+  'article[data-ft]',
+  '[data-tracking-duration-id] article',             // newer mobile rollout
 ]
 
 // Desktop FB virtualizes everything. The reliable discriminator is the
@@ -119,16 +120,39 @@ function jitter(min, max) {
   return min + Math.random() * (max - min)
 }
 
+/** Mobile FB doesn't always lazy-load — sometimes it uses a "See more
+ *  posts" / "Voir plus de publications" link at the bottom that needs to
+ *  be clicked to reveal the next page. Click any such link found at the
+ *  bottom of the document. */
+function clickLoadMore() {
+  if (!IS_MOBILE) return false
+  const candidates = document.querySelectorAll('a, button, div[role="button"]')
+  for (const el of candidates) {
+    const text = (el.innerText || el.textContent || '').trim().toLowerCase()
+    if (!text) continue
+    if (
+      text.includes('see more posts') ||
+      text.includes('voir plus de publications') ||
+      text.includes('plus de publications') ||
+      text.includes('show more') ||
+      text === 'see more' ||
+      text === 'voir plus'
+    ) {
+      try { el.click(); return true } catch {}
+    }
+  }
+  return false
+}
+
 async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleStopAfter = 4, warmupSeconds = 15 }) {
   const start = Date.now()
   let staleScrolls = 0
-  // Track + accumulate UNIQUE extracted posts across the whole scroll. FB's
-  // virtualized feed recycles ~20 DOM nodes as you scroll, so element-count
-  // stays flat at 20 forever — element-count-based stale detection would
-  // false-trigger and we'd lose 90% of the feed. Capture each post the
-  // moment we see it and dedupe by postId.
-  const captured = new Map()  // postId -> post
+  const captured = new Map()
   let lastSeenSize = 0
+  // Mobile gets faster scroll cadence — markup is lighter and renders quickly.
+  // Desktop keeps the slower cadence due to React virtualization hydration.
+  const scrollMin = IS_MOBILE ? 800 : 2500
+  const scrollMax = IS_MOBILE ? 1800 : 4500
   while (true) {
     const elapsed = (Date.now() - start) / 1000
     if (elapsed >= maxScrollSeconds) break
@@ -145,6 +169,15 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
     const inWarmup = elapsed < warmupSeconds && captured.size === 0
     if (captured.size === lastSeenSize && !inWarmup) {
       staleScrolls += 1
+      // On stale, try clicking a "See more posts" link before giving up —
+      // mobile FB uses pagination instead of pure infinite scroll.
+      if (staleScrolls >= 2) {
+        if (clickLoadMore()) {
+          staleScrolls = 0  // give the new content a chance to render
+          await new Promise(r => setTimeout(r, 2000))
+          continue
+        }
+      }
       if (staleScrolls >= staleStopAfter) {
         return { stopReason: 'stale', seconds: elapsed, captured }
       }
@@ -153,9 +186,7 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
       lastSeenSize = captured.size
     }
     window.scrollBy(0, window.innerHeight * 0.8)
-    // Slower scroll cadence — virtualized rendering needs time to hydrate
-    // newly-mounted posts before they scroll out of view again.
-    await new Promise(r => setTimeout(r, jitter(2500, 4500)))
+    await new Promise(r => setTimeout(r, jitter(scrollMin, scrollMax)))
   }
   return { stopReason: 'time', seconds: (Date.now() - start) / 1000, captured }
 }
