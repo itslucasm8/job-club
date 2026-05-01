@@ -266,6 +266,33 @@ try {
   }
 } catch {/* swallow — window may not be writable in some contexts */}
 
+/** Inspect a candidate post element to see why extractPost() rejected it.
+ *  Returns a compact reason + samples of the data we did/didn't find, so we
+ *  can adjust selectors without needing console access. */
+function inspectCandidate(el) {
+  const visibleText = (el.innerText || '').trim()
+  const allLinks = Array.from(el.querySelectorAll('a[href]')).slice(0, 8)
+  const hrefSamples = allLinks.map(a => (a.getAttribute('href') || '').slice(0, 120))
+  const permalinkAnchor = findPermalinkAnchor(el)
+  const headerAnchor = el.querySelector('h2 a, h3 a, h4 a')
+  return {
+    textLen: visibleText.length,
+    textSample: visibleText.slice(0, 100),
+    hasPermalinkAnchor: !!permalinkAnchor,
+    permalinkHref: permalinkAnchor?.getAttribute('href')?.slice(0, 200) || null,
+    hasHeaderAnchor: !!headerAnchor,
+    linkCount: el.querySelectorAll('a[href]').length,
+    hrefSamples,
+    htmlLen: (el.outerHTML || '').length,
+    // Why it would fail extractPost():
+    rejectReason: !permalinkAnchor
+      ? 'no_permalink_anchor'
+      : visibleText.length < MIN_POST_TEXT_CHARS
+        ? `text_too_short(${visibleText.length})`
+        : null,
+  }
+}
+
 /** Run all diagnostic selectors and report element counts. Used when the
  *  scrape returns 0 posts — gives us a snapshot of FB's actual DOM shape
  *  to figure out which selector to add next. */
@@ -286,12 +313,20 @@ function diagnoseDom() {
     if (v) pagelets.add(v)
     if (pagelets.size >= 20) break
   }
+  // Inspect the first 3 elements from the winning selector so we can see
+  // why extractPost() rejected them. This is the most useful piece of info
+  // when findPosts succeeds but capturePosts returns nothing.
+  const { selector: winner, elements: candidates } = findPosts()
+  const candidateInspections = candidates.slice(0, 3).map(inspectCandidate)
   return {
     probes,
     pageletsSeen: Array.from(pagelets),
     bodyTextLength: (document.body?.innerText || '').length,
     title: document.title,
     url: location.href,
+    winningSelector: winner,
+    candidateCount: candidates.length,
+    candidateInspections,
   }
 }
 
