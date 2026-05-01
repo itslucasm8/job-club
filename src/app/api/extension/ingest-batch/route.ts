@@ -71,24 +71,26 @@ export async function POST(req: Request) {
     extractionResult?: any
     layoutFingerprint?: string
   } = {}) {
+    // Use raw SQL — the production Prisma client wasn't regenerated with the
+    // ExtensionCapture model (Dockerfile bug — copies .prisma from a stage
+    // that didn't run prisma generate). Raw SQL avoids the dependency.
     try {
-      await prisma.extensionCapture.create({
-        data: {
-          source: sourceSlug,
-          sourceJobId: p.postId,
-          sourceUrl: canonical,
-          html: p.html.slice(0, 200_000),  // hard cap — should already be 50KB but defend
-          postedAt: p.postedAt || null,
-          authorName: p.authorName || null,
-          ingestStatus: status,
-          failureReason: opts.failureReason ? opts.failureReason.slice(0, 1000) : null,
-          extractionMode: opts.extractionMode || null,
-          extractionResult: opts.extractionResult || undefined,
-          layoutFingerprint: opts.layoutFingerprint || null,
-        },
-      })
+      const id = `cap-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+      const html = p.html.slice(0, 200_000)
+      const failureReason = opts.failureReason ? opts.failureReason.slice(0, 1000) : null
+      const extractionResultJson = opts.extractionResult ? JSON.stringify(opts.extractionResult) : null
+      await prisma.$executeRaw`
+        INSERT INTO "ExtensionCapture" (
+          id, source, "sourceJobId", "sourceUrl", html, "postedAt",
+          "authorName", "ingestStatus", "failureReason", "extractionMode",
+          "extractionResult", "layoutFingerprint"
+        ) VALUES (
+          ${id}, ${sourceSlug}, ${p.postId}, ${canonical}, ${html}, ${p.postedAt || null},
+          ${p.authorName || null}, ${status}, ${failureReason}, ${opts.extractionMode || null},
+          ${extractionResultJson}::jsonb, ${opts.layoutFingerprint || null}
+        )
+      `
     } catch (e) {
-      // Capture write should never block the ingest pipeline.
       console.warn('[ingest-batch] capture write failed', e)
     }
   }

@@ -13,28 +13,20 @@ export async function GET(req: Request) {
   const status = url.searchParams.get('status') || undefined
   const limit = Math.min(Number(url.searchParams.get('limit') || '50'), 200)
 
-  const captures = await prisma.extensionCapture.findMany({
-    where: {
-      ...(source ? { source } : {}),
-      ...(status ? { ingestStatus: status } : {}),
-    },
-    orderBy: { scrapedAt: 'desc' },
-    take: limit,
-    select: {
-      id: true,
-      source: true,
-      sourceJobId: true,
-      sourceUrl: true,
-      html: true,
-      postedAt: true,
-      authorName: true,
-      scrapedAt: true,
-      ingestStatus: true,
-      failureReason: true,
-      extractionMode: true,
-      extractionResult: true,
-    },
-  })
+  // Raw SQL — production Prisma client doesn't include the ExtensionCapture
+  // model (see ingest-batch route comment).
+  const captures = await prisma.$queryRawUnsafe<any[]>(
+    `SELECT id, source, "sourceJobId", "sourceUrl", html, "postedAt",
+            "authorName", "scrapedAt", "ingestStatus", "failureReason",
+            "extractionMode", "extractionResult"
+     FROM "ExtensionCapture"
+     WHERE 1=1
+       ${source ? 'AND source = $1' : ''}
+       ${source && status ? 'AND "ingestStatus" = $2' : status ? 'AND "ingestStatus" = $1' : ''}
+     ORDER BY "scrapedAt" DESC
+     LIMIT ${limit}`,
+    ...[source, status].filter((x): x is string => !!x)
+  )
 
   return NextResponse.json({ captures })
 }
