@@ -12,13 +12,27 @@ console.log('[fb-ext content] loaded on', location.href)
 // FB rotates class names but role-based attributes are stable across rotations.
 // Multiple selectors with graceful degradation — first non-empty wins.
 
+// FB group feeds use multiple structural conventions across rollouts. We probe
+// in order of specificity and take the first selector that yields >=2 elements
+// (a single match usually means we hit a stray article outside the feed, like
+// a pinned announcement or a "Related" sidebar).
 const POST_SELECTORS = [
+  '[role="feed"] > div > [role="article"]',     // most stable — direct children of the feed
   '[role="feed"] [role="article"]',
   '[data-pagelet^="GroupFeed"] [role="article"]',
+  'div[data-pagelet="GroupsForumNewMemberQuestionsCard"] ~ * [role="article"]',
+  '[role="main"] [role="article"]',
   '[role="article"]',
 ]
 
 function findPosts() {
+  // First pass: prefer selectors that produce >=2 elements — a single article
+  // outside the feed (sidebar / pinned card) is a false positive.
+  for (const sel of POST_SELECTORS) {
+    const els = Array.from(document.querySelectorAll(sel))
+    if (els.length >= 2) return { selector: sel, elements: els }
+  }
+  // Fallback: accept any selector with at least 1 element.
   for (const sel of POST_SELECTORS) {
     const els = Array.from(document.querySelectorAll(sel))
     if (els.length > 0) return { selector: sel, elements: els }

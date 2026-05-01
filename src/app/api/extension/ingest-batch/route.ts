@@ -117,11 +117,17 @@ export async function POST(req: Request) {
   }
 
   // Update lastRunAt on the source so the GET /groups endpoint reflects activity.
+  // Persist a compact error summary so we can diagnose silent extraction failures
+  // without needing live docker logs (which rotate).
+  const errorSummary = errors > 0 && ingested === 0
+    ? `${errors}/${postsRaw.length} failed: ${errorDetails.slice(0, 3).map(d => d.reason).join(' | ')}`.slice(0, 500)
+    : null
   await prisma.jobSource.update({
     where: { slug: sourceSlug },
     data: {
       lastRunAt: new Date(),
       lastRunStatus: errors > 0 && ingested === 0 ? 'error' : 'ok',
+      lastRunError: errorSummary,
       totalSeen: { increment: postsRaw.length },
     },
   }).catch(() => {})
