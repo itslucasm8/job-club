@@ -134,16 +134,16 @@ async function sendMessageWithRetry(tabId, msg, retries = 5) {
 
 // ─── The run ──────────────────────────────────────────────────────────────
 
-/** Rewrite www.facebook.com / facebook.com group URLs to m.facebook.com.
- *  Mobile FB uses plain <article> tags with real <a href> permalinks instead
- *  of desktop's heavily-virtualized React tree, so extraction is far more
- *  reliable. Cookies share across the .facebook.com domain so the same
- *  spare-account login works on m. as on www. */
+/** Rewrite www/m FB group URLs to mbasic.facebook.com — the no-JavaScript
+ *  HTML-only mobile site. Posts render as plain <article data-ft> tags
+ *  with real <a href> permalinks and explicit "?bacr=..." pagination
+ *  links. No virtualization, no React, no anti-bot. Cookies share across
+ *  .facebook.com so the spare-account session works. */
 function toMobileFbUrl(url) {
   try {
     const u = new URL(url)
-    if (u.hostname === 'www.facebook.com' || u.hostname === 'facebook.com') {
-      u.hostname = 'm.facebook.com'
+    if (u.hostname === 'www.facebook.com' || u.hostname === 'facebook.com' || u.hostname === 'm.facebook.com') {
+      u.hostname = 'mbasic.facebook.com'
       return u.toString()
     }
     return url

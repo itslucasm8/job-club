@@ -12,7 +12,8 @@ console.log('[fb-ext content] loaded on', location.href)
 // FB rotates class names but role-based attributes are stable across rotations.
 // Multiple selectors with graceful degradation — first non-empty wins.
 
-const IS_MOBILE = location.hostname === 'm.facebook.com' || location.hostname === 'mbasic.facebook.com'
+const IS_MBASIC = location.hostname === 'mbasic.facebook.com'
+const IS_MOBILE = location.hostname === 'm.facebook.com' || IS_MBASIC
 
 // Mobile FB uses plain <article> tags with real <a href> permalinks.
 // data-ft is FB's instrumentation attribute that ONLY appears on top-level
@@ -128,6 +129,98 @@ function findPosts() {
 
 function jitter(min, max) {
   return min + Math.random() * (max - min)
+}
+
+// ─── mbasic.facebook.com paginated scrape ─────────────────────────────────
+// mbasic is the no-JavaScript HTML-only mobile FB. Posts render as plain
+// <article data-ft> tags with explicit "?bacr=…" pagination links. No
+// virtualization, no React, no anti-bot. We fetch each page directly
+// using the authenticated session cookies and parse with DOMParser, so
+// we never have to navigate the tab itself.
+
+const MBASIC_POST_SELECTORS = [
+  'article[data-ft]',
+  '[data-ft] article',
+  '#m_group_stories_container article',
+  'article',
+]
+
+/** Find the next-page link in an mbasic document. mbasic uses query-param
+ *  pagination — typical hrefs contain `?bacr=` or `?p=`. The link's visible
+ *  text is "See More Posts" / "Voir plus de publications" / similar. */
+function findMbasicNextPage(doc) {
+  const links = doc.querySelectorAll('a[href]')
+  for (const a of links) {
+    const href = a.getAttribute('href') || ''
+    if (!href.startsWith('/groups/')) continue
+    if (!(href.includes('bacr=') || href.includes('?p=') || href.includes('&p=') || href.includes('multi_permalinks='))) continue
+    const text = (a.textContent || '').trim().toLowerCase()
+    if (
+      text.includes('see more') ||
+      text.includes('voir plus') ||
+      text.includes('plus de publications') ||
+      text.includes('show more') ||
+      text.includes('more posts') ||
+      text === 'more' ||
+      text === 'plus'
+    ) {
+      return new URL(href, location.origin).toString()
+    }
+  }
+  return null
+}
+
+/** Scrape an mbasic group feed across multiple pages by fetching each
+ *  page's HTML and parsing it. Stays on the initial tab — no navigation. */
+async function scrapeMbasic({ maxPages = 10, maxPostsPerRun = 100 }) {
+  const start = Date.now()
+  const captured = new Map()
+  let url = location.href
+  let pages = 0
+  let stopReason = 'no_more_pages'
+
+  while (pages < maxPages && url && captured.size < maxPostsPerRun) {
+    let doc
+    try {
+      if (pages === 0) {
+        doc = document
+      } else {
+        const html = await fetch(url, { credentials: 'include', headers: { 'Accept': 'text/html' } }).then(r => r.text())
+        doc = new DOMParser().parseFromString(html, 'text/html')
+      }
+    } catch (e) {
+      stopReason = 'fetch_error'
+      break
+    }
+
+    let articles = []
+    for (const sel of MBASIC_POST_SELECTORS) {
+      const found = Array.from(doc.querySelectorAll(sel))
+      if (found.length >= 1) { articles = found; break }
+    }
+
+    for (const a of articles) {
+      const post = extractPost(a)
+      if (post && !captured.has(post.postId)) captured.set(post.postId, post)
+    }
+
+    if (captured.size >= maxPostsPerRun) { stopReason = 'count'; break }
+
+    const nextUrl = findMbasicNextPage(doc)
+    if (!nextUrl || nextUrl === url) { stopReason = 'no_more_pages'; break }
+    url = nextUrl
+    pages++
+    // Light pacing between page fetches — be polite, also helps avoid
+    // FB rate-limiting on rapid pagination requests.
+    await new Promise(r => setTimeout(r, jitter(800, 1500)))
+  }
+
+  return {
+    stopReason,
+    seconds: (Date.now() - start) / 1000,
+    pagesScraped: pages + 1,
+    captured,
+  }
 }
 
 /** Mobile FB doesn't always lazy-load — sometimes it uses a "See more
@@ -485,14 +578,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'scrape') {
     (async () => {
       try {
-        const scrollResult = await autoScroll({
-          maxScrollSeconds: msg.maxScrollSeconds || 60,
-          maxPostsPerRun: msg.maxPostsPerRun || 100,
-        })
-        // Posts were captured incrementally during scroll (because FB's
-        // virtualized feed recycles DOM nodes — by the time scroll stops,
-        // most posts have already left the DOM). Use the accumulated map.
-        const posts = Array.from(scrollResult.captured.values()).slice(0, msg.maxPostsPerRun || 100)
+        // mbasic uses fetch-based pagination across multiple HTML pages.
+        // m./desktop fall back to the legacy infinite-scroll path.
+        const result = IS_MBASIC
+          ? await scrapeMbasic({
+              maxPages: msg.maxPages || 10,
+              maxPostsPerRun: msg.maxPostsPerRun || 100,
+            })
+          : await autoScroll({
+              maxScrollSeconds: msg.maxScrollSeconds || 60,
+              maxPostsPerRun: msg.maxPostsPerRun || 100,
+            })
+        const posts = Array.from(result.captured.values()).slice(0, msg.maxPostsPerRun || 100)
         const { selector, elements } = findPosts()
         const diagnostic = posts.length === 0 ? diagnoseDom() : undefined
         sendResponse({
@@ -500,10 +597,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           diagnostic,
           posts,
           selector,
+          mode: IS_MBASIC ? 'mbasic' : 'scroll',
+          pagesScraped: result.pagesScraped,
           totalElements: elements.length,
           extractedCount: posts.length,
-          stopReason: scrollResult.stopReason,
-          scrollSeconds: scrollResult.seconds,
+          stopReason: result.stopReason,
+          scrollSeconds: result.seconds,
         })
       } catch (e) {
         sendResponse({ ok: false, error: e?.message || String(e), posts: [] })
