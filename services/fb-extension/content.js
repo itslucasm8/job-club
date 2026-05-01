@@ -68,61 +68,96 @@ function jitter(min, max) {
   return min + Math.random() * (max - min)
 }
 
-async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleStopAfter = 3, warmupSeconds = 12 }) {
+async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleStopAfter = 4, warmupSeconds = 15 }) {
   const start = Date.now()
   let staleScrolls = 0
-  let lastSeenCount = 0
+  // Track + accumulate UNIQUE extracted posts across the whole scroll. FB's
+  // virtualized feed recycles ~20 DOM nodes as you scroll, so element-count
+  // stays flat at 20 forever — element-count-based stale detection would
+  // false-trigger and we'd lose 90% of the feed. Capture each post the
+  // moment we see it and dedupe by postId.
+  const captured = new Map()  // postId -> post
+  let lastSeenSize = 0
   while (true) {
     const elapsed = (Date.now() - start) / 1000
-    if (elapsed >= maxScrollSeconds) return { stopReason: 'time', seconds: elapsed, finalCount: lastSeenCount }
+    if (elapsed >= maxScrollSeconds) break
     const { elements } = findPosts()
-    if (elements.length >= maxPostsPerRun) return { stopReason: 'count', seconds: elapsed, finalCount: elements.length }
-    // Warmup: don't count stale scrolls during the first N seconds if we haven't
-    // seen a post yet. FB SPAs sometimes take 5–10s to hydrate after pageload.
-    const inWarmup = elapsed < warmupSeconds && lastSeenCount === 0
-    if (elements.length === lastSeenCount && !inWarmup) {
+    for (const el of elements) {
+      const post = extractPost(el)
+      if (post && !captured.has(post.postId)) {
+        captured.set(post.postId, post)
+      }
+    }
+    if (captured.size >= maxPostsPerRun) {
+      return { stopReason: 'count', seconds: elapsed, captured }
+    }
+    const inWarmup = elapsed < warmupSeconds && captured.size === 0
+    if (captured.size === lastSeenSize && !inWarmup) {
       staleScrolls += 1
-      if (staleScrolls >= staleStopAfter) return { stopReason: 'stale', seconds: elapsed, finalCount: lastSeenCount }
-    } else if (elements.length !== lastSeenCount) {
+      if (staleScrolls >= staleStopAfter) {
+        return { stopReason: 'stale', seconds: elapsed, captured }
+      }
+    } else if (captured.size !== lastSeenSize) {
       staleScrolls = 0
-      lastSeenCount = elements.length
+      lastSeenSize = captured.size
     }
     window.scrollBy(0, window.innerHeight * 0.8)
-    await new Promise(r => setTimeout(r, jitter(1500, 3500)))
+    // Slower scroll cadence — virtualized rendering needs time to hydrate
+    // newly-mounted posts before they scroll out of view again.
+    await new Promise(r => setTimeout(r, jitter(2500, 4500)))
   }
+  return { stopReason: 'time', seconds: (Date.now() - start) / 1000, captured }
 }
 
 // ─── Real DOM mining (Day 3) ──────────────────────────────────────────────
 
-const MAX_HTML_BYTES = 50_000   // per post — Claude has a 25K char input limit anyway
+const MAX_HTML_BYTES = 50_000
+
+// FB has many permalink shapes across rollouts. New mid-2026 rollouts use
+// /share/p/{shortcode}/ and pfbid-prefixed post ids. Older shapes still
+// appear on legacy groups. We try every pattern and accept the first match.
 const PERMALINK_PATTERNS = [
-  /\/groups\/(\d+|[\w.-]+)\/(?:permalink|posts)\/([\w-]+)/,
-  /\/permalink\.php\?(?:[^"'#]*&)?story_fbid=([\w-]+)/,
-  /\/groups\/[\w.-]+\/posts\/(\d+)/,
+  /\/groups\/(?:\d+|[\w.-]+)\/(?:permalink|posts)\/(pfbid[\w]+|\d+)/,
+  /\/groups\/[\w.-]+\/posts\/([\w-]+)/,
+  /\/permalink\.php\?(?:[^"'#]*&)?story_fbid=(pfbid[\w]+|\d+)/,
+  /\/share\/p\/([\w-]+)/,
+  /\/share\/v\/([\w-]+)/,
+  /\/share\/r\/([\w-]+)/,
+  /\/story\.php\?(?:[^"'#]*&)?story_fbid=(pfbid[\w]+|\d+)/,
+  /\/posts\/(pfbid[\w]+)/,                     // pfbid anywhere in /posts/
 ]
 
-/** Extract a stable post id from a permalink href. FB has multiple permalink
- *  shapes — try each. Returns null if no pattern matches. */
 function postIdFromHref(href) {
   if (!href) return null
   for (const re of PERMALINK_PATTERNS) {
     const m = re.exec(href)
     if (!m) continue
-    // The post id is the LAST captured group across these patterns.
     return m[m.length - 1]
   }
   return null
 }
 
 /** Find the permalink anchor inside a post element. FB renders the post's
- *  timestamp as a link to the post permalink — that's the most stable target. */
+ *  timestamp as a link to the post permalink — that's the most stable target.
+ *  We try a wide selector net since FB's anchor markup varies by rollout. */
 function findPermalinkAnchor(postEl) {
-  const candidates = postEl.querySelectorAll('a[href*="/posts/"], a[href*="/permalink"], a[href*="story_fbid="]')
+  const candidates = postEl.querySelectorAll(
+    'a[href*="/posts/"], a[href*="/permalink"], a[href*="story_fbid="], a[href*="/share/p/"], a[href*="/share/v/"], a[href*="/share/r/"], a[href*="pfbid"]'
+  )
   for (const a of candidates) {
     const href = a.getAttribute('href') || ''
     if (postIdFromHref(href)) return a
   }
   return null
+}
+
+/** Stable 32-bit hash of a string. Used to synthesize a postId when we
+ *  can't find a permalink — paired with the group URL it gives us a
+ *  deterministic dedupe key across re-runs of the same content. */
+function hashString(s) {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  return (h >>> 0).toString(36)
 }
 
 function absoluteHref(href) {
@@ -205,28 +240,40 @@ function cleanPostHtml(postEl) {
 }
 
 // A post needs at least this much visible body text to be worth submitting.
-// FB renders loading skeletons and empty announcement cards as [role=article];
-// they have headers but ~no body, and waste backend extraction budget.
-const MIN_POST_TEXT_CHARS = 80
+// Threshold deliberately low — short job posts ("Hiring kitchen hand $30/hr,
+// DM me") are common and valuable. Backend filters non-jobs after extraction.
+const MIN_POST_TEXT_CHARS = 30
 
 /** Extract one post into the wire format consumed by /api/extension/ingest-batch.
- *  Returns null when the post can't be identified or looks like a placeholder. */
+ *  Always tries to produce a post if there is *any* meaningful content.
+ *  Falls back to synthetic IDs when FB doesn't expose a permalink. */
 function extractPost(postEl) {
-  const anchor = findPermalinkAnchor(postEl)
-  if (!anchor) return null
-  const href = anchor.getAttribute('href')
-  const postUrl = absoluteHref(href)
-  const postId = postIdFromHref(href)
-  if (!postId || !postUrl) return null
-  // Reject skeleton / empty placeholder articles before we send them.
-  // Use innerText (visible text only) — outerHTML is huge even for empty posts
-  // because of FB's nested wrapper divs.
   const visibleText = (postEl.innerText || '').trim()
   if (visibleText.length < MIN_POST_TEXT_CHARS) return null
+
+  const anchor = findPermalinkAnchor(postEl)
+  let postId = null
+  let postUrl = null
+  if (anchor) {
+    const href = anchor.getAttribute('href')
+    postId = postIdFromHref(href)
+    postUrl = absoluteHref(href)
+  }
+  // Fallback: if no permalink found, synthesize a deterministic postId from
+  // the visible text. Same content on a re-run yields the same id, so dedupe
+  // still works at the source layer (sourceJobId column in JobCandidate).
+  // Pair with the group URL as a stable but non-unique sourceUrl.
+  if (!postId) {
+    postId = `synth-${hashString(visibleText.slice(0, 500))}`
+  }
+  if (!postUrl) {
+    postUrl = location.href.split('?')[0].split('#')[0]
+  }
+
   const postedAt = extractPostedAt(postEl, anchor)
   const authorName = extractAuthorName(postEl)
   const html = cleanPostHtml(postEl)
-  if (!html || html.length < 500) return null  // sanity bound — clean HTML for a real post is usually 5–30KB
+  if (!html || html.length < 200) return null
   return { postId, postUrl, postedAt, authorName, html }
 }
 
@@ -284,12 +331,12 @@ function inspectCandidate(el) {
     linkCount: el.querySelectorAll('a[href]').length,
     hrefSamples,
     htmlLen: (el.outerHTML || '').length,
-    // Why it would fail extractPost():
-    rejectReason: !permalinkAnchor
-      ? 'no_permalink_anchor'
-      : visibleText.length < MIN_POST_TEXT_CHARS
-        ? `text_too_short(${visibleText.length})`
-        : null,
+    // Why it would fail extractPost(). After the permissive rewrite, no
+    // permalink is OK (we synth an id); the only rejects are short text
+    // and tiny cleaned HTML.
+    rejectReason: visibleText.length < MIN_POST_TEXT_CHARS
+      ? `text_too_short(${visibleText.length})`
+      : null,
   }
 }
 
@@ -338,10 +385,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           maxScrollSeconds: msg.maxScrollSeconds || 60,
           maxPostsPerRun: msg.maxPostsPerRun || 100,
         })
-        const { elements, selector } = findPosts()
-        const posts = capturePosts(elements, msg.maxPostsPerRun || 100)
-        // Always include a DOM diagnostic when we got 0 posts, so debugging
-        // doesn't require console access. Cheap (just element-count queries).
+        // Posts were captured incrementally during scroll (because FB's
+        // virtualized feed recycles DOM nodes — by the time scroll stops,
+        // most posts have already left the DOM). Use the accumulated map.
+        const posts = Array.from(scrollResult.captured.values()).slice(0, msg.maxPostsPerRun || 100)
+        const { selector, elements } = findPosts()
         const diagnostic = posts.length === 0 ? diagnoseDom() : undefined
         sendResponse({
           ok: true,
