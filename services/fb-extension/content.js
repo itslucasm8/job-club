@@ -170,8 +170,31 @@ function findMbasicNextPage(doc) {
   return null
 }
 
-/** Scrape an mbasic group feed across multiple pages by fetching each
- *  page's HTML and parsing it. Stays on the initial tab — no navigation. */
+/** Fetch the dedicated permalink page for a post and return the full <article>
+ *  HTML — uncollapsed, including the full body that's hidden behind "See more"
+ *  on the feed list view. Returns null on fetch failure. */
+async function fetchFullPost(permalinkUrl) {
+  try {
+    const html = await fetch(permalinkUrl, { credentials: 'include', headers: { 'Accept': 'text/html' } }).then(r => r.text())
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    // The dedicated post page renders the post as the first <article> on
+    // the page. Subsequent <article> elements are comments — skip those by
+    // taking only the first.
+    for (const sel of MBASIC_POST_SELECTORS) {
+      const a = doc.querySelector(sel)
+      if (a) return a
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** Scrape an mbasic group feed across multiple pages by fetching each page's
+ *  HTML and parsing it. For each discovered post, additionally fetch its
+ *  dedicated permalink page to get the FULL post body (mbasic feed pages
+ *  show only previews with "See more" collapse). Stays on the initial tab —
+ *  no navigation. */
 async function scrapeMbasic({ maxPages = 10, maxPostsPerRun = 100 }) {
   const start = Date.now()
   const captured = new Map()
@@ -179,7 +202,9 @@ async function scrapeMbasic({ maxPages = 10, maxPostsPerRun = 100 }) {
   let pages = 0
   let stopReason = 'no_more_pages'
 
-  while (pages < maxPages && url && captured.size < maxPostsPerRun) {
+  // Phase 1: collect article references from feed pages.
+  const feedArticles = []  // { article, permalinkUrl }
+  while (pages < maxPages && url && feedArticles.length < maxPostsPerRun) {
     let doc
     try {
       if (pages === 0) {
@@ -200,20 +225,50 @@ async function scrapeMbasic({ maxPages = 10, maxPostsPerRun = 100 }) {
     }
 
     for (const a of articles) {
-      const post = extractPost(a)
-      if (post && !captured.has(post.postId)) captured.set(post.postId, post)
+      const anchor = findPermalinkAnchor(a)
+      if (!anchor) continue
+      const href = anchor.getAttribute('href')
+      const permalinkUrl = absoluteHref(href)
+      const postId = postIdFromHref(href)
+      if (!postId || !permalinkUrl) continue
+      if (captured.has(postId)) continue
+      // Mark as seen now to avoid re-fetching across pages.
+      captured.set(postId, null)
+      feedArticles.push({ article: a, permalinkUrl, postId })
+      if (feedArticles.length >= maxPostsPerRun) break
     }
 
-    if (captured.size >= maxPostsPerRun) { stopReason = 'count'; break }
+    if (feedArticles.length >= maxPostsPerRun) { stopReason = 'count'; break }
 
     const nextUrl = findMbasicNextPage(doc)
     if (!nextUrl || nextUrl === url) { stopReason = 'no_more_pages'; break }
     url = nextUrl
     pages++
-    // Light pacing between page fetches — be polite, also helps avoid
-    // FB rate-limiting on rapid pagination requests.
-    await new Promise(r => setTimeout(r, jitter(800, 1500)))
+    await new Promise(r => setTimeout(r, jitter(600, 1000)))
   }
+
+  // Phase 2: for each discovered post, fetch its permalink page to get
+  // the full uncollapsed body. Replace the feed-preview article with the
+  // standalone-post article before extraction.
+  for (const item of feedArticles) {
+    const fullArticle = await fetchFullPost(item.permalinkUrl)
+    const sourceEl = fullArticle || item.article
+    const post = extractPost(sourceEl)
+    if (post) {
+      // Force the postId/postUrl to the values we already discovered, since
+      // the standalone page might use a slightly different anchor structure.
+      post.postId = item.postId
+      post.postUrl = item.permalinkUrl
+      captured.set(item.postId, post)
+    } else {
+      captured.delete(item.postId)
+    }
+    // Light pacing between full-post fetches.
+    await new Promise(r => setTimeout(r, jitter(300, 600)))
+  }
+
+  // Strip null placeholders.
+  for (const [k, v] of captured) if (!v) captured.delete(k)
 
   return {
     stopReason,
