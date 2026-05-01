@@ -16,13 +16,33 @@ console.log('[fb-ext content] loaded on', location.href)
 // in order of specificity and take the first selector that yields >=2 elements
 // (a single match usually means we hit a stray article outside the feed, like
 // a pinned announcement or a "Related" sidebar).
+//
+// Order matters: more specific selectors first so we don't grab unrelated
+// articles (sidebars, recommended-groups cards) when the feed selector misses.
 const POST_SELECTORS = [
-  '[role="feed"] > div > [role="article"]',     // most stable — direct children of the feed
+  '[role="feed"] > div > [role="article"]',          // direct children of the feed
   '[role="feed"] [role="article"]',
   '[data-pagelet^="GroupFeed"] [role="article"]',
-  'div[data-pagelet="GroupsForumNewMemberQuestionsCard"] ~ * [role="article"]',
+  '[data-pagelet*="FeedUnit"]',                      // newer FB rollout
+  '[aria-posinset]',                                 // virtualized feed item attribute
+  '[role="main"] [aria-posinset]',
   '[role="main"] [role="article"]',
   '[role="article"]',
+]
+
+// Used by the diagnostic probe. Helps identify which selector flavor is live
+// when none of POST_SELECTORS match — every value is reported in the response.
+const DIAGNOSTIC_SELECTORS = [
+  '[role="feed"]',
+  '[role="main"]',
+  '[role="article"]',
+  '[aria-posinset]',
+  '[data-pagelet]',
+  '[data-pagelet^="GroupFeed"]',
+  '[data-pagelet*="Feed"]',
+  '[data-ad-rendering-role]',
+  '[data-virtualized]',
+  'div[data-ft]',                                    // legacy FB instrumentation
 ]
 
 function findPosts() {
@@ -244,6 +264,35 @@ try {
   }
 } catch {/* swallow — window may not be writable in some contexts */}
 
+/** Run all diagnostic selectors and report element counts. Used when the
+ *  scrape returns 0 posts — gives us a snapshot of FB's actual DOM shape
+ *  to figure out which selector to add next. */
+function diagnoseDom() {
+  const probes = {}
+  for (const sel of DIAGNOSTIC_SELECTORS) {
+    try {
+      probes[sel] = document.querySelectorAll(sel).length
+    } catch (e) {
+      probes[sel] = -1
+    }
+  }
+  // Sample of distinct data-pagelet values currently rendered — narrows down
+  // which feed/page surface FB picked for this rollout.
+  const pagelets = new Set()
+  for (const el of document.querySelectorAll('[data-pagelet]')) {
+    const v = el.getAttribute('data-pagelet')
+    if (v) pagelets.add(v)
+    if (pagelets.size >= 20) break
+  }
+  return {
+    probes,
+    pageletsSeen: Array.from(pagelets),
+    bodyTextLength: (document.body?.innerText || '').length,
+    title: document.title,
+    url: location.href,
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'scrape') {
     (async () => {
@@ -254,8 +303,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         })
         const { elements, selector } = findPosts()
         const posts = capturePosts(elements, msg.maxPostsPerRun || 100)
+        // Always include a DOM diagnostic when we got 0 posts, so debugging
+        // doesn't require console access. Cheap (just element-count queries).
+        const diagnostic = posts.length === 0 ? diagnoseDom() : undefined
         sendResponse({
           ok: true,
+          diagnostic,
           posts,
           selector,
           totalElements: elements.length,

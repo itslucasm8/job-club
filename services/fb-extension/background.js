@@ -142,6 +142,7 @@ async function runOneGroup(group) {
       postsCaptured: posts.length,
       scrollDuration: (Date.now() - start) / 1000,
       stopReason: result?.stopReason,
+      diagnostic: result?.diagnostic,
       posts,
     }
   } catch (e) {
@@ -197,6 +198,9 @@ async function runAll(triggeredBy = 'manual') {
         postsCaptured: groupResult.postsCaptured,
         scrollDuration: groupResult.scrollDuration,
         stopReason: groupResult.stopReason,
+        // Carry the DOM probe through to the heartbeat so we can debug from
+        // the admin UI when 0 posts captured.
+        ...(groupResult.diagnostic ? { diagnostic: groupResult.diagnostic } : {}),
         ...(groupResult.error ? { error: groupResult.error } : {}),
       }
       summary.totalPosts += groupResult.postsCaptured
