@@ -21,6 +21,18 @@ const STATE_KEYS = {
 
 const DEFAULT_BACKEND = 'https://thejobclub.com.au'
 
+// MV3 service workers can be force-killed mid-run (idle eviction, browser
+// restart). When that happens we never reach the finally{} that clears
+// runBusy, so the lock would be permanently stuck. Clear any stale lock on
+// service-worker startup — there is no in-progress run if the worker just
+// booted.
+chrome.runtime.onStartup.addListener(() => {
+  chrome.storage.local.set({ runBusy: false }).catch(() => {})
+})
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.set({ runBusy: false }).catch(() => {})
+})
+
 // ─── Storage helpers ──────────────────────────────────────────────────────
 
 async function getConfig() {
@@ -41,22 +53,37 @@ async function setLastRun(summary) {
 
 // ─── HTTP helpers ─────────────────────────────────────────────────────────
 
+// Per-request timeout. Ingest can be slow (LLM extraction runs server-side
+// inline), but a hung connection should not pin the service worker forever —
+// the runBusy lock would orphan and block all future runs.
+const API_TIMEOUT_MS = 120_000
+
 async function apiFetch(path, opts = {}) {
   const { token, backend } = await getConfig()
   if (!token) throw new Error('Token non configuré (ouvrir les options)')
-  const res = await fetch(`${backend}${path}`, {
-    ...opts,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      ...(opts.headers || {}),
-    },
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+  try {
+    const res = await fetch(`${backend}${path}`, {
+      ...opts,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...(opts.headers || {}),
+      },
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`)
+    }
+    return res.json()
+  } catch (e) {
+    if (e?.name === 'AbortError') throw new Error(`Timeout après ${API_TIMEOUT_MS / 1000}s sur ${path}`)
+    throw e
+  } finally {
+    clearTimeout(timer)
   }
-  return res.json()
 }
 
 // ─── Tab orchestration helpers ────────────────────────────────────────────
@@ -114,6 +141,7 @@ async function runOneGroup(group) {
       groupName: group.groupName,
       postsCaptured: posts.length,
       scrollDuration: (Date.now() - start) / 1000,
+      stopReason: result?.stopReason,
       posts,
     }
   } catch (e) {
@@ -164,19 +192,20 @@ async function runAll(triggeredBy = 'manual') {
 
     for (const group of groups) {
       const groupResult = await runOneGroup(group)
-      summary.groupRuns.push({
+      const groupSummary = {
         sourceSlug: groupResult.sourceSlug,
         postsCaptured: groupResult.postsCaptured,
         scrollDuration: groupResult.scrollDuration,
+        stopReason: groupResult.stopReason,
         ...(groupResult.error ? { error: groupResult.error } : {}),
-      })
+      }
       summary.totalPosts += groupResult.postsCaptured
       if (groupResult.error) summary.totalErrors += 1
 
       // Ship the batch even if it's small — keeps state moving.
       if (groupResult.posts.length > 0) {
         try {
-          await apiFetch('/api/extension/ingest-batch', {
+          const ingestResp = await apiFetch('/api/extension/ingest-batch', {
             method: 'POST',
             body: JSON.stringify({
               sourceSlug: groupResult.sourceSlug,
@@ -185,12 +214,22 @@ async function runAll(triggeredBy = 'manual') {
               scrollDuration: groupResult.scrollDuration,
             }),
           })
+          // Roll the ingest outcome up into the group summary so the popup +
+          // admin UI can show useful counters without a second round-trip.
+          groupSummary.ingested = ingestResp?.ingested ?? 0
+          groupSummary.duplicates = ingestResp?.duplicates ?? 0
+          groupSummary.extractionErrors = ingestResp?.errors ?? 0
+          if (ingestResp?.errors > 0) summary.totalErrors += ingestResp.errors
+          if (Array.isArray(ingestResp?.errorDetails) && ingestResp.errorDetails.length > 0) {
+            groupSummary.errorSamples = ingestResp.errorDetails.slice(0, 3)
+          }
         } catch (e) {
           console.warn('[fb-ext] ingest-batch failed for', groupResult.sourceSlug, e)
-          // Don't bail — try the next group.
+          groupSummary.error = (groupSummary.error || '') + ' / ingest: ' + (e?.message || String(e))
           summary.totalErrors += 1
         }
       }
+      summary.groupRuns.push(groupSummary)
     }
 
     summary.completedAt = new Date().toISOString()

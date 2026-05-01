@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 import { authorizeExtensionRequest } from '@/lib/extension-auth'
 import { canonicalizeUrl } from '@/lib/sourcing/url-canonical'
 import { loadEffectivePlaybook, extractWithPlaybookFromHtml } from '@/lib/sourcing/playbook'
@@ -131,6 +132,17 @@ export async function POST(req: Request) {
       totalSeen: { increment: postsRaw.length },
     },
   }).catch(() => {})
+
+  logger.info('extension ingest-batch', {
+    route: '/api/extension/ingest-batch',
+    sourceSlug,
+    received: postsRaw.length,
+    ingested,
+    duplicates,
+    errors,
+    byMode,
+    sampleErrors: errorDetails.slice(0, 3),
+  })
 
   return NextResponse.json({
     ok: true,

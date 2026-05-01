@@ -182,8 +182,13 @@ function cleanPostHtml(postEl) {
   return html
 }
 
+// A post needs at least this much visible body text to be worth submitting.
+// FB renders loading skeletons and empty announcement cards as [role=article];
+// they have headers but ~no body, and waste backend extraction budget.
+const MIN_POST_TEXT_CHARS = 80
+
 /** Extract one post into the wire format consumed by /api/extension/ingest-batch.
- *  Returns null if the post can't be identified (no permalink → can't dedupe). */
+ *  Returns null when the post can't be identified or looks like a placeholder. */
 function extractPost(postEl) {
   const anchor = findPermalinkAnchor(postEl)
   if (!anchor) return null
@@ -191,9 +196,15 @@ function extractPost(postEl) {
   const postUrl = absoluteHref(href)
   const postId = postIdFromHref(href)
   if (!postId || !postUrl) return null
+  // Reject skeleton / empty placeholder articles before we send them.
+  // Use innerText (visible text only) — outerHTML is huge even for empty posts
+  // because of FB's nested wrapper divs.
+  const visibleText = (postEl.innerText || '').trim()
+  if (visibleText.length < MIN_POST_TEXT_CHARS) return null
   const postedAt = extractPostedAt(postEl, anchor)
   const authorName = extractAuthorName(postEl)
   const html = cleanPostHtml(postEl)
+  if (!html || html.length < 500) return null  // sanity bound — clean HTML for a real post is usually 5–30KB
   return { postId, postUrl, postedAt, authorName, html }
 }
 

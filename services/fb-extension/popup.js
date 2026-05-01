@@ -19,14 +19,20 @@ async function refresh() {
   $('token-status').textContent = cfg.extensionToken ? '🔒 configuré' : '⚠ manquant'
   $('token-status').className = 'value ' + (cfg.extensionToken ? 'ok' : 'err')
 
-  // FB cookie test
-  let fbOk = false
+  // FB cookie test — checks that the c_user cookie (the FB session id) is set,
+  // i.e. that the configured browser profile is logged in to FB. Without this
+  // the scrape will return a logged-out view with no group content.
+  let fbState = 'unknown'
   try {
-    const cookie = await chrome.cookies.get({ url: 'https://www.facebook.com', name: 'c_user' }).catch(() => null)
-    fbOk = !!cookie
-  } catch {/* no cookies permission — fall back to host check */ fbOk = true}
-  $('fb-status').textContent = fbOk ? '✓ oui' : '✗ pas connecté'
-  $('fb-status').className = 'value ' + (fbOk ? 'ok' : 'err')
+    const cookie = await chrome.cookies.get({ url: 'https://www.facebook.com', name: 'c_user' })
+    fbState = cookie ? 'ok' : 'absent'
+  } catch {
+    fbState = 'unknown'
+  }
+  const fbLabels = { ok: '✓ oui', absent: '✗ pas connecté', unknown: '? inconnu' }
+  const fbClass = { ok: 'ok', absent: 'err', unknown: 'warn' }
+  $('fb-status').textContent = fbLabels[fbState]
+  $('fb-status').className = 'value ' + fbClass[fbState]
 
   // Status from background
   chrome.runtime.sendMessage({ type: 'getStatus' }, (resp) => {
@@ -38,9 +44,24 @@ async function refresh() {
       $('run-btn').disabled = true
       $('run-btn').textContent = '⌛ Run en cours…'
     }
-    if (lr?.error) {
+    // Show useful detail when something went wrong: top-level run error,
+    // or per-group failures (capture failed, ingest errored, extraction
+    // produced no candidates).
+    const lines = []
+    if (lr?.error) lines.push(`Run: ${lr.error}`)
+    for (const g of lr?.groupRuns || []) {
+      const parts = []
+      if (g.error) parts.push(`erreur: ${g.error}`)
+      if (g.postsCaptured === 0 && !g.error) parts.push(`0 posts (${g.stopReason || 'inconnu'})`)
+      if (g.extractionErrors > 0 && g.ingested === 0) {
+        const sample = g.errorSamples?.[0]?.reason || ''
+        parts.push(`${g.extractionErrors} extractions échouées${sample ? ': ' + sample.slice(0, 80) : ''}`)
+      }
+      if (parts.length > 0) lines.push(`${g.sourceSlug}: ${parts.join(' · ')}`)
+    }
+    if (lines.length > 0) {
       $('status-detail').style.display = 'block'
-      $('status-detail').textContent = lr.error
+      $('status-detail').textContent = lines.join('\n')
     }
   })
 }

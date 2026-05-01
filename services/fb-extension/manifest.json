@@ -14,7 +14,8 @@
     "storage",
     "scripting",
     "alarms",
-    "tabs"
+    "tabs",
+    "cookies"
   ],
 
   "background": {
