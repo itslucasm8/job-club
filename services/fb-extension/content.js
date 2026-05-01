@@ -12,18 +12,24 @@ console.log('[fb-ext content] loaded on', location.href)
 // FB rotates class names but role-based attributes are stable across rotations.
 // Multiple selectors with graceful degradation — first non-empty wins.
 
-// FB group pages have *two* virtualized regions: the feed itself, and the
-// "Suggested Groups" / "People You May Know" sidebar. Both use [aria-posinset]
-// and the sidebar usually has MORE elements than the visible feed slice —
-// so picking by max-count would always grab the sidebar. We scope every
-// selector inside [role="feed"] (FB's canonical feed container, stable for
-// years) to eliminate sidebar contamination.
-const FEED_SELECTORS = [
-  '[aria-posinset]',                                 // virtualized feed item (current rollout)
-  '[role="article"]',                                // legacy feed item
-  '> div > [role="article"]',                        // direct children of the feed
-  '[data-pagelet^="GroupFeed"] [role="article"]',
-  '[data-pagelet*="FeedUnit"]',
+const IS_MOBILE = location.hostname === 'm.facebook.com' || location.hostname === 'mbasic.facebook.com'
+
+// Mobile FB uses plain <article> tags with real <a href> permalinks. Far
+// simpler than desktop. We try mobile selectors first, then desktop.
+const MOBILE_SELECTORS = [
+  'article[data-ft]',                                // m.facebook.com — has data-ft JSON
+  'div[data-ft] article',
+  'article',                                          // last resort
+]
+
+// Desktop FB virtualizes everything. The reliable discriminator is the
+// COMBO of [role=feed] ancestor + [role=article] + [aria-posinset]. Sidebar
+// "Suggested Groups" cards have role=article but no aria-posinset and no
+// [role=feed] ancestor — so requiring all three eliminates them.
+const DESKTOP_FEED_SELECTORS = [
+  '[role="article"][aria-posinset]',                 // canonical feed-post discriminator
+  '[role="article"][aria-describedby]',              // fallback shape
+  '[role="article"]',                                // last resort within [role=feed]
 ]
 
 // Used by the diagnostic probe. Helps identify which selector flavor is live
@@ -78,39 +84,32 @@ function findPostsByPermalink() {
 }
 
 function findPosts() {
-  // Strategy 1 (preferred): find by permalink anchor + climb to richest
-  // ancestor. Insensitive to FB's role/aria/pagelet rotations.
+  // Mobile FB (m.facebook.com): plain <article> tags. Try first since this
+  // is the primary path now — the extension rewrites group URLs to mobile.
+  if (IS_MOBILE) {
+    for (const sel of MOBILE_SELECTORS) {
+      const els = Array.from(document.querySelectorAll(sel))
+      if (els.length >= 2) return { selector: sel, elements: els }
+    }
+    // Fall through if mobile selectors found nothing (shouldn't happen on
+    // a real m.facebook.com group page — but be safe).
+  }
+
+  // Desktop fallback. Strategy 1: find posts by their canonical
+  // [role=feed] + [role=article] + [aria-posinset] discriminator. The
+  // combo eliminates sidebar cards which have role=article but no
+  // aria-posinset and no [role=feed] ancestor.
+  for (const sel of DESKTOP_FEED_SELECTORS) {
+    const els = Array.from(document.querySelectorAll(`[role="feed"] ${sel}`))
+    if (els.length >= 2) return { selector: `[role="feed"] ${sel}`, elements: els }
+  }
+
+  // Strategy 2: permalink-anchor walk. Useful when DOM has posts but no
+  // role attributes (some FB rollouts).
   const byPermalink = findPostsByPermalink()
   if (byPermalink.elements.length >= 2) return byPermalink
 
-  // Strategy 2 (fallback): structural selectors scoped inside [role=feed].
-  // Used only when permalink walking finds nothing — usually means we're
-  // on a rollout where post anchors haven't rendered yet, or the page is
-  // showing a "see more" overlay.
-  const feeds = Array.from(document.querySelectorAll('[role="feed"]'))
-  let feed = null
-  let bestChildCount = -1
-  for (const f of feeds) {
-    const n = f.children.length
-    if (n > bestChildCount) { bestChildCount = n; feed = f }
-  }
-  if (feed) {
-    let best = { selector: null, elements: [] }
-    for (const sel of FEED_SELECTORS) {
-      let els
-      try {
-        els = sel.startsWith('>')
-          ? Array.from(feed.querySelectorAll(`:scope ${sel}`))
-          : Array.from(feed.querySelectorAll(sel))
-      } catch { continue }
-      if (els.length > best.elements.length) {
-        best = { selector: `[role="feed"] ${sel}`, elements: els }
-      }
-    }
-    if (best.elements.length > 0) return best
-  }
-
-  // Last resort: whatever the permalink walk found, even if just 1.
+  // Last resort: whatever the permalink walk found, even if just 1, or empty.
   return byPermalink
 }
 

@@ -6,6 +6,7 @@
 
   "host_permissions": [
     "*://*.facebook.com/*",
+    "*://m.facebook.com/*",
     "https://thejobclub.com.au/*",
     "http://localhost:3000/*"
   ],
@@ -35,7 +36,10 @@
 
   "content_scripts": [
     {
-      "matches": ["*://*.facebook.com/groups/*"],
+      "matches": [
+        "*://*.facebook.com/groups/*",
+        "*://m.facebook.com/groups/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_idle"
     }

@@ -134,13 +134,30 @@ async function sendMessageWithRetry(tabId, msg, retries = 5) {
 
 // ─── The run ──────────────────────────────────────────────────────────────
 
+/** Rewrite www.facebook.com / facebook.com group URLs to m.facebook.com.
+ *  Mobile FB uses plain <article> tags with real <a href> permalinks instead
+ *  of desktop's heavily-virtualized React tree, so extraction is far more
+ *  reliable. Cookies share across the .facebook.com domain so the same
+ *  spare-account login works on m. as on www. */
+function toMobileFbUrl(url) {
+  try {
+    const u = new URL(url)
+    if (u.hostname === 'www.facebook.com' || u.hostname === 'facebook.com') {
+      u.hostname = 'm.facebook.com'
+      return u.toString()
+    }
+    return url
+  } catch { return url }
+}
+
 async function runOneGroup(group) {
   const start = Date.now()
   // active: true is REQUIRED — FB throttles SPA hydration (IntersectionObserver,
   // requestIdleCallback) on background tabs, so the feed never renders any
   // [role="article"] elements. The tradeoff is the tab visibly pops open during
   // a run; on the office machine that's fine and the tab closes when done.
-  const tab = await chrome.tabs.create({ url: group.groupUrl, active: true })
+  const mobileUrl = toMobileFbUrl(group.groupUrl)
+  const tab = await chrome.tabs.create({ url: mobileUrl, active: true })
   try {
     await waitForTabReady(tab.id)
     // Give the FB feed time to hydrate + render initial posts before scraping.
