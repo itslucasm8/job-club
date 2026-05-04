@@ -17,6 +17,13 @@ type DashboardData = {
   adminUsers: { id: string; name: string | null; email: string; role: string; createdAt: string }[]
   latestSignup: { name: string | null; email: string; createdAt: string } | null
   expiredToday: number
+  sourcing?: {
+    pendingCandidates: number
+    autoRejectedWeek: number
+    sourcesActive: number
+    sourcesBroken: number
+    lastRun: { status: string; startedAt: string; completedAt: string | null; totalImported: number; totalErrors: number; totalSources: number } | null
+  }
 }
 
 export default function AdminDashboardPage() {
@@ -208,6 +215,11 @@ export default function AdminDashboardPage() {
         />
       </div>
 
+      {/* Sourcing pipeline — daily-action panel for the team */}
+      {data.sourcing && (
+        <SourcingPanel sourcing={data.sourcing} router={router} />
+      )}
+
       {/* Recent Activity */}
       <div className="bg-white border border-stone-200 rounded-lg overflow-hidden mb-6">
         <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-stone-200">
@@ -387,6 +399,103 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SourcingPanel({
+  sourcing,
+  router,
+}: {
+  sourcing: NonNullable<DashboardData['sourcing']>
+  router: ReturnType<typeof useRouter>
+}) {
+  const [running, setRunning] = useState(false)
+  const lr = sourcing.lastRun
+  const lrAgeMin = lr ? Math.floor((Date.now() - new Date(lr.startedAt).getTime()) / 60000) : null
+  const lrAgo = lrAgeMin == null ? null : lrAgeMin < 60 ? `${lrAgeMin}m ago` : lrAgeMin < 1440 ? `${Math.floor(lrAgeMin / 60)}h ago` : `${Math.floor(lrAgeMin / 1440)}d ago`
+
+  async function runAll() {
+    setRunning(true)
+    try {
+      const res = await fetch('/api/admin/sources/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+      if (res.ok) {
+        // Send the operator to the sources page where the full progress card lives.
+        router.push('/admin/sources')
+      } else {
+        const d = await res.json().catch(() => ({}))
+        alert(d.error || 'Could not start scan')
+      }
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div className="bg-white border border-stone-200 rounded-lg overflow-hidden mb-6">
+      <div className="px-4 sm:px-5 py-3 border-b border-stone-200 flex items-center justify-between">
+        <h2 className="text-base font-bold text-stone-800">Sourcing pipeline</h2>
+        <button
+          onClick={runAll}
+          disabled={running || sourcing.sourcesActive === 0}
+          className="px-3 py-1.5 rounded-md text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white transition disabled:opacity-50"
+        >
+          {running ? 'Starting…' : `▶ Run all (${sourcing.sourcesActive})`}
+        </button>
+      </div>
+
+      <button
+        onClick={() => router.push('/admin/candidates')}
+        className="w-full px-4 sm:px-5 py-4 flex items-center justify-between hover:bg-purple-50/50 transition border-b border-stone-100 text-left"
+      >
+        <div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold text-purple-700 tabular-nums">{sourcing.pendingCandidates}</span>
+            <span className="text-sm font-semibold text-stone-700">candidates pending review</span>
+          </div>
+          <div className="text-xs text-stone-500 mt-0.5">
+            {sourcing.autoRejectedWeek > 0
+              ? `Classifier auto-rejected ${sourcing.autoRejectedWeek} this week`
+              : 'No auto-rejects this week'}
+          </div>
+        </div>
+        <span className="text-purple-700 font-bold text-sm">Review →</span>
+      </button>
+
+      <div className="px-4 sm:px-5 py-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <button
+          onClick={() => router.push('/admin/sources')}
+          className="text-left p-2 rounded hover:bg-stone-50 transition"
+        >
+          <div className="text-stone-500 mb-0.5">Sources</div>
+          <div className="font-semibold text-stone-900">
+            {sourcing.sourcesActive} active
+            {sourcing.sourcesBroken > 0 && (
+              <span className="ml-1 text-red-700 font-bold">· {sourcing.sourcesBroken} broken</span>
+            )}
+          </div>
+        </button>
+        <div className="p-2">
+          <div className="text-stone-500 mb-0.5">Last scan</div>
+          {lr ? (
+            <div className="font-semibold text-stone-900">
+              {lr.status === 'completed' && '✓'}
+              {lr.status === 'failed' && '✗'}
+              {(lr.status === 'running' || lr.status === 'pending') && '⏳'}
+              {' '}
+              {lr.totalImported} imported
+              {lr.totalErrors > 0 && <span className="text-red-700"> · {lr.totalErrors} errors</span>}
+              <span className="ml-1 font-normal text-stone-500">· {lrAgo}</span>
+            </div>
+          ) : (
+            <div className="font-semibold text-stone-500">Never run</div>
+          )}
         </div>
       </div>
     </div>

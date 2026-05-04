@@ -30,6 +30,11 @@ export async function GET() {
     adminUsers,
     latestSignup,
     expiredToday,
+    pendingCandidates,
+    autoRejectedWeek,
+    sourcesActive,
+    sourcesBroken,
+    lastRun,
   ] = await Promise.all([
     prisma.job.count({ where: { AND: activeConditions } }),
     prisma.job.count({ where: { AND: [...activeConditions, { createdAt: { gte: oneWeekAgo } }] } }),
@@ -63,6 +68,14 @@ export async function GET() {
         expiresAt: { lte: now },
       },
     }),
+    prisma.jobCandidate.count({ where: { status: 'pending' } }),
+    prisma.jobCandidate.count({ where: { status: 'auto_rejected', createdAt: { gte: oneWeekAgo } } }),
+    prisma.jobSource.count({ where: { enabled: true } }),
+    prisma.jobSource.count({ where: { healthStatus: 'broken' } }),
+    prisma.sourcingRun.findFirst({
+      orderBy: { startedAt: 'desc' },
+      select: { status: true, startedAt: true, completedAt: true, totalImported: true, totalErrors: true, totalSources: true },
+    }),
   ])
 
   const stateCounts: Record<string, number> = {}
@@ -83,6 +96,13 @@ export async function GET() {
     adminUsers,
     latestSignup,
     expiredToday,
+    sourcing: {
+      pendingCandidates,
+      autoRejectedWeek,
+      sourcesActive,
+      sourcesBroken,
+      lastRun,
+    },
   })
   } catch (e) {
     Sentry.captureException(e, { tags: { route: 'admin-dashboard' } })
