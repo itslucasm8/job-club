@@ -101,7 +101,8 @@ Skilled-migration / professional-role red flags (also set has_locals_only_red_fl
 - Pay quoted as annual salary above ~$50,000/year ("$70k", "$80,000 + super", "$95,000 per annum", "salary package $90,000"). WHV casual work is hourly (~$24-35/hr); annual salaries above $50k indicate professional roles, not casual labour.
 - "Permanent" / "Permanent role" / "Permanent full-time" — WHV is by definition temporary work.
 - Sponsorship/skilled-visa keywords: "sponsorship available", "we sponsor", "TSS visa", "subclass 482", "subclass 186", "skilled migration", "ENS", "DAMA", "PR pathway", "permanent residency pathway".
-- Qualification/credentialing barriers a backpacker realistically lacks: "degree required", "bachelor's required", "Master's required", "professional registration", "RN registration", "CPA", "CA qualified", "AHPRA", "Engineers Australia", "5+ years experience", "10+ years experience", "senior" + years-of-experience requirement, "leadership experience required".
+- Qualification/credentialing barriers a backpacker realistically lacks: "degree required", "bachelor's required", "Master's required", "professional registration", "RN registration", "CPA", "CA qualified", "AHPRA", "Engineers Australia", "minimum 5+ years experience REQUIRED", "10+ years experience REQUIRED", "senior" + years-of-experience requirement, "leadership experience required".
+- Important nuance on experience clauses: "experience preferred", "1-3 years experience preferred", "previous experience an advantage", "experience desirable" do NOT count as auto-rejects. Backpackers regularly get hired despite these. Only firm minimum requirements (e.g. "must have 5+ years", "experience essential", "minimum X years required") flip is_backpacker_suitable=false.
 - Career titles that imply structured career roles: "Senior X", "Lead X", "Principal X", "Manager", "Head of", "Director", "Executive", "Specialist" (where it implies professional speciality not just "cleaning specialist"), "Engineer" (software/civil/mechanical/etc.), "Analyst", "Consultant", "Architect" (technical), "Account Manager", "Business Development", "Project Manager".
   Exception: hospitality and trades titles like "Sous Chef", "Head Chef", "Bar Manager", "Site Supervisor" can still be backpacker-friendly if the listing reads as casual/short-term and pay is hourly.
 
@@ -126,7 +127,7 @@ Respond with ONLY a JSON object — no preamble, no markdown fencing. Exact shap
   "reasoning": "1-2 sentences"
 }
 
-When unclear, lean conservative on is_backpacker_suitable=false."""
+When unclear, lean toward is_backpacker_suitable=true with low confidence (<=0.5). Genuine ambiguity belongs in human review, not auto-reject. Reserve is_backpacker_suitable=false + high confidence (>=0.8) for clear professional/PR-track roles."""
 
 
 def _call_claude(system: str, user: str, model: str, max_chars: int = 25000, timeout: int = 90) -> str:
