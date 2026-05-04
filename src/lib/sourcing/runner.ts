@@ -82,6 +82,13 @@ type ListingResultKind = 'inserted' | 'duplicate' | 'error'
 // 2 means "happened twice in a row" which is a real signal.
 const FAIL_BROKEN_THRESHOLD = 2
 
+// Number of consecutive errors that auto-disables the source. We give one
+// extra strike past the broken threshold — broken means "noticed it's bad",
+// auto-disable means "stop wasting Claude tokens on it until a human looks".
+// The /admin/sources catalog surfaces auto-disabled rows in the Disabled tab
+// so the operator can edit/delete them.
+const FAIL_AUTODISABLE_THRESHOLD = 3
+
 /** Persist a successful run to JobSource: bumps totalSeen, resets failure
  *  counter, and computes healthStatus from listingsFound vs profile expectations.
  *
@@ -144,13 +151,26 @@ async function markSourceFailure(slug: string, errorMessage: string): Promise<vo
       lastRunError: errorMessage,
       consecutiveFailures: { increment: 1 },
     },
-    select: { consecutiveFailures: true, healthStatus: true },
+    select: { consecutiveFailures: true, healthStatus: true, enabled: true },
   })
+  const data: any = {}
   if (updated.consecutiveFailures >= FAIL_BROKEN_THRESHOLD && updated.healthStatus !== 'broken') {
-    await prisma.jobSource.update({
-      where: { slug },
-      data: { healthStatus: 'broken' },
-    })
+    data.healthStatus = 'broken'
+  }
+  if (updated.consecutiveFailures >= FAIL_AUTODISABLE_THRESHOLD && updated.enabled) {
+    data.enabled = false
+  }
+  if (Object.keys(data).length > 0) {
+    await prisma.jobSource.update({ where: { slug }, data })
+    if (data.enabled === false) {
+      await appendFixHistoryEntry(slug, {
+        date: new Date().toISOString(),
+        kind: 'auto_disabled',
+        status: 'open',
+        consecutiveFailures: updated.consecutiveFailures,
+        lastError: errorMessage.slice(0, 500),
+      }).catch(() => {})
+    }
   }
 }
 

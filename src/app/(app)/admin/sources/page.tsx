@@ -681,6 +681,42 @@ function SourceDrawer({
   const [err, setErr] = useState<string | null>(null)
   const [detect, setDetect] = useState<{ kind: 'idle' | 'detecting' | 'found' | 'not_found' | 'error', message?: string, suggestion?: { adapter: string, boardSlug: string } }>({ kind: 'idle' })
 
+  type TestState =
+    | { kind: 'idle' }
+    | { kind: 'running' }
+    | { kind: 'done', listingsFound: number, listingsTested: number, okCount: number, failCount: number, results: { url: string, ok: boolean, title?: string, company?: string, pay?: string, state?: string, error?: string }[], durationMs: number, message?: string }
+    | { kind: 'error', message: string }
+  const [test, setTest] = useState<TestState>({ kind: 'idle' })
+
+  async function runTest() {
+    if (!source) return
+    setTest({ kind: 'running' })
+    try {
+      const res = await fetch(`/api/admin/sources/${encodeURIComponent(source.slug)}/test`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setTest({ kind: 'error', message: data?.error || `Error ${res.status}` })
+        return
+      }
+      if (data.phase === 'discover' && data.error) {
+        setTest({ kind: 'error', message: `discover failed: ${data.error}` })
+        return
+      }
+      setTest({
+        kind: 'done',
+        listingsFound: data.listingsFound ?? 0,
+        listingsTested: data.listingsTested ?? 0,
+        okCount: data.summary?.okCount ?? 0,
+        failCount: data.summary?.failCount ?? 0,
+        results: data.results || [],
+        durationMs: data.durationMs ?? 0,
+        message: data.message,
+      })
+    } catch (e: any) {
+      setTest({ kind: 'error', message: e?.message || 'Network error' })
+    }
+  }
+
   const isCreate = mode === 'create'
   const adapterMeta = ADAPTER_OPTIONS.find(a => a.value === state.adapter)
 
@@ -996,6 +1032,74 @@ function SourceDrawer({
               </div>
             )}
           </div>
+
+          {!isCreate && source && (
+            <div className="border-t border-stone-200 pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold text-stone-700">Test source</h3>
+                <button
+                  type="button"
+                  onClick={runTest}
+                  disabled={test.kind === 'running' || !source.adapter}
+                  className="px-2 py-1 rounded text-[11px] font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 disabled:opacity-50"
+                >
+                  {test.kind === 'running' ? 'Testing…' : '▶ Run test'}
+                </button>
+              </div>
+              <p className="text-[11px] text-stone-500">
+                Discovers listings and extracts up to 3 — no DB writes. Use this to validate the source works before enabling it.
+              </p>
+              {test.kind === 'error' && (
+                <div className="mt-2 p-2 rounded bg-red-50 border border-red-200 text-red-700 text-[11px]">
+                  ✗ {test.message}
+                </div>
+              )}
+              {test.kind === 'done' && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+                    <span className="px-2 py-0.5 rounded bg-stone-100 text-stone-700">
+                      {test.listingsFound} listing{test.listingsFound === 1 ? '' : 's'} discovered
+                    </span>
+                    {test.okCount > 0 && (
+                      <span className="px-2 py-0.5 rounded bg-green-100 text-green-800">{test.okCount} extracted ok</span>
+                    )}
+                    {test.failCount > 0 && (
+                      <span className="px-2 py-0.5 rounded bg-red-100 text-red-800">{test.failCount} failed</span>
+                    )}
+                    <span className="text-stone-400">{Math.round(test.durationMs / 1000)}s</span>
+                  </div>
+                  {test.message && (
+                    <div className="text-[11px] text-stone-600 italic">{test.message}</div>
+                  )}
+                  {test.results.length > 0 && (
+                    <ul className="space-y-1 bg-stone-50 border border-stone-200 rounded p-2 text-[11px]">
+                      {test.results.map((r, i) => (
+                        <li key={i}>
+                          {r.ok ? (
+                            <div>
+                              <span className="text-green-700 font-bold">✓</span>{' '}
+                              <span className="font-semibold text-stone-900">{r.title || '(no title)'}</span>
+                              <div className="text-stone-600 ml-3">
+                                {r.company || '?'}
+                                {r.state && ` · ${r.state}`}
+                                {r.pay && ` · ${r.pay}`}
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="text-red-700 font-bold">✗</span>{' '}
+                              <span className="text-stone-700">{r.error || 'failed'}</span>
+                              <div className="text-stone-400 font-mono ml-3 truncate">{r.url}</div>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {err && <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{err}</div>}
         </div>
