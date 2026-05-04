@@ -44,10 +44,12 @@ const ANNUAL_SALARY_FLOOR = 50000
 // red flags, those override.
 const EXPERIENCE_KEYWORD_RE = /\bexperience\b|\byears?[ -]of\b|\bprior[ -]experience\b|\bqualifi/i
 
-// Annual-salary signals in the reasoning text. If any of these appear, the
-// experience-loophole does NOT apply — the role is structurally a career
-// position regardless of whether experience is also mentioned.
-const ANNUAL_SALARY_REASON_RE = /annual\s+salary|per\s+annum|\bp\.?a\.?\b|\$5\d[,k]|\$[6-9]\d[,k]|\$\d{3}[,k]|salary\s+package/i
+// Structural disqualifier signals in the reasoning text. If any appear,
+// the experience-loophole does NOT apply — the role is structurally a
+// career/skilled-migration position regardless of any experience mention.
+// Covers annual salaries, "permanent" markers, formal credentialing
+// requirements, and the giveaway "skilled migration" framing.
+const ANNUAL_SALARY_REASON_RE = /annual\s+salary|per\s+annum|\bp\.?a\.?\b|\$5\d[,k]|\$[6-9]\d[,k]|\$\d{3}[,k]|salary\s+package|skilled\s+migration|full[\s-]?time\s+permanent|permanent\s+full[\s-]?time|AQF\s+(?:certificate|cert)|cert(?:ificate)?\s+(?:III|IV)\s+(?:required|qualification)|degree\s+required|bachelor['’]?s?\s+(?:required|degree)|professional\s+(?:registration|career|management)/i
 
 /** Parse `raw.pay` and return true if it contains an annual figure at or
  *  above ANNUAL_SALARY_FLOOR. Handles "$80,000", "$80k", "$70-85k", "$76,515",

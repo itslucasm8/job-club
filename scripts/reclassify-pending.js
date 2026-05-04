@@ -15,7 +15,7 @@ const prisma = new PrismaClient()
 const ANNUAL_SALARY_FLOOR = 50000
 const NOT_SUITABLE_AUTOREJECT_CONFIDENCE = 0.8
 const EXPERIENCE_KEYWORD_RE = /\bexperience\b|\byears?[ -]of\b|\bprior[ -]experience\b|\bqualifi/i
-const ANNUAL_SALARY_REASON_RE = /annual\s+salary|per\s+annum|\bp\.?a\.?\b|\$5\d[,k]|\$[6-9]\d[,k]|\$\d{3}[,k]|salary\s+package/i
+const ANNUAL_SALARY_REASON_RE = /annual\s+salary|per\s+annum|\bp\.?a\.?\b|\$5\d[,k]|\$[6-9]\d[,k]|\$\d{3}[,k]|salary\s+package|skilled\s+migration|full[\s-]?time\s+permanent|permanent\s+full[\s-]?time|AQF\s+(?:certificate|cert)|cert(?:ificate)?\s+(?:III|IV)\s+(?:required|qualification)|degree\s+required|bachelor['’]?s?\s+(?:required|degree)|professional\s+(?:registration|career|management)/i
 
 function payHasAnnualSalaryAtOrAboveFloor(raw) {
   const pay = String(raw?.pay || '')
