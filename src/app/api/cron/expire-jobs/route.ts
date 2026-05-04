@@ -2,21 +2,18 @@ import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { verifyCronAuth } from '@/lib/cron-auth'
 
 /**
  * Cron endpoint to deactivate expired jobs.
  * Call this daily via a cron job or external scheduler.
  *
  * Protected by a shared secret in the Authorization header.
- * Usage: curl -H "Authorization: Bearer YOUR_CRON_SECRET" https://thejobclub.com.au/api/cron/expire-jobs
+ * Usage: curl -H "Authorization: Bearer $CRON_SECRET" https://thejobclub.com.au/api/cron/expire-jobs
  */
 export async function POST(req: Request) {
-  // Verify cron secret
-  const auth = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET || process.env.NEXTAUTH_SECRET
-  if (auth !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authError = verifyCronAuth(req)
+  if (authError) return authError
 
   try {
     const now = new Date()

@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/nextjs'
 import { authOptions } from '@/lib/auth'
 import { extractSchema, getFirstValidationError } from '@/lib/validation'
 import { extractLimiter, getClientIP } from '@/lib/rate-limit'
+import { assertPublicHttpUrl, UrlGuardError } from '@/lib/url-guard'
 
 // Australian states mapping
 const AU_STATES: Record<string, string> = {
@@ -147,6 +148,18 @@ export async function POST(req: Request) {
   }
 
   const { url } = result.data
+
+  // Block private/loopback/Docker-internal hosts. Even admin-only endpoints
+  // need this — a compromised admin should not be able to reach the Claude
+  // proxy on host.docker.internal:8090 or probe internal services.
+  try {
+    assertPublicHttpUrl(url)
+  } catch (e) {
+    if (e instanceof UrlGuardError) {
+      return NextResponse.json({ error: e.message }, { status: 400 })
+    }
+    throw e
+  }
 
   try {
     // Create AbortController for 10-second timeout

@@ -1,13 +1,13 @@
 import { withAuth } from 'next-auth/middleware'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
 
-// Skip auth entirely in development
-function devMiddleware(req: NextRequest) {
-  return NextResponse.next()
-}
-
-const prodMiddleware = withAuth(
+// Auth runs in every environment. Local dev signs in as the seeded admin
+// (`admin@...` / `admin123` from prisma/seed.ts). Avoids the previous
+// NODE_ENV-conditional bypass — a single misconfiguration there would have
+// disabled auth in production. Defense in depth: removing the branch removes
+// the misconfiguration risk.
+export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token
     const path = req.nextUrl.pathname
@@ -38,8 +38,6 @@ const prodMiddleware = withAuth(
   },
   { callbacks: { authorized: ({ token }) => !!token } }
 )
-
-export default process.env.NODE_ENV === 'development' ? devMiddleware : prodMiddleware
 
 export const config = {
   matcher: ['/feed/:path*', '/states/:path*', '/job/:path*', '/profile/:path*', '/admin/:path*', '/saved/:path*', '/settings/:path*', '/guide/:path*', '/notifications/:path*', '/privacy', '/terms', '/onboarding'],

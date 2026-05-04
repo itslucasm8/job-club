@@ -3,20 +3,18 @@ import * as Sentry from '@sentry/nextjs'
 import { prisma } from '@/lib/prisma'
 import { getStripe } from '@/lib/stripe'
 import { logger } from '@/lib/logger'
+import { verifyCronAuth } from '@/lib/cron-auth'
 
 /**
  * Cron endpoint to sync subscription statuses from Stripe.
  * Safety net for missed webhooks — runs nightly.
  *
  * Protected by a shared secret in the Authorization header.
- * Usage: curl -X POST -H "Authorization: Bearer YOUR_CRON_SECRET" https://thejobclub.com.au/api/cron/sync-subscriptions
+ * Usage: curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://thejobclub.com.au/api/cron/sync-subscriptions
  */
 export async function POST(req: Request) {
-  const auth = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET || process.env.NEXTAUTH_SECRET
-  if (auth !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authError = verifyCronAuth(req)
+  if (authError) return authError
 
   try {
     const stripe = getStripe()
