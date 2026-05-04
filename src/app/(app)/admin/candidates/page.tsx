@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import ManualPublishForm from '@/components/ManualPublishForm'
 
 type Candidate = {
   id: string
@@ -132,6 +133,10 @@ export default function AdminCandidatesPage() {
   // Bulk-action state
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkActing, setBulkActing] = useState<{ phase: 'approving' | 'rejecting'; done: number; total: number } | null>(null)
+
+  // Manual publish modal — replaces the standalone /admin/publish page in the
+  // daily flow. Sources are the primary intake; this is the escape hatch.
+  const [manualOpen, setManualOpen] = useState(false)
 
   function updateCandidateLocally(updated: Candidate) {
     setCandidates(cs => cs.map(c => (c.id === updated.id ? updated : c)))
@@ -404,7 +409,15 @@ export default function AdminCandidatesPage() {
 
   return (
     <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-6xl">
-      <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900 mb-1">Candidates</h1>
+      <div className="flex items-baseline justify-between mb-1">
+        <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900">Candidates</h1>
+        <button
+          onClick={() => setManualOpen(true)}
+          className="px-3 py-1.5 rounded-md text-xs font-bold bg-stone-900 hover:bg-stone-800 text-white transition"
+        >
+          + Post job manually
+        </button>
+      </div>
       <p className="text-sm text-stone-500 mb-4">Listings collected from sources, waiting for review.</p>
 
       {sourceFilter && (
@@ -772,6 +785,57 @@ export default function AdminCandidatesPage() {
           </div>
         </>
       )}
+
+      {manualOpen && (
+        <ManualPublishModal
+          onClose={() => setManualOpen(false)}
+          onPublished={() => { setManualOpen(false); fetchCandidates() }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ManualPublishModal({ onClose, onPublished }: { onClose: () => void; onPublished: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-2xl w-full max-w-3xl my-8"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-3 border-b border-stone-200">
+          <div>
+            <div className="text-base font-extrabold text-stone-900">Post a job manually</div>
+            <div className="text-xs text-stone-500">Bypasses the candidate queue — publishes straight to the live feed.</div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-stone-100 text-stone-500 hover:text-stone-900 transition flex items-center justify-center"
+            aria-label="Close"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+              <path d="M6 6l12 12 M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-5 py-4">
+          <ManualPublishForm onPublished={onPublished} onCancel={onClose} />
+        </div>
+      </div>
     </div>
   )
 }

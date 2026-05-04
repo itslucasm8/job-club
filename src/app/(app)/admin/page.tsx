@@ -40,6 +40,7 @@ export default function AdminDashboardPage() {
   const [addAdminPassword, setAddAdminPassword] = useState('')
   const [addAdminName, setAddAdminName] = useState('')
   const [addingAdmin, setAddingAdmin] = useState(false)
+  const [showAdmins, setShowAdmins] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/dashboard')
@@ -187,6 +188,12 @@ export default function AdminDashboardPage() {
         {t.admin.dashboardSubtitle || "Vue d'ensemble de votre Job Club"}
       </p>
 
+      {/* Sourcing pipeline — daily-action panel. Lives above the stat cards
+          so the team's eye lands on what's waiting for them, not on metrics. */}
+      {data.sourcing && (
+        <SourcingPanel sourcing={data.sourcing} router={router} />
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <StatCard
@@ -214,11 +221,6 @@ export default function AdminDashboardPage() {
           color="blue"
         />
       </div>
-
-      {/* Sourcing pipeline — daily-action panel for the team */}
-      {data.sourcing && (
-        <SourcingPanel sourcing={data.sourcing} router={router} />
-      )}
 
       {/* Recent Activity */}
       <div className="bg-white border border-stone-200 rounded-lg overflow-hidden mb-6">
@@ -284,14 +286,24 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Admin Users */}
+        {/* Admin Users — collapsed by default. One-line summary; click to expand
+            for password reset / role toggle / create admin. Setup task, not
+            something to confront the team with on every dashboard load. */}
         <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-          <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-stone-200">
-            <h2 className="text-base font-bold text-stone-800">
-              Administrateurs
-            </h2>
-            <span className="text-xs text-stone-400">{data.adminCount} {t.admin.adminsCount || 'admins'}</span>
-          </div>
+          <button
+            onClick={() => setShowAdmins(s => !s)}
+            className="w-full flex items-center justify-between px-4 sm:px-5 py-3 border-b border-stone-200 hover:bg-stone-50 transition"
+          >
+            <h2 className="text-base font-bold text-stone-800">Team</h2>
+            <span className="flex items-center gap-2 text-xs text-stone-500">
+              {data.adminCount} {data.adminCount === 1 ? 'admin' : 'admins'}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-3.5 h-3.5 transition-transform ${showAdmins ? 'rotate-180' : ''}`}>
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </span>
+          </button>
+          {showAdmins && (
+          <>
           <div className="divide-y divide-stone-100">
             {data.adminUsers.map(user => {
               const isExpanded = expandedUser === user.id
@@ -399,6 +411,8 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>

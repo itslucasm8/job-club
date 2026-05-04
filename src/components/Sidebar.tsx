@@ -15,15 +15,25 @@ export default function Sidebar() {
   const isAdmin = (session?.user as any)?.role === 'admin'
   const inUserMode = viewAsUser
   const [showStates, setShowStates] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [stateCounts, setStateCounts] = useState<Record<string, number>>({})
 
+  // Daily-flow nav: Dashboard → Sources (run) → Candidates (review) → Jobs (manage published).
+  // Manual publish is a modal on /admin/candidates now (no separate nav entry).
+  // Reference data / Extensions / Sites are tucked into the Settings expander
+  // below — rare-use admin maintenance, not on the daily path.
   const adminNav = [
-    { href: '/admin', label: t.admin.dashboardTitle || 'Tableau de bord', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
-    { href: '/admin/publish', label: t.nav.publishJob, icon: 'M12 5v14 M5 12h14' },
-    { href: '/admin/candidates', label: 'Candidates', icon: 'M9 12l2 2 4-4 M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z' },
-    { href: '/admin/jobs', label: t.nav.manageJobs, icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { href: '/admin', label: 'Dashboard', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
     { href: '/admin/sources', label: 'Sources', icon: 'M4 6h16 M4 12h16 M4 18h16' },
-    { href: '/admin/reference-data', label: 'Reference data', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l7-3 7 3z' },
+    { href: '/admin/candidates', label: 'Candidates', icon: 'M9 12l2 2 4-4 M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z' },
+    { href: '/admin/jobs', label: 'Jobs', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+  ]
+
+  const settingsNav = [
+    { href: '/admin/reference-data', label: 'Reference data' },
+    { href: '/admin/extensions', label: 'Browser extensions' },
+    { href: '/admin/sites', label: 'Site diagnostics' },
+    { href: '/admin/publish', label: 'Manual publish (legacy)' },
   ]
 
   const userNav = [
@@ -107,6 +117,36 @@ export default function Sidebar() {
           )
         })}
       </nav>
+
+      {/* Settings expander — admin maintenance pages (rare-use) */}
+      {isAdmin && !inUserMode && (
+        <div className="mt-3 px-3">
+          <button
+            onClick={() => setShowSettings(s => !s)}
+            className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold text-stone-500 uppercase tracking-wider hover:text-stone-700 transition"
+          >
+            <span>Settings</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-3.5 h-3.5 transition-transform ${showSettings ? 'rotate-180' : ''}`}>
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          {showSettings && (
+            <div className="space-y-0.5">
+              {settingsNav.map(item => {
+                const active = pathname.startsWith(item.href)
+                return (
+                  <button key={item.href} onClick={() => router.push(item.href)}
+                    className={`block w-full text-left px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                      active ? 'bg-purple-50 text-purple-700' : 'text-stone-500 hover:bg-stone-50 hover:text-stone-700'
+                    }`}>
+                    {item.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* States section — only in user mode */}
       {(!isAdmin || inUserMode) && (

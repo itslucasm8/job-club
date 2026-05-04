@@ -13,10 +13,13 @@ export default function BottomTabs() {
   const isAdmin = (session?.user as any)?.role === 'admin'
   const inUserMode = viewAsUser
 
+  // Admin daily flow on mobile: Dashboard → Sources → Candidates → Profile.
+  // Jobs management + maintenance live behind the dashboard / Settings on
+  // mobile (rare-use on a phone).
   const adminTabs = [
     { href: '/admin', label: 'Board', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
-    { href: '/admin/publish', label: t.nav.publish, icon: 'M12 5v14 M5 12h14' },
-    { href: '/admin/jobs', label: 'Annonces', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+    { href: '/admin/sources', label: 'Sources', icon: 'M4 6h16 M4 12h16 M4 18h16' },
+    { href: '/admin/candidates', label: 'Review', icon: 'M9 12l2 2 4-4 M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z' },
     { href: '/profile', label: t.nav.profile, icon: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2 M12 7m-4 0a4 4 0 108 0 4 4 0 00-8 0' },
   ]
 
