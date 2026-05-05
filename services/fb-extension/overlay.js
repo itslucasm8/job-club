@@ -476,6 +476,26 @@
     }
   }
 
+  // Listen for explicit expand from the toolbar icon click.
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg?.type === 'expandOverlay') {
+      if (!expanded) toggle()
+      else {
+        // Already expanded — flash the header so the user notices the click
+        // landed (they might have clicked the icon while the panel was off-
+        // screen on a long FB feed).
+        const header = root.querySelector('.header')
+        if (header) {
+          header.style.transition = 'background 0.4s'
+          const orig = header.style.background
+          header.style.background = '#fbbf24'
+          setTimeout(() => { header.style.background = orig }, 350)
+        }
+      }
+      sendResponse({ ok: true })
+    }
+  })
+
   // ─── Boot ───────────────────────────────────────────────────────────────
   loadGroups().then(render)
   // Refresh group list every 30s in case the user adds a new source elsewhere.

@@ -26,8 +26,7 @@
   },
 
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "Job Club FB Scraper"
+    "default_title": "Job Club FB Scraper — click to open overlay on a FB group"
   },
 
   "options_ui": {

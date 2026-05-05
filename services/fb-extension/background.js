@@ -385,6 +385,38 @@ async function runOnTab(tabId, sourceSlug) {
   return summary
 }
 
+// ─── Toolbar icon click ───────────────────────────────────────────────────
+// With no default_popup set in manifest, clicking the icon fires this handler
+// directly. Behavior: if the active tab is a FB group, ping the overlay to
+// expand. Otherwise focus an existing FB group tab, or open the first
+// registered group as a fallback.
+
+chrome.action.onClicked.addListener(async (tab) => {
+  const isOnGroup = tab?.url && /facebook\.com\/groups\//.test(tab.url)
+  if (isOnGroup) {
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: 'expandOverlay' })
+    } catch {/* content script may not be ready yet — just leave the overlay collapsed */}
+    return
+  }
+  const fbTabs = await chrome.tabs.query({ url: '*://*.facebook.com/groups/*' })
+  if (fbTabs.length > 0) {
+    await chrome.tabs.update(fbTabs[0].id, { active: true })
+    if (fbTabs[0].windowId) await chrome.windows.update(fbTabs[0].windowId, { focused: true })
+    try { await chrome.tabs.sendMessage(fbTabs[0].id, { type: 'expandOverlay' }) } catch {}
+    return
+  }
+  // No FB group tab open — open one. Prefer the first registered group so
+  // the user lands somewhere immediately useful; fall back to FB's groups
+  // feed if we can't fetch the group list.
+  let url = 'https://www.facebook.com/groups/feed/'
+  try {
+    const { groups } = await apiFetch('/api/extension/groups')
+    if (Array.isArray(groups) && groups[0]?.groupUrl) url = groups[0].groupUrl
+  } catch {/* fall through */}
+  await chrome.tabs.create({ url, active: true })
+})
+
 // ─── Message routing ──────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
