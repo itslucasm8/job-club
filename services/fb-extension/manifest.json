@@ -42,7 +42,7 @@
         "*://m.facebook.com/groups/*",
         "*://mbasic.facebook.com/groups/*"
       ],
-      "js": ["content.js"],
+      "js": ["overlay.js", "content.js"],
       "run_at": "document_idle"
     }
   ],

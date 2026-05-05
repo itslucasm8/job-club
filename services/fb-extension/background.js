@@ -288,6 +288,103 @@ async function runAll(triggeredBy = 'manual') {
   return summary
 }
 
+// ─── Run on a single existing tab ────────────────────────────────────────
+// Used by the in-page overlay's "Scrape this tab" button. Skips tab creation
+// — the tab already exists, the user navigated to it, and the SW stays alive
+// because that tab is focused. Same ingest path as runAll() — a single
+// group goes through ingest-batch + heartbeat just like the multi-tab flow.
+
+async function runOnTab(tabId, sourceSlug) {
+  await chrome.storage.local.set({ runBusy: false, runBusySince: null })
+  const runId = `ext-tab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  await setRunBusy(true)
+
+  // Heartbeat start
+  try {
+    await apiFetch('/api/extension/heartbeat', {
+      method: 'POST',
+      body: JSON.stringify({ runId, triggeredBy: 'overlay', completed: false, groupRuns: [] }),
+    })
+  } catch (e) {
+    console.warn('[fb-ext] runOnTab heartbeat start failed:', e)
+  }
+
+  const summary = {
+    runId, triggeredBy: 'overlay',
+    startedAt: new Date().toISOString(), completedAt: null,
+    totalPosts: 0, totalErrors: 0, groupRuns: [], error: null,
+  }
+
+  try {
+    const start = Date.now()
+    // Look up the group config (maxPostsPerRun, maxScrollSeconds) — fall back
+    // to defaults if /api/extension/groups doesn't return it.
+    let group = { slug: sourceSlug, maxPostsPerRun: 100, maxScrollSeconds: 90 }
+    try {
+      const { groups } = await apiFetch('/api/extension/groups')
+      const match = (groups || []).find(g => g.slug === sourceSlug)
+      if (match) group = match
+    } catch {/* swallow — we still know the slug */}
+
+    const result = await sendMessageWithRetry(tabId, {
+      type: 'scrape',
+      maxScrollSeconds: group.maxScrollSeconds || 90,
+      maxPostsPerRun: group.maxPostsPerRun || 100,
+    })
+    const posts = result?.posts || []
+    const groupSummary = {
+      sourceSlug, postsCaptured: posts.length,
+      scrollDuration: (Date.now() - start) / 1000,
+      stopReason: result?.stopReason,
+      ...(result?.diagnostic ? { diagnostic: result.diagnostic } : {}),
+    }
+    summary.totalPosts += posts.length
+
+    if (posts.length > 0) {
+      try {
+        const ingestResp = await apiFetch('/api/extension/ingest-batch', {
+          method: 'POST',
+          body: JSON.stringify({
+            sourceSlug, posts,
+            scrapedAt: new Date().toISOString(),
+            scrollDuration: groupSummary.scrollDuration,
+          }),
+        })
+        groupSummary.ingested = ingestResp?.ingested ?? 0
+        groupSummary.duplicates = ingestResp?.duplicates ?? 0
+        groupSummary.extractionErrors = ingestResp?.errors ?? 0
+        if (ingestResp?.errors > 0) summary.totalErrors += ingestResp.errors
+        if (Array.isArray(ingestResp?.errorDetails) && ingestResp.errorDetails.length > 0) {
+          groupSummary.errorSamples = ingestResp.errorDetails.slice(0, 3)
+        }
+      } catch (e) {
+        groupSummary.error = 'ingest: ' + (e?.message || String(e))
+        summary.totalErrors += 1
+      }
+    }
+    summary.groupRuns.push(groupSummary)
+    summary.completedAt = new Date().toISOString()
+  } catch (e) {
+    summary.error = e?.message || String(e)
+    summary.completedAt = new Date().toISOString()
+  } finally {
+    await setRunBusy(false)
+    await setLastRun(summary)
+    try {
+      await apiFetch('/api/extension/heartbeat', {
+        method: 'POST',
+        body: JSON.stringify({
+          runId, triggeredBy: 'overlay', completed: true,
+          groupRuns: summary.groupRuns, errorMessage: summary.error,
+        }),
+      })
+    } catch (e) {
+      console.warn('[fb-ext] runOnTab heartbeat end failed:', e)
+    }
+  }
+  return summary
+}
+
 // ─── Message routing ──────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -295,15 +392,37 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     runAll(msg.triggeredBy || 'manual')
       .then(s => sendResponse({ ok: true, summary: s }))
       .catch(e => sendResponse({ ok: false, error: e?.message || String(e) }))
-    return true   // keep channel open for async response
+    return true
+  }
+  if (msg?.type === 'runOnTab') {
+    const tabId = sender?.tab?.id
+    if (!tabId) {
+      sendResponse({ error: 'No sender tab — runOnTab must be called from a content script' })
+      return false
+    }
+    if (!msg.sourceSlug) {
+      sendResponse({ error: 'sourceSlug required' })
+      return false
+    }
+    runOnTab(tabId, msg.sourceSlug)
+      .then(s => sendResponse({ ok: true, summary: s }))
+      .catch(e => sendResponse({ ok: false, error: e?.message || String(e) }))
+    return true
   }
   if (msg?.type === 'getStatus') {
-    chrome.storage.local.get([STATE_KEYS.LAST_RUN, STATE_KEYS.RUN_BUSY], (r) => {
+    chrome.storage.local.get([STATE_KEYS.LAST_RUN, STATE_KEYS.RUN_BUSY], async (r) => {
+      const cfg = await chrome.storage.sync.get([STATE_KEYS.TOKEN])
       sendResponse({
         lastRun: r[STATE_KEYS.LAST_RUN] || null,
         running: !!r[STATE_KEYS.RUN_BUSY],
+        tokenConfigured: !!cfg[STATE_KEYS.TOKEN],
       })
     })
     return true
+  }
+  if (msg?.type === 'openOptions') {
+    chrome.runtime.openOptionsPage()
+    sendResponse({ ok: true })
+    return false
   }
 })

@@ -207,6 +207,19 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
   // clicking "See more" on the same one every iteration.
   const expanded = new WeakSet()
   let lastSeenSize = 0
+  // Expose live progress for overlay.js (same isolated world). Overlay polls
+  // this every ~600ms during an active scrape to render the live counter.
+  const tickProgress = (extra = {}) => {
+    try {
+      window.__jcScrapeStatus = {
+        active: true,
+        captured: captured.size,
+        elapsedSeconds: (Date.now() - start) / 1000,
+        ...extra,
+      }
+    } catch {/* swallow — window may be locked in some contexts */}
+  }
+  tickProgress()
   // Mobile gets faster scroll cadence — markup is lighter and renders quickly.
   // www requires patience: React virtualization renders posts in batches as
   // they enter the viewport, and "See more" expansion needs ~300ms to settle.
@@ -242,7 +255,9 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
         captured.set(post.postId, post)
       }
     }
+    tickProgress({ visibleNow: elements.length })
     if (captured.size >= maxPostsPerRun) {
+      try { window.__jcScrapeStatus = { ...window.__jcScrapeStatus, active: false } } catch {}
       return { stopReason: 'count', seconds: elapsed, captured }
     }
     const inWarmup = elapsed < warmupSeconds && captured.size === 0
@@ -258,6 +273,7 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
         }
       }
       if (staleScrolls >= staleStopAfter) {
+        try { window.__jcScrapeStatus = { ...window.__jcScrapeStatus, active: false } } catch {}
         return { stopReason: 'stale', seconds: elapsed, captured }
       }
     } else if (captured.size !== lastSeenSize) {
@@ -267,6 +283,7 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
     window.scrollBy(0, window.innerHeight * 0.8)
     await new Promise(r => setTimeout(r, jitter(scrollMin, scrollMax)))
   }
+  try { window.__jcScrapeStatus = { ...window.__jcScrapeStatus, active: false } } catch {}
   return { stopReason: 'time', seconds: (Date.now() - start) / 1000, captured }
 }
 
