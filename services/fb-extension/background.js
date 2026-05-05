@@ -20,7 +20,13 @@ const STATE_KEYS = {
   // Live progress state, written continuously during a run, read by every
   // overlay instance via chrome.storage.onChanged for push-style updates.
   RUN_PROGRESS: 'runProgress',
+  // Rolling window of the last N captured-post snippets across all runs,
+  // for the overlay's "Recent captures" pane. Persists between runs so the
+  // user can scroll back and see what's been gathered recently.
+  RECENT_CAPTURES: 'recentCaptures',
 }
+
+const RECENT_CAPTURES_MAX = 50
 
 const DEFAULT_BACKEND = 'https://thejobclub.com.au'
 
@@ -145,6 +151,33 @@ async function finalizeProgress(error = null) {
   await setProgress({ ...curr, completedAt: new Date().toISOString(), error })
 }
 
+/** Append new captures to the rolling-50 window. Dedupes by postId so a
+ *  re-scrape that re-captures the same post doesn't push duplicates. */
+async function appendRecentCaptures(sourceSlug, groupName, captures) {
+  if (!Array.isArray(captures) || captures.length === 0) return
+  const r = await chrome.storage.local.get(STATE_KEYS.RECENT_CAPTURES)
+  const existing = Array.isArray(r[STATE_KEYS.RECENT_CAPTURES]) ? r[STATE_KEYS.RECENT_CAPTURES] : []
+  const seen = new Set(existing.map(c => c.postId))
+  const additions = []
+  const now = Date.now()
+  for (const c of captures) {
+    if (!c?.postId || seen.has(c.postId)) continue
+    seen.add(c.postId)
+    additions.push({
+      postId: c.postId,
+      postUrl: c.postUrl || null,
+      snippet: (c.snippet || '').slice(0, 160),
+      sourceSlug,
+      groupName: groupName || sourceSlug,
+      capturedAt: now,
+    })
+  }
+  if (additions.length === 0) return
+  // Newest first, capped at MAX. Newer captures push older ones off the end.
+  const next = [...additions, ...existing].slice(0, RECENT_CAPTURES_MAX)
+  await chrome.storage.local.set({ [STATE_KEYS.RECENT_CAPTURES]: next })
+}
+
 // ─── HTTP helpers ─────────────────────────────────────────────────────────
 
 // Per-request timeout. Ingest can be slow (LLM extraction runs server-side
@@ -221,19 +254,31 @@ async function runOneGroup(group) {
   // We open www directly — mbasic was retired by FB for modern UAs (any
   // mbasic.facebook.com URL redirects to www with ?__mmr=1&_rdr).
   await patchGroup(group.slug, () => ({ status: 'opening_tab', startedAt: new Date().toISOString() }))
-  // active: false → tab opens in the background of the user's Brave window
-  // and does NOT steal focus. The user keeps doing whatever they were doing.
-  // If a future FB rollout starts gating render on document visibility (we
-  // saw signs of this in earlier dev), fall back to
-  //   chrome.windows.create({ focused: false, type: 'popup', ...dimensions })
-  // which keeps the tab "active in its own window" → "visible" by
-  // Chromium's per-tab model, without yanking the user's main window.
-  const tab = await chrome.tabs.create({ url: group.groupUrl, active: false })
+  // We use chrome.windows.create instead of chrome.tabs.create, with
+  // focused:false. Why: FB's React refuses to hydrate posts on a tab whose
+  // document.visibilityState === 'hidden', so a background tab in the user's
+  // main Brave window captures empty <article> shells (proved by today's
+  // diagnostic — textLen:0 across all candidates). A new Brave WINDOW with
+  // focused:false dodges that: the tab is "active in its own window" so
+  // visibilityState === 'visible' (FB hydrates normally), but the window
+  // itself is unfocused so the user's foreground app/window keeps OS focus.
+  // type:'popup' makes the window chromeless (no tab bar) — visually flags
+  // it as a worker, takes less screen space when it briefly appears.
+  const win = await chrome.windows.create({
+    url: group.groupUrl,
+    focused: false,
+    type: 'popup',
+    width: 900,
+    height: 700,
+    top: 120,
+    left: 120,
+  })
+  const tab = win?.tabs?.[0]
+  if (!tab?.id) throw new Error('Failed to open scrape window')
   try {
     await waitForTabReady(tab.id)
     // Give the FB feed time to hydrate + render initial posts before scraping.
-    // Background tabs may need a touch more — bump from 5s to 7s.
-    await new Promise(r => setTimeout(r, 7000))
+    await new Promise(r => setTimeout(r, 5000))
     await patchGroup(group.slug, () => ({ status: 'scraping' }))
     const result = await sendMessageWithRetry(tab.id, {
       type: 'scrape',
@@ -266,7 +311,8 @@ async function runOneGroup(group) {
       posts: [],
     }
   } finally {
-    try { await chrome.tabs.remove(tab.id) } catch {/* swallow */}
+    // Close the whole popup window (which closes the tab too).
+    try { await chrome.windows.remove(win.id) } catch {/* swallow */}
   }
 }
 
@@ -583,12 +629,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'scrapeProgress') {
     // Forwarded by content.js every few iterations during a scrape. Updates
     // the current group's captured count + latest 3 post snippets so the
-    // overlay's run dashboard can render them live.
+    // overlay's run dashboard can render them live. ALSO appends new captures
+    // to the rolling RecentCaptures window for the overlay's history pane.
     if (msg.sourceSlug) {
       patchGroup(msg.sourceSlug, () => ({
         captured: msg.captured ?? 0,
         latestPosts: Array.isArray(msg.latestPosts) ? msg.latestPosts.slice(0, 3) : [],
       })).catch(() => {/* swallow */})
+      if (Array.isArray(msg.allCaptures) && msg.allCaptures.length > 0) {
+        // Look up groupName from runProgress for nicer display in the pane.
+        getProgress().then(p => {
+          const g = p?.groups?.find(g => g.slug === msg.sourceSlug)
+          appendRecentCaptures(msg.sourceSlug, g?.groupName, msg.allCaptures)
+            .catch(() => {/* swallow */})
+        }).catch(() => {/* swallow */})
+      }
     }
     return false
   }

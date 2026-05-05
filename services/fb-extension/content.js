@@ -222,23 +222,28 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
   }
   // Send progress to background → chrome.storage so overlays on OTHER tabs
   // (e.g. the FB home tab the user clicked Scrape-all from) see updates too.
-  // Throttled — every 2.5s OR every time captured grows by 3+, whichever first.
+  // Throttled — every 2.5s.
   const sendProgress = () => {
     if (!sourceSlug) return
     const now = Date.now()
     if (now - lastProgressSent < 2500) return
     lastProgressSent = now
-    // Take last 3 posts (insertion-order Map iteration → most recent at end).
-    const recent = Array.from(captured.values()).slice(-3).map(p => ({
+    const all = Array.from(captured.values()).map(p => ({
       postId: p.postId,
+      postUrl: p.postUrl,
       snippet: extractSnippet(p),
     }))
+    // Last 3 for the live dashboard's per-group "latest posts" mini-list.
+    const recent = all.slice(-3)
     try {
       chrome.runtime.sendMessage({
         type: 'scrapeProgress',
         sourceSlug,
         captured: captured.size,
         latestPosts: recent,
+        // All captures (deduped server-side) for the overlay's persistent
+        // Recent Captures pane.
+        allCaptures: all,
       })
     } catch {/* swallow — SW may not respond, that's fine */}
   }

@@ -28,6 +28,7 @@
   let groups = []           // matched against location.href to find a slug
   let cachedStatus = null   // last response from getStatus
   let runProgress = null    // chrome.storage.local.runProgress — push updates
+  let recentCaptures = []   // chrome.storage.local.recentCaptures — rolling 50
   let pollHandle = null
   let scrapeStartTs = null
 
@@ -316,6 +317,87 @@
         font-size: 10px;
         color: #991b1b;
       }
+      /* ─── Recent captures pane ──────────────────────────────────────── */
+      .captures-section {
+        margin-top: 10px;
+        background: #fafaf9;
+        border: 1px solid #e7e5e4;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .captures-header {
+        padding: 8px 10px;
+        background: #f5f5f4;
+        font-weight: 800;
+        font-size: 11px;
+        color: #44403c;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+      }
+      .captures-header:hover { background: #e7e5e4; }
+      .captures-count {
+        background: #1c1917;
+        color: white;
+        padding: 1px 6px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .captures-toggle { font-size: 10px; color: #78716c; }
+      .captures-list {
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      .capture-item {
+        display: block;
+        padding: 7px 10px;
+        border-bottom: 1px solid #f5f5f4;
+        text-decoration: none;
+        color: inherit;
+        cursor: pointer;
+        transition: background 0.1s;
+      }
+      .capture-item:hover { background: #fef3c7; }
+      .capture-item:last-child { border-bottom: none; }
+      .capture-snippet {
+        font-size: 11px;
+        color: #1c1917;
+        font-weight: 500;
+        line-height: 1.35;
+        margin-bottom: 3px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .capture-meta {
+        font-size: 10px;
+        color: #78716c;
+        display: flex;
+        justify-content: space-between;
+        gap: 6px;
+      }
+      .capture-group { font-weight: 600; color: #6b21a8; }
+      .capture-empty {
+        padding: 16px 10px;
+        text-align: center;
+        font-size: 11px;
+        color: #a8a29e;
+        font-style: italic;
+      }
+      .captures-clear {
+        font-size: 10px;
+        background: none;
+        border: none;
+        color: #b91c1c;
+        cursor: pointer;
+        padding: 0;
+        font-weight: 600;
+      }
+      .captures-clear:hover { text-decoration: underline; }
     </style>
     <div class="anchor" id="anchor">
       <div class="pill" id="pill">
@@ -513,6 +595,7 @@
         ${sourceBanner}
         ${progressBlock}
         ${dashboardBlock}
+        ${renderCapturesPane()}
 
         <div class="actions">
           <button class="btn btn-primary" id="run-tab-btn" ${running || !currentGroup ? 'disabled' : ''}>
@@ -555,6 +638,25 @@
       e.preventDefault()
       chrome.runtime.sendMessage({ type: 'openOptions' })
     })
+
+    // Captures pane interactions
+    const capturesHeader = $('captures-header')
+    if (capturesHeader) {
+      capturesHeader.addEventListener('click', (e) => {
+        // Don't toggle when clicking the inner Clear button.
+        if (e.target && e.target.id === 'captures-clear') return
+        capturesPaneOpen = !capturesPaneOpen
+        render()
+      })
+    }
+    const capturesClear = $('captures-clear')
+    if (capturesClear) {
+      capturesClear.addEventListener('click', async (e) => {
+        e.stopPropagation()
+        if (!confirm('Clear the recent captures list? This is just the local history view — actual captures stay in the backend.')) return
+        await chrome.storage.local.set({ recentCaptures: [] })
+      })
+    }
   }
 
   async function bindLink(id, path) {
@@ -572,6 +674,51 @@
     return String(s).replace(/[&<>"']/g, c => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     })[c])
+  }
+
+  let capturesPaneOpen = true   // collapsed/expanded state for the Recent Captures section
+
+  function timeAgoMs(ms) {
+    const diff = Date.now() - ms
+    const s = Math.floor(diff / 1000)
+    if (s < 5) return 'just now'
+    if (s < 60) return `${s}s ago`
+    const m = Math.floor(s / 60)
+    if (m < 60) return `${m}m ago`
+    const h = Math.floor(m / 60)
+    if (h < 24) return `${h}h ago`
+    return `${Math.floor(h / 24)}d ago`
+  }
+
+  /** Renders the persistent Recent Captures pane — last 50 captured posts
+   *  across all runs, newest first. Each row is a clickable link to the
+   *  original FB post URL so the user can verify what was captured. */
+  function renderCapturesPane() {
+    const items = Array.isArray(recentCaptures) ? recentCaptures : []
+    const headerHtml = `
+      <div class="captures-header" id="captures-header">
+        <span>Recent captures <span class="captures-count">${items.length}</span></span>
+        <span>
+          ${items.length > 0 ? `<button class="captures-clear" id="captures-clear">Clear</button>` : ''}
+          <span class="captures-toggle">${capturesPaneOpen ? '▾' : '▸'}</span>
+        </span>
+      </div>
+    `
+    if (!capturesPaneOpen) {
+      return `<div class="captures-section">${headerHtml}</div>`
+    }
+    const body = items.length === 0
+      ? `<div class="capture-empty">No captures yet — run a scrape to start populating this list.</div>`
+      : `<div class="captures-list">${items.map(c => `
+          <a class="capture-item" href="${escapeHtml(c.postUrl || '#')}" target="_blank" rel="noopener" title="Open original FB post">
+            <div class="capture-snippet">${escapeHtml(c.snippet || '(no text)')}</div>
+            <div class="capture-meta">
+              <span class="capture-group">${escapeHtml((c.groupName || c.sourceSlug || '').slice(0, 30))}</span>
+              <span>${timeAgoMs(c.capturedAt || Date.now())}</span>
+            </div>
+          </a>
+        `).join('')}</div>`
+    return `<div class="captures-section">${headerHtml}${body}</div>`
   }
 
   /** One row in the run dashboard — status icon, slug + counts, last 1-3
@@ -690,19 +837,25 @@
   // and the panel is short-lived (only when expanded).
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return
+    let dirty = false
     if (changes.runProgress) {
       runProgress = changes.runProgress.newValue || null
-      if (expanded) render()
-      // Keep the pill label fresh even when collapsed (so the badge shows
-      // total captured across all groups during a multi-tab run).
-      else render()
+      dirty = true
     }
+    if (changes.recentCaptures) {
+      recentCaptures = changes.recentCaptures.newValue || []
+      dirty = true
+    }
+    if (dirty) render()
   })
 
   // ─── Boot ───────────────────────────────────────────────────────────────
   Promise.all([
     loadGroups(),
-    chrome.storage.local.get('runProgress').then(r => { runProgress = r.runProgress || null }),
+    chrome.storage.local.get(['runProgress', 'recentCaptures']).then(r => {
+      runProgress = r.runProgress || null
+      recentCaptures = r.recentCaptures || []
+    }),
   ]).then(render)
   // Refresh group list every 30s in case the user adds a new source elsewhere.
   setInterval(loadGroups, 30000)
