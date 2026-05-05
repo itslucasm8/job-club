@@ -170,12 +170,37 @@ function findMbasicNextPage(doc) {
   return null
 }
 
+/** Rewrite any facebook.com host to mbasic.facebook.com and strip tracking
+ *  query params. mbasic anchor permalinks routinely point to www (FB design),
+ *  but www only returns a JS SPA shell to fetch() — the real post body never
+ *  renders. mbasic returns the full body in static HTML. */
+function toMbasicUrl(url) {
+  try {
+    const u = new URL(url, location.origin)
+    if (u.hostname.endsWith('facebook.com') && u.hostname !== 'mbasic.facebook.com') {
+      u.hostname = 'mbasic.facebook.com'
+    }
+    const drop = []
+    for (const k of u.searchParams.keys()) {
+      if (k.startsWith('__') || k === 'fbclid' || k === 'comment_id' || k === 'reply_comment_id' || k === 'notif_id') drop.push(k)
+    }
+    for (const k of drop) u.searchParams.delete(k)
+    return u.toString()
+  } catch { return url }
+}
+
 /** Fetch the dedicated permalink page for a post and return the full <article>
  *  HTML — uncollapsed, including the full body that's hidden behind "See more"
  *  on the feed list view. Returns null on fetch failure. */
 async function fetchFullPost(permalinkUrl) {
   try {
-    const html = await fetch(permalinkUrl, { credentials: 'include', headers: { 'Accept': 'text/html' } }).then(r => r.text())
+    const url = toMbasicUrl(permalinkUrl)
+    const res = await fetch(url, { credentials: 'include', headers: { 'Accept': 'text/html' } })
+    // Defensive: if FB redirected us off mbasic (e.g. to www login wall), the
+    // body is a JS shell with no post content — bail rather than capture noise.
+    const finalUrl = res.url || url
+    if (!/mbasic\.facebook\.com/.test(finalUrl)) return null
+    const html = await res.text()
     const doc = new DOMParser().parseFromString(html, 'text/html')
     // The dedicated post page renders the post as the first <article> on
     // the page. Subsequent <article> elements are comments — skip those by
