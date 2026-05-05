@@ -653,8 +653,15 @@
     if (capturesClear) {
       capturesClear.addEventListener('click', async (e) => {
         e.stopPropagation()
-        if (!confirm('Clear the recent captures list? This is just the local history view — actual captures stay in the backend.')) return
-        await chrome.storage.local.set({ recentCaptures: [] })
+        if (!confirm('Clear local extension state — recent captures, run progress dashboard, and last-run summary? Backend data is unaffected.')) return
+        // Wipe everything the overlay reads from chrome.storage.local. Three
+        // keys, all set to fresh values so the in-memory state in this tab
+        // (and every other open FB tab) updates via onChanged events.
+        await chrome.storage.local.set({
+          recentCaptures: [],
+          runProgress: null,
+          lastRun: null,
+        })
       })
     }
   }
