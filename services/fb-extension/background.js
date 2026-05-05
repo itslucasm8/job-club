@@ -17,6 +17,9 @@ const STATE_KEYS = {
   BACKEND: 'backendUrl',
   LAST_RUN: 'lastRun',
   RUN_BUSY: 'runBusy',
+  // Live progress state, written continuously during a run, read by every
+  // overlay instance via chrome.storage.onChanged for push-style updates.
+  RUN_PROGRESS: 'runProgress',
 }
 
 const DEFAULT_BACKEND = 'https://thejobclub.com.au'
@@ -65,6 +68,81 @@ async function clearStaleLock() {
 
 async function setLastRun(summary) {
   await chrome.storage.local.set({ [STATE_KEYS.LAST_RUN]: summary })
+}
+
+// ─── Live run progress (the run dashboard's data source) ─────────────────
+// Updated at every meaningful transition: opening tab, scraping, ingesting,
+// done/error. Plus continuously during scrape via scrapeProgress messages
+// from content.js. Written to chrome.storage.local; overlays subscribe via
+// chrome.storage.onChanged so updates are push, not poll.
+
+async function getProgress() {
+  const r = await chrome.storage.local.get(STATE_KEYS.RUN_PROGRESS)
+  return r[STATE_KEYS.RUN_PROGRESS] || null
+}
+
+async function setProgress(progress) {
+  await chrome.storage.local.set({ [STATE_KEYS.RUN_PROGRESS]: progress })
+}
+
+/** Mutate a single group's row in runProgress. updater is a function that
+ *  receives the existing group object and returns the partial fields to
+ *  merge in. No-op if the slug isn't found in the current run. */
+async function patchGroup(slug, updater) {
+  const curr = await getProgress()
+  if (!curr || !Array.isArray(curr.groups)) return
+  let changed = false
+  let totalCaptured = 0
+  let totalIngested = 0
+  const groups = curr.groups.map(g => {
+    let next = g
+    if (g.slug === slug) {
+      const patch = updater(g) || {}
+      next = { ...g, ...patch }
+      changed = true
+    }
+    totalCaptured += next.captured || 0
+    totalIngested += next.ingested || 0
+    return next
+  })
+  if (!changed) return
+  await setProgress({ ...curr, groups, totalCaptured, totalIngested })
+}
+
+/** Initialize a fresh runProgress row before a run starts. */
+async function initProgress(runId, triggeredBy, groupConfigs) {
+  const progress = {
+    runId,
+    triggeredBy,
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+    error: null,
+    totalCaptured: 0,
+    totalIngested: 0,
+    groups: groupConfigs.map(g => ({
+      slug: g.slug,
+      groupName: g.groupName || g.slug,
+      groupUrl: g.groupUrl || null,
+      status: 'pending',          // pending | opening_tab | scraping | ingesting | done | error
+      captured: 0,
+      ingested: null,
+      duplicates: null,
+      extractionErrors: null,
+      latestPosts: [],            // last 3 captured-post snippets, [{ postId, snippet }]
+      stopReason: null,
+      startedAt: null,
+      completedAt: null,
+      error: null,
+    })),
+  }
+  await setProgress(progress)
+  return progress
+}
+
+async function finalizeProgress(error = null) {
+  const curr = await getProgress()
+  if (!curr) return
+  await setProgress({ ...curr, completedAt: new Date().toISOString(), error })
 }
 
 // ─── HTTP helpers ─────────────────────────────────────────────────────────
@@ -142,18 +220,25 @@ async function runOneGroup(group) {
   // a run; on the office machine that's fine and the tab closes when done.
   // We open www directly — mbasic was retired by FB for modern UAs (any
   // mbasic.facebook.com URL redirects to www with ?__mmr=1&_rdr).
+  await patchGroup(group.slug, () => ({ status: 'opening_tab', startedAt: new Date().toISOString() }))
   const tab = await chrome.tabs.create({ url: group.groupUrl, active: true })
   try {
     await waitForTabReady(tab.id)
     // Give the FB feed time to hydrate + render initial posts before scraping.
     // 5s is conservative; FB's first-paint is usually 2-3s on broadband.
     await new Promise(r => setTimeout(r, 5000))
+    await patchGroup(group.slug, () => ({ status: 'scraping' }))
     const result = await sendMessageWithRetry(tab.id, {
       type: 'scrape',
+      sourceSlug: group.slug,
       maxScrollSeconds: group.maxScrollSeconds || 60,
       maxPostsPerRun: group.maxPostsPerRun || 100,
     })
     const posts = result?.posts || []
+    await patchGroup(group.slug, () => ({
+      captured: posts.length,
+      stopReason: result?.stopReason,
+    }))
     return {
       sourceSlug: group.slug,
       groupName: group.groupName,
@@ -164,6 +249,7 @@ async function runOneGroup(group) {
       posts,
     }
   } catch (e) {
+    await patchGroup(group.slug, () => ({ status: 'error', error: e?.message || String(e), completedAt: new Date().toISOString() }))
     return {
       sourceSlug: group.slug,
       groupName: group.groupName,
@@ -217,6 +303,8 @@ async function runAll(triggeredBy = 'manual') {
       throw new Error(summary.error)
     }
 
+    await initProgress(runId, triggeredBy, groups)
+
     for (const group of groups) {
       const groupResult = await runOneGroup(group)
       const groupSummary = {
@@ -224,16 +312,14 @@ async function runAll(triggeredBy = 'manual') {
         postsCaptured: groupResult.postsCaptured,
         scrollDuration: groupResult.scrollDuration,
         stopReason: groupResult.stopReason,
-        // Carry the DOM probe through to the heartbeat so we can debug from
-        // the admin UI when 0 posts captured.
         ...(groupResult.diagnostic ? { diagnostic: groupResult.diagnostic } : {}),
         ...(groupResult.error ? { error: groupResult.error } : {}),
       }
       summary.totalPosts += groupResult.postsCaptured
       if (groupResult.error) summary.totalErrors += 1
 
-      // Ship the batch even if it's small — keeps state moving.
       if (groupResult.posts.length > 0) {
+        await patchGroup(group.slug, () => ({ status: 'ingesting' }))
         try {
           const ingestResp = await apiFetch('/api/extension/ingest-batch', {
             method: 'POST',
@@ -244,8 +330,6 @@ async function runAll(triggeredBy = 'manual') {
               scrollDuration: groupResult.scrollDuration,
             }),
           })
-          // Roll the ingest outcome up into the group summary so the popup +
-          // admin UI can show useful counters without a second round-trip.
           groupSummary.ingested = ingestResp?.ingested ?? 0
           groupSummary.duplicates = ingestResp?.duplicates ?? 0
           groupSummary.extractionErrors = ingestResp?.errors ?? 0
@@ -253,19 +337,36 @@ async function runAll(triggeredBy = 'manual') {
           if (Array.isArray(ingestResp?.errorDetails) && ingestResp.errorDetails.length > 0) {
             groupSummary.errorSamples = ingestResp.errorDetails.slice(0, 3)
           }
+          await patchGroup(group.slug, () => ({
+            status: 'done',
+            ingested: groupSummary.ingested,
+            duplicates: groupSummary.duplicates,
+            extractionErrors: groupSummary.extractionErrors,
+            completedAt: new Date().toISOString(),
+          }))
         } catch (e) {
           console.warn('[fb-ext] ingest-batch failed for', groupResult.sourceSlug, e)
           groupSummary.error = (groupSummary.error || '') + ' / ingest: ' + (e?.message || String(e))
           summary.totalErrors += 1
+          await patchGroup(group.slug, () => ({ status: 'error', error: groupSummary.error, completedAt: new Date().toISOString() }))
         }
+      } else {
+        // No posts to ingest — mark done with whatever stopReason came back.
+        await patchGroup(group.slug, () => ({
+          status: groupResult.error ? 'error' : 'done',
+          completedAt: new Date().toISOString(),
+          error: groupResult.error || null,
+        }))
       }
       summary.groupRuns.push(groupSummary)
     }
 
     summary.completedAt = new Date().toISOString()
+    await finalizeProgress(null)
   } catch (e) {
     summary.error = e?.message || String(e)
     summary.completedAt = new Date().toISOString()
+    await finalizeProgress(summary.error)
   } finally {
     await setRunBusy(false)
     await setLastRun(summary)
@@ -319,19 +420,27 @@ async function runOnTab(tabId, sourceSlug) {
     const start = Date.now()
     // Look up the group config (maxPostsPerRun, maxScrollSeconds) — fall back
     // to defaults if /api/extension/groups doesn't return it.
-    let group = { slug: sourceSlug, maxPostsPerRun: 100, maxScrollSeconds: 90 }
+    let group = { slug: sourceSlug, groupName: sourceSlug, maxPostsPerRun: 100, maxScrollSeconds: 90 }
     try {
       const { groups } = await apiFetch('/api/extension/groups')
       const match = (groups || []).find(g => g.slug === sourceSlug)
       if (match) group = match
     } catch {/* swallow — we still know the slug */}
 
+    await initProgress(runId, 'overlay', [group])
+    await patchGroup(sourceSlug, () => ({ status: 'scraping', startedAt: new Date().toISOString() }))
+
     const result = await sendMessageWithRetry(tabId, {
       type: 'scrape',
+      sourceSlug,
       maxScrollSeconds: group.maxScrollSeconds || 90,
       maxPostsPerRun: group.maxPostsPerRun || 100,
     })
     const posts = result?.posts || []
+    await patchGroup(sourceSlug, () => ({
+      captured: posts.length,
+      stopReason: result?.stopReason,
+    }))
     const groupSummary = {
       sourceSlug, postsCaptured: posts.length,
       scrollDuration: (Date.now() - start) / 1000,
@@ -341,6 +450,7 @@ async function runOnTab(tabId, sourceSlug) {
     summary.totalPosts += posts.length
 
     if (posts.length > 0) {
+      await patchGroup(sourceSlug, () => ({ status: 'ingesting' }))
       try {
         const ingestResp = await apiFetch('/api/extension/ingest-batch', {
           method: 'POST',
@@ -357,16 +467,28 @@ async function runOnTab(tabId, sourceSlug) {
         if (Array.isArray(ingestResp?.errorDetails) && ingestResp.errorDetails.length > 0) {
           groupSummary.errorSamples = ingestResp.errorDetails.slice(0, 3)
         }
+        await patchGroup(sourceSlug, () => ({
+          status: 'done',
+          ingested: groupSummary.ingested,
+          duplicates: groupSummary.duplicates,
+          extractionErrors: groupSummary.extractionErrors,
+          completedAt: new Date().toISOString(),
+        }))
       } catch (e) {
         groupSummary.error = 'ingest: ' + (e?.message || String(e))
         summary.totalErrors += 1
+        await patchGroup(sourceSlug, () => ({ status: 'error', error: groupSummary.error, completedAt: new Date().toISOString() }))
       }
+    } else {
+      await patchGroup(sourceSlug, () => ({ status: 'done', completedAt: new Date().toISOString() }))
     }
     summary.groupRuns.push(groupSummary)
     summary.completedAt = new Date().toISOString()
+    await finalizeProgress(null)
   } catch (e) {
     summary.error = e?.message || String(e)
     summary.completedAt = new Date().toISOString()
+    await finalizeProgress(summary.error)
   } finally {
     await setRunBusy(false)
     await setLastRun(summary)
@@ -449,6 +571,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'openOptions') {
     chrome.runtime.openOptionsPage()
     sendResponse({ ok: true })
+    return false
+  }
+  if (msg?.type === 'scrapeProgress') {
+    // Forwarded by content.js every few iterations during a scrape. Updates
+    // the current group's captured count + latest 3 post snippets so the
+    // overlay's run dashboard can render them live.
+    if (msg.sourceSlug) {
+      patchGroup(msg.sourceSlug, () => ({
+        captured: msg.captured ?? 0,
+        latestPosts: Array.isArray(msg.latestPosts) ? msg.latestPosts.slice(0, 3) : [],
+      })).catch(() => {/* swallow */})
+    }
     return false
   }
 })

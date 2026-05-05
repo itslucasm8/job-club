@@ -27,6 +27,7 @@
   let expanded = false
   let groups = []           // matched against location.href to find a slug
   let cachedStatus = null   // last response from getStatus
+  let runProgress = null    // chrome.storage.local.runProgress — push updates
   let pollHandle = null
   let scrapeStartTs = null
 
@@ -209,6 +210,112 @@
         color: #a8a29e;
         text-align: center;
       }
+      /* ─── Run dashboard ─────────────────────────────────────────────── */
+      .dashboard {
+        margin-top: 10px;
+        background: #fafaf9;
+        border: 1px solid #e7e5e4;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .dash-header {
+        padding: 8px 10px;
+        background: linear-gradient(90deg, #6b21a8 0%, #f59e0b 110%);
+        color: white;
+        font-weight: 800;
+        font-size: 11px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .dash-totals {
+        font-weight: 600;
+        opacity: 0.9;
+        font-size: 10px;
+      }
+      .dash-rows {
+        max-height: 240px;
+        overflow-y: auto;
+      }
+      .dash-row {
+        padding: 8px 10px;
+        border-bottom: 1px solid #f5f5f4;
+        font-size: 11px;
+      }
+      .dash-row:last-child { border-bottom: none; }
+      .dash-row-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 700;
+      }
+      .status-icon {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        color: white;
+      }
+      .status-icon.pending { background: #d6d3d1; color: #57534e; }
+      .status-icon.opening_tab,
+      .status-icon.scraping,
+      .status-icon.ingesting {
+        background: #f59e0b;
+        animation: pulse 1.2s infinite;
+      }
+      .status-icon.done { background: #15803d; }
+      .status-icon.error { background: #ef4444; }
+      .row-slug { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .row-stats {
+        font-size: 10px;
+        color: #78716c;
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+      .row-stats .num { color: #1c1917; font-weight: 800; }
+      .row-stats .ingested { color: #15803d; }
+      .row-stats .err { color: #b91c1c; }
+      .dash-row-status {
+        font-size: 10px;
+        color: #57534e;
+        margin-top: 2px;
+        margin-left: 20px;
+      }
+      .post-list {
+        margin-top: 4px;
+        margin-left: 20px;
+        font-size: 10px;
+      }
+      .post-snippet {
+        padding: 3px 6px;
+        background: white;
+        border: 1px solid #e7e5e4;
+        border-radius: 4px;
+        margin-bottom: 2px;
+        color: #44403c;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .post-snippet:last-child { margin-bottom: 0; }
+      .post-snippet.fresh { animation: fadeIn 0.4s ease-out; }
+      @keyframes fadeIn {
+        from { opacity: 0; background: #fef3c7; }
+        to { opacity: 1; background: white; }
+      }
+      .row-error {
+        margin-top: 4px;
+        margin-left: 20px;
+        padding: 4px 6px;
+        background: #fee2e2;
+        border-radius: 4px;
+        font-size: 10px;
+        color: #991b1b;
+      }
     </style>
     <div class="anchor" id="anchor">
       <div class="pill" id="pill">
@@ -303,10 +410,13 @@
 
     // Pill state — collapsed view
     const running = !!cachedStatus?.running || !!live?.active
-    if (running) {
+    const inFlight = runProgress && !runProgress.completedAt
+    if (running || inFlight) {
       dot.className = 'dot running'
-      const captured = live?.captured ?? cachedStatus?.lastRun?.totalPosts
-      pillLabel.textContent = captured != null ? `Scraping… ${captured}` : 'Scraping…'
+      // Prefer runProgress totals (visible across tabs) over the local
+      // window.__jcScrapeStatus (only this tab). Fall back as needed.
+      const total = runProgress?.totalCaptured ?? live?.captured ?? cachedStatus?.lastRun?.totalPosts
+      pillLabel.textContent = total != null ? `Scraping… ${total}` : 'Scraping…'
     } else {
       dot.className = 'dot'
       pillLabel.textContent = 'Job Club'
@@ -337,9 +447,31 @@
       const elapsed = fmtElapsed((Date.now() - (scrapeStartTs || Date.now())) / 1000)
       progressBlock = `
         <div class="progress">
-          <div class="progress-line"><span>Posts captured</span><span class="stat-num">${live.captured ?? 0}</span></div>
+          <div class="progress-line"><span>Posts captured (this tab)</span><span class="stat-num">${live.captured ?? 0}</span></div>
           <div class="progress-line"><span>Posts visible right now</span><span class="stat-num">${live.visibleNow ?? '—'}</span></div>
           <div class="progress-line"><span>Elapsed</span><span class="stat-num">${elapsed}</span></div>
+        </div>
+      `
+    }
+
+    // Run dashboard — built from chrome.storage.local.runProgress, populated
+    // by the SW orchestrator. Shows during-AND-after a run so the user can
+    // see the final per-group breakdown without checking admin.
+    let dashboardBlock = ''
+    if (runProgress && Array.isArray(runProgress.groups) && runProgress.groups.length > 0) {
+      const dashRows = runProgress.groups.map(g => renderGroupRow(g)).join('')
+      const completed = runProgress.groups.filter(g => g.status === 'done' || g.status === 'error').length
+      const totalGroups = runProgress.groups.length
+      const aggregate = runProgress.completedAt
+        ? `Done · ${runProgress.totalCaptured ?? 0} captured, ${runProgress.totalIngested ?? 0} jobs`
+        : `${completed}/${totalGroups} groups · ${runProgress.totalCaptured ?? 0} captured`
+      dashboardBlock = `
+        <div class="dashboard">
+          <div class="dash-header">
+            <span>${runProgress.completedAt ? 'Last run' : 'Run in progress'}</span>
+            <span class="dash-totals">${aggregate}</span>
+          </div>
+          <div class="dash-rows">${dashRows}</div>
         </div>
       `
     }
@@ -380,6 +512,7 @@
 
         ${sourceBanner}
         ${progressBlock}
+        ${dashboardBlock}
 
         <div class="actions">
           <button class="btn btn-primary" id="run-tab-btn" ${running || !currentGroup ? 'disabled' : ''}>
@@ -441,6 +574,58 @@
     })[c])
   }
 
+  /** One row in the run dashboard — status icon, slug + counts, last 1-3
+   *  post snippets streaming in for groups that are mid-scrape, error
+   *  banner if the group failed. */
+  function renderGroupRow(g) {
+    const statusLabel = {
+      pending: 'Waiting',
+      opening_tab: 'Opening tab…',
+      scraping: 'Scrolling feed…',
+      ingesting: 'Sending to backend…',
+      done: 'Done',
+      error: 'Error',
+    }[g.status] || g.status
+    const icon = {
+      pending: '⏸',
+      opening_tab: '⌛',
+      scraping: '⌛',
+      ingesting: '⌛',
+      done: '✓',
+      error: '✗',
+    }[g.status] || '?'
+    let stats = ''
+    if (g.status === 'done' || g.status === 'error') {
+      const cap = g.captured || 0
+      const ing = g.ingested ?? 0
+      const errs = g.extractionErrors ?? 0
+      stats = `<span class="num">${cap}</span> captured`
+      if (ing > 0) stats += ` · <span class="ingested">${ing} jobs</span>`
+      if (errs > 0) stats += ` · <span class="err">${errs} rejected</span>`
+    } else if (g.status === 'scraping' || g.status === 'ingesting') {
+      stats = `<span class="num">${g.captured || 0}</span> captured`
+    }
+    const posts = Array.isArray(g.latestPosts) ? g.latestPosts : []
+    const postList = posts.length > 0
+      ? `<div class="post-list">${posts.map(p => `<div class="post-snippet fresh">${escapeHtml(p.snippet || '(empty)')}</div>`).join('')}</div>`
+      : ''
+    const errBlock = g.error
+      ? `<div class="row-error">${escapeHtml(String(g.error).slice(0, 200))}</div>`
+      : ''
+    return `
+      <div class="dash-row">
+        <div class="dash-row-head">
+          <span class="status-icon ${g.status}">${icon}</span>
+          <span class="row-slug" title="${escapeHtml(g.slug)}">${escapeHtml(g.groupName || g.slug)}</span>
+          <span class="row-stats">${stats}</span>
+        </div>
+        <div class="dash-row-status">${statusLabel}</div>
+        ${postList}
+        ${errBlock}
+      </div>
+    `
+  }
+
   // ─── Actions ────────────────────────────────────────────────────────────
   async function runOnTab(sourceSlug) {
     scrapeStartTs = Date.now()
@@ -500,8 +685,25 @@
     }
   })
 
+  // Subscribe to runProgress changes so the dashboard updates push-style.
+  // We re-render on each change rather than diffing — the data is small
+  // and the panel is short-lived (only when expanded).
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return
+    if (changes.runProgress) {
+      runProgress = changes.runProgress.newValue || null
+      if (expanded) render()
+      // Keep the pill label fresh even when collapsed (so the badge shows
+      // total captured across all groups during a multi-tab run).
+      else render()
+    }
+  })
+
   // ─── Boot ───────────────────────────────────────────────────────────────
-  loadGroups().then(render)
+  Promise.all([
+    loadGroups(),
+    chrome.storage.local.get('runProgress').then(r => { runProgress = r.runProgress || null }),
+  ]).then(render)
   // Refresh group list every 30s in case the user adds a new source elsewhere.
   setInterval(loadGroups, 30000)
 })()

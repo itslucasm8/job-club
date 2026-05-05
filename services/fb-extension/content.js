@@ -199,7 +199,7 @@ function clickLoadMore() {
   return false
 }
 
-async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleStopAfter = 6, warmupSeconds = 25 }) {
+async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleStopAfter = 6, warmupSeconds = 25, sourceSlug = null }) {
   const start = Date.now()
   let staleScrolls = 0
   const captured = new Map()
@@ -207,8 +207,9 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
   // clicking "See more" on the same one every iteration.
   const expanded = new WeakSet()
   let lastSeenSize = 0
-  // Expose live progress for overlay.js (same isolated world). Overlay polls
-  // this every ~600ms during an active scrape to render the live counter.
+  let lastProgressSent = 0
+  // Expose live progress for overlay.js on the SAME tab (same isolated
+  // world — direct read via window.__jcScrapeStatus).
   const tickProgress = (extra = {}) => {
     try {
       window.__jcScrapeStatus = {
@@ -217,7 +218,29 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
         elapsedSeconds: (Date.now() - start) / 1000,
         ...extra,
       }
-    } catch {/* swallow — window may be locked in some contexts */}
+    } catch {/* swallow */}
+  }
+  // Send progress to background → chrome.storage so overlays on OTHER tabs
+  // (e.g. the FB home tab the user clicked Scrape-all from) see updates too.
+  // Throttled — every 2.5s OR every time captured grows by 3+, whichever first.
+  const sendProgress = () => {
+    if (!sourceSlug) return
+    const now = Date.now()
+    if (now - lastProgressSent < 2500) return
+    lastProgressSent = now
+    // Take last 3 posts (insertion-order Map iteration → most recent at end).
+    const recent = Array.from(captured.values()).slice(-3).map(p => ({
+      postId: p.postId,
+      snippet: extractSnippet(p),
+    }))
+    try {
+      chrome.runtime.sendMessage({
+        type: 'scrapeProgress',
+        sourceSlug,
+        captured: captured.size,
+        latestPosts: recent,
+      })
+    } catch {/* swallow — SW may not respond, that's fine */}
   }
   tickProgress()
   // Mobile gets faster scroll cadence — markup is lighter and renders quickly.
@@ -256,6 +279,7 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
       }
     }
     tickProgress({ visibleNow: elements.length })
+    sendProgress()
     if (captured.size >= maxPostsPerRun) {
       try { window.__jcScrapeStatus = { ...window.__jcScrapeStatus, active: false } } catch {}
       return { stopReason: 'count', seconds: elapsed, captured }
@@ -458,6 +482,30 @@ function extractPost(postEl) {
   return { postId, postUrl, postedAt, authorName, html }
 }
 
+/** Compact title-like snippet from a captured post — first 80 visible chars
+ *  of the cleaned HTML, trimmed of surrounding whitespace. Used by the live
+ *  run dashboard so the user can see the actual posts streaming in. */
+function extractSnippet(post) {
+  if (!post?.html) return ''
+  // Parse the captured HTML in a detached doc so innerText works without
+  // re-rendering. innerText preserves the visible-text shape better than
+  // textContent (skips hidden / display:none chrome).
+  try {
+    const doc = new DOMParser().parseFromString(post.html, 'text/html')
+    const body = doc.body || doc.documentElement
+    const text = (body?.innerText || body?.textContent || '').replace(/\s+/g, ' ').trim()
+    // Skip the author's name + timestamp prefix. Heuristic: posts often start
+    // with the author name (already in post.authorName) — strip it if present.
+    let s = text
+    if (post.authorName && s.startsWith(post.authorName)) {
+      s = s.slice(post.authorName.length).trim()
+    }
+    return s.slice(0, 80)
+  } catch {
+    return ''
+  }
+}
+
 /** Iterate post elements, extract each, dedupe by postId. Returns the
  *  most recent N (top of feed = newest). */
 function capturePosts(elements, max) {
@@ -574,6 +622,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const result = await autoScroll({
           maxScrollSeconds: msg.maxScrollSeconds || 60,
           maxPostsPerRun: msg.maxPostsPerRun || 100,
+          sourceSlug: msg.sourceSlug || null,
         })
         const posts = Array.from(result.captured.values()).slice(0, msg.maxPostsPerRun || 100)
         const { selector, elements } = findPosts()
