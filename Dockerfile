@@ -35,7 +35,13 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
-COPY --from=deps /app/node_modules/.prisma ./node_modules/.prisma
+# Pull the generated Prisma client from `builder` (where `prisma generate` ran
+# against the full schema). The `deps` stage uses `npm ci --omit=dev`, so the
+# `prisma` CLI itself isn't installed there and the `postinstall` hook is a
+# no-op — copying from `deps` would leave production with a stale client
+# missing the newest models (e.g. ExtensionCapture).
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
 USER nextjs
 
