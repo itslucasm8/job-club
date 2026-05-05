@@ -150,6 +150,7 @@ export default function AdminSourcesPage() {
     | { mode: 'edit', source: Source }
     | null
   >(null)
+  const [bulkFbOpen, setBulkFbOpen] = useState(false)
 
   async function loadSources() {
     const res = await fetch('/api/admin/sources')
@@ -308,14 +309,23 @@ export default function AdminSourcesPage() {
 
   return (
     <div className="px-4 sm:px-5 lg:px-7 py-5 pb-24 lg:pb-10 max-w-6xl">
-      <div className="flex items-baseline justify-between mb-1">
+      <div className="flex items-baseline justify-between mb-1 gap-2">
         <h1 className="text-xl sm:text-2xl font-extrabold text-stone-900">Sources</h1>
-        <button
-          onClick={() => setDrawer({ mode: 'create' })}
-          className="px-3 py-1.5 rounded-md text-xs font-bold bg-stone-900 hover:bg-stone-800 text-white transition"
-        >
-          + New source
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setBulkFbOpen(true)}
+            className="px-3 py-1.5 rounded-md text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition"
+            title="Add multiple Facebook groups at once"
+          >
+            + Bulk FB groups
+          </button>
+          <button
+            onClick={() => setDrawer({ mode: 'create' })}
+            className="px-3 py-1.5 rounded-md text-xs font-bold bg-stone-900 hover:bg-stone-800 text-white transition"
+          >
+            + New source
+          </button>
+        </div>
       </div>
       <p className="text-sm text-stone-500 mb-5">
         Where Job Club gathers listings from. Pick sources and run them — or run them one at a time.
@@ -506,6 +516,13 @@ export default function AdminSourcesPage() {
           onClose={() => setDrawer(null)}
           onSaved={async () => { await loadSources(); setDrawer(null) }}
           onDeleted={async () => { await loadSources(); setDrawer(null) }}
+        />
+      )}
+
+      {bulkFbOpen && (
+        <BulkFbModal
+          onClose={() => setBulkFbOpen(false)}
+          onCreated={() => loadSources()}
         />
       )}
     </div>
@@ -1140,5 +1157,167 @@ function Field({ label, hint, children }: { label: string, hint?: string, childr
       {children}
       {hint && <span className="block text-[11px] text-stone-500">{hint}</span>}
     </label>
+  )
+}
+
+type BulkFbResult =
+  | { url: string; status: 'created'; slug: string }
+  | { url: string; status: 'duplicate'; slug: string }
+  | { url: string; status: 'invalid'; reason: string }
+  | { url: string; status: 'error'; reason: string }
+
+function BulkFbModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [text, setText] = useState('')
+  const [maxPostsPerRun, setMaxPostsPerRun] = useState(100)
+  const [maxScrollSeconds, setMaxScrollSeconds] = useState(90)
+  const [submitting, setSubmitting] = useState(false)
+  const [result, setResult] = useState<{ counts: { created: number; duplicate: number; invalid: number; error: number }; results: BulkFbResult[] } | null>(null)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onClose])
+
+  // Pre-flight URL count so the user can sanity-check before clicking submit.
+  // Same regex as the server (cheap to duplicate, avoids round-trip).
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+  const validCount = lines.filter(l => /facebook\.com\/groups\/[A-Za-z0-9._-]+/i.test(l)).length
+
+  async function submit() {
+    if (validCount === 0) return
+    setSubmitting(true)
+    setResult(null)
+    try {
+      const res = await fetch('/api/admin/sources/bulk-fb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: lines, maxPostsPerRun, maxScrollSeconds }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setResult({ counts: { created: 0, duplicate: 0, invalid: 0, error: 1 }, results: [{ url: '(batch)', status: 'error', reason: data.error || 'Server error' }] })
+      } else {
+        setResult(data)
+        if (data.counts?.created > 0) onCreated()
+        // Strip the lines that were created or already exist, leave invalid/error
+        // for the user to fix and re-submit.
+        const handled = new Set<string>(
+          (data.results as BulkFbResult[])
+            .filter(r => r.status === 'created' || r.status === 'duplicate')
+            .map(r => r.url),
+        )
+        setText(lines.filter(l => !handled.has(l)).join('\n'))
+      }
+    } catch (e: any) {
+      setResult({ counts: { created: 0, duplicate: 0, invalid: 0, error: 1 }, results: [{ url: '(network)', status: 'error', reason: e?.message || 'Network error' }] })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl my-8" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-stone-200">
+          <div>
+            <div className="text-base font-extrabold text-stone-900">Bulk add Facebook groups</div>
+            <div className="text-xs text-stone-500">Paste FB group URLs (one per line). Slug is derived from the group ID.</div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-stone-100 text-stone-500 hover:text-stone-900 transition flex items-center justify-center" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+              <path d="M6 6l12 12 M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            rows={8}
+            placeholder={'https://www.facebook.com/groups/backpackersinaustralia\nhttps://www.facebook.com/groups/1286608705602169\nhttps://www.facebook.com/groups/qldhospo'}
+            className="w-full px-3 py-2 rounded-lg border border-stone-300 bg-white text-xs font-mono focus:outline-none focus:border-purple-500"
+          />
+          <div className="text-[11px] text-stone-500">
+            {lines.length} line{lines.length === 1 ? '' : 's'} · <span className="font-semibold text-stone-700">{validCount} valid FB group URL{validCount === 1 ? '' : 's'}</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="block text-[11px] font-semibold text-stone-700 mb-1">Max posts per run</span>
+              <input
+                type="number" min={10} max={500} value={maxPostsPerRun}
+                onChange={e => setMaxPostsPerRun(Number(e.target.value) || 100)}
+                className="w-full px-2 py-1 border border-stone-300 rounded text-xs"
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] font-semibold text-stone-700 mb-1">Max scroll seconds</span>
+              <input
+                type="number" min={15} max={300} value={maxScrollSeconds}
+                onChange={e => setMaxScrollSeconds(Number(e.target.value) || 90)}
+                className="w-full px-2 py-1 border border-stone-300 rounded text-xs"
+              />
+            </label>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={onClose}
+              disabled={submitting}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 transition disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submit}
+              disabled={submitting || validCount === 0}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition disabled:opacity-50"
+            >
+              {submitting ? 'Adding…' : `Add ${validCount} group${validCount === 1 ? '' : 's'}`}
+            </button>
+          </div>
+
+          {result && (
+            <div className="space-y-2 pt-2 border-t border-stone-200">
+              <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+                {result.counts.created > 0 && <span className="px-2 py-1 rounded bg-green-100 text-green-800">✓ {result.counts.created} created</span>}
+                {result.counts.duplicate > 0 && <span className="px-2 py-1 rounded bg-stone-200 text-stone-700">{result.counts.duplicate} already exist</span>}
+                {result.counts.invalid > 0 && <span className="px-2 py-1 rounded bg-amber-100 text-amber-800">⚠ {result.counts.invalid} invalid</span>}
+                {result.counts.error > 0 && <span className="px-2 py-1 rounded bg-red-100 text-red-800">✗ {result.counts.error} error</span>}
+              </div>
+              <details className="text-[11px]">
+                <summary className="cursor-pointer text-stone-700 font-semibold">Per-URL detail</summary>
+                <ul className="mt-1 space-y-1 bg-stone-50 border border-stone-200 rounded p-2 max-h-48 overflow-y-auto">
+                  {result.results.map((r, i) => (
+                    <li key={i} className="flex gap-2 items-start">
+                      <span className={
+                        r.status === 'created' ? 'text-green-700' :
+                        r.status === 'duplicate' ? 'text-stone-500' :
+                        r.status === 'invalid' ? 'text-amber-700' :
+                        'text-red-700'
+                      }>
+                        {r.status === 'created' ? '✓' : r.status === 'duplicate' ? '·' : r.status === 'invalid' ? '⚠' : '✗'}
+                      </span>
+                      <span className="font-mono text-stone-600 truncate flex-1" title={r.url}>{r.url}</span>
+                      <span className="text-stone-500 flex-shrink-0">
+                        {(r.status === 'created' || r.status === 'duplicate') && r.slug}
+                        {(r.status === 'invalid' || r.status === 'error') && r.reason.slice(0, 60)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
