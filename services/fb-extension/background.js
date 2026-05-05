@@ -597,6 +597,43 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch(e => sendResponse({ ok: false, error: e?.message || String(e) }))
     return true
   }
+  if (msg?.type === 'verboseScrape') {
+    // Debug-only path. Sends scrape with verbose:true to the sender's tab,
+    // logs everything to that tab's DevTools console, and DOES NOT ingest
+    // results to the backend (no ExtensionCapture rows, no JobCandidate
+    // creation, no run heartbeats). Pure observation. Returns a summary
+    // with the captured count + snippets so the overlay can show what
+    // came back without writing to chrome.storage either.
+    const tabId = sender?.tab?.id
+    if (!tabId) {
+      sendResponse({ error: 'No sender tab — verboseScrape must be called from a content script' })
+      return false
+    }
+    ;(async () => {
+      try {
+        const result = await sendMessageWithRetry(tabId, {
+          type: 'scrape',
+          sourceSlug: msg.sourceSlug || null,
+          maxScrollSeconds: msg.maxScrollSeconds || 120,
+          maxPostsPerRun: msg.maxPostsPerRun || 100,
+          verbose: true,
+        })
+        const posts = result?.posts || []
+        sendResponse({
+          ok: true,
+          summary: {
+            postsCaptured: posts.length,
+            stopReason: result?.stopReason,
+            scrollSeconds: result?.scrollSeconds,
+            posts: posts.map(p => ({ postId: p.postId, postUrl: p.postUrl, bytes: (p.html || '').length })),
+          },
+        })
+      } catch (e) {
+        sendResponse({ ok: false, error: e?.message || String(e) })
+      }
+    })()
+    return true
+  }
   if (msg?.type === 'getStatus') {
     chrome.storage.local.get([STATE_KEYS.LAST_RUN, STATE_KEYS.RUN_BUSY], async (r) => {
       const cfg = await chrome.storage.sync.get([STATE_KEYS.TOKEN])

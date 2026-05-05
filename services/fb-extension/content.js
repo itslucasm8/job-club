@@ -311,7 +311,14 @@ function userScroll(deltaY) {
   try { window.scrollBy(0, deltaY) } catch {/* swallow */}
 }
 
-async function autoScroll({ maxScrollSeconds = 120, maxPostsPerRun = 100, staleStopAfter = 10, warmupSeconds = 25, sourceSlug = null }) {
+async function autoScroll({ maxScrollSeconds = 120, maxPostsPerRun = 100, staleStopAfter = 10, warmupSeconds = 25, sourceSlug = null, verbose = false }) {
+  // Stash the verbose flag on window so the chatter filter + extractPost
+  // can also log without us threading the param everywhere.
+  window.__jcVerbose = !!verbose
+  const log = verbose
+    ? (...args) => console.log('[JC-DEBUG]', ...args)
+    : () => {}
+  log('autoScroll start', { maxScrollSeconds, maxPostsPerRun, staleStopAfter, warmupSeconds, sourceSlug })
   const start = Date.now()
   let staleScrolls = 0
   const captured = new Map()
@@ -367,10 +374,13 @@ async function autoScroll({ maxScrollSeconds = 120, maxPostsPerRun = 100, staleS
   // they enter the viewport, and "See more" expansion needs ~300ms to settle.
   const scrollMin = IS_MOBILE ? 800 : 3000
   const scrollMax = IS_MOBILE ? 1800 : 4500
+  let iterCount = 0
   while (true) {
+    iterCount += 1
     const elapsed = (Date.now() - start) / 1000
     if (elapsed >= maxScrollSeconds) break
-    const { elements } = findPosts()
+    const { selector, elements } = findPosts()
+    log(`iter ${iterCount} t=${elapsed.toFixed(1)}s — selector="${selector}" found=${elements.length} captured=${captured.size}`)
     // Step 1 — expand collapsed posts before reading their bodies. Without
     // this, captured HTML is the truncated preview ("We have a position
     // going in loganholme."), the LLM can't extract, and we lose real jobs.
@@ -380,6 +390,7 @@ async function autoScroll({ maxScrollSeconds = 120, maxPostsPerRun = 100, staleS
     for (const el of elements) {
       if (expandSeeMore(el)) didExpand = true
     }
+    if (verbose && didExpand) log(`  expanded see-more on at least one post`)
     // Give FB ~800ms to render the expanded bodies before we read the DOM.
     // Bumped from 400ms — a few rollouts hydrate slowly enough that 400ms
     // captured the still-truncated body even after a successful click.
@@ -394,17 +405,22 @@ async function autoScroll({ maxScrollSeconds = 120, maxPostsPerRun = 100, staleS
       const post = extractPost(el)
       if (!post) continue
       const existing = captured.get(post.postId)
-      // Only overwrite if new capture has more content (post body grew
-      // because See-more finally expanded). Avoids cases where a re-render
-      // briefly returns a smaller HTML.
-      if (!existing || (post.html?.length || 0) > (existing.html?.length || 0)) {
+      const isNew = !existing
+      const grew = existing && (post.html?.length || 0) > (existing.html?.length || 0)
+      if (isNew || grew) {
         captured.set(post.postId, post)
+        if (verbose) {
+          const snippet = extractSnippet(post)
+          log(`  ${isNew ? 'NEW' : 'GROW'} post ${post.postId} bytes=${post.html.length} text="${snippet.slice(0, 60)}…"`)
+        }
       }
     }
     tickProgress({ visibleNow: elements.length })
     sendProgress()
     if (captured.size >= maxPostsPerRun) {
       try { window.__jcScrapeStatus = { ...window.__jcScrapeStatus, active: false } } catch {}
+      log(`autoScroll DONE — captured=${captured.size} elapsed=${elapsed.toFixed(1)}s stopReason=count`)
+      if (verbose) console.table(Array.from(captured.values()).map(p => ({ postId: p.postId, bytes: p.html.length, snippet: extractSnippet(p).slice(0, 80) })))
       return { stopReason: 'count', seconds: elapsed, captured }
     }
     const inWarmup = elapsed < warmupSeconds && captured.size === 0
@@ -421,6 +437,8 @@ async function autoScroll({ maxScrollSeconds = 120, maxPostsPerRun = 100, staleS
       }
       if (staleScrolls >= staleStopAfter) {
         try { window.__jcScrapeStatus = { ...window.__jcScrapeStatus, active: false } } catch {}
+        log(`autoScroll DONE — captured=${captured.size} elapsed=${elapsed.toFixed(1)}s stopReason=stale (no growth for ${staleStopAfter} iter)`)
+        if (verbose) console.table(Array.from(captured.values()).map(p => ({ postId: p.postId, bytes: p.html.length, snippet: extractSnippet(p).slice(0, 80) })))
         return { stopReason: 'stale', seconds: elapsed, captured }
       }
     } else if (captured.size !== lastSeenSize) {
@@ -436,9 +454,19 @@ async function autoScroll({ maxScrollSeconds = 120, maxPostsPerRun = 100, staleS
     if (elements.length > 0) {
       try { elements[elements.length - 1].scrollIntoView({ block: 'end', behavior: 'instant' }) } catch {}
     }
+    if (verbose) log(`  scrolled by ${stride.toFixed(0)}px (window.scrollY=${window.scrollY.toFixed(0)})`)
     await new Promise(r => setTimeout(r, jitter(scrollMin, scrollMax)))
   }
   try { window.__jcScrapeStatus = { ...window.__jcScrapeStatus, active: false } } catch {}
+  log(`autoScroll DONE — captured=${captured.size} elapsed=${((Date.now() - start) / 1000).toFixed(1)}s stopReason=time`)
+  if (verbose) {
+    const snapshot = Array.from(captured.values()).map(p => ({
+      postId: p.postId,
+      bytes: p.html.length,
+      snippet: extractSnippet(p).slice(0, 80),
+    }))
+    console.table(snapshot)
+  }
   return { stopReason: 'time', seconds: (Date.now() - start) / 1000, captured }
 }
 
@@ -576,9 +604,38 @@ function cleanPostHtml(postEl) {
 // Mobile FB renders inline comments as <article> too — even with the
 // top-level filter, very short articles are usually fragment cards or
 // "X liked Y's comment" notifications. Real job posts are at least a few
-// sentences. Desktop keeps a lower threshold since posts there have less
-// rendered chrome.
+// sentences.
 const MIN_POST_TEXT_CHARS = IS_MOBILE ? 80 : 30
+
+/** Hiring-signal regex — ANY match keeps the post in. Built from the actual
+ *  vocabulary of real FB job ads we've seen + canonical wage/contact patterns.
+ *  Real ads ("Hiring – Front of House", "Position going in Loganholme",
+ *  "Traffic controller needed $38/hr 0426...") all match at least one of
+ *  these. Self-intros / questions / engagement comments don't. */
+const HIRING_SIGNAL_RE = /\b(hiring|hire|looking\s+for|seeking|wanted|need(ed)?|position|positions|vacanc(y|ies)|opening|opportunity|opportunities|join\s+(our|the)\s+team|we'?re\s+(hiring|looking)|now\s+hiring|chasing|chef|cook|barista|waiter|bartender|labourer|picker|cleaner|driver|controller|crew|staff)\b|\$\s*\d|\b\d+\s*\/\s*hr\b|\b\d+\s*per\s+hour\b|\bp\/h\b|\b(award\s+wages?|hourly\s+rate|piece\s+rate)\b|\b(email|dm|pm|whatsapp|call|contact|resume|cv)\s/i
+
+const PHONE_RE = /\b04\d{2}\s*\d{3}\s*\d{3}\b|\b\(\d{2}\)\s*\d{4}\s*\d{4}\b/   // AU mobile / landline
+const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/
+
+/** Returns true if the visible text looks like community chatter rather than
+ *  a job ad — short + no hiring signals + no contact info. We skip these
+ *  client-side so they never reach the backend (no LLM call, no
+ *  ExtensionCapture row, no overlay noise). Real job ads — even brief ones
+ *  with just contact info — pass because they hit at least one signal. */
+function looksLikeChatter(visibleText) {
+  const t = (visibleText || '').trim()
+  if (t.length === 0) return true
+  // Anything with a clear hiring signal, phone number, or email gets in,
+  // regardless of length — these are the strongest "this is an ad" markers.
+  if (HIRING_SIGNAL_RE.test(t)) return false
+  if (PHONE_RE.test(t)) return false
+  if (EMAIL_RE.test(t)) return false
+  // No signals at all — needs to be substantial enough that we trust it
+  // might still be a job ad written in oblique prose. Anything under 200
+  // chars without any of the above is almost always chatter.
+  if (t.length < 200) return true
+  return false
+}
 
 /** Extract one post into the wire format consumed by /api/extension/ingest-batch.
  *  Always tries to produce a post if there is *any* meaningful content.
@@ -586,6 +643,16 @@ const MIN_POST_TEXT_CHARS = IS_MOBILE ? 80 : 30
 function extractPost(postEl) {
   const visibleText = (postEl.innerText || '').trim()
   if (visibleText.length < MIN_POST_TEXT_CHARS) return null
+  // Skip community chatter — short posts with no hiring signals or contact
+  // info. These are top-level posts in FB's structure (have aria-posinset)
+  // but read like comments because they're members chatting / asking
+  // questions / sharing self-intros. Pre-filtering here saves an LLM call
+  // per chatter post and keeps the Recent Captures pane focused on real
+  // job ads. See looksLikeChatter for the rules.
+  if (looksLikeChatter(visibleText)) {
+    if (window.__jcVerbose) console.log('[JC-DEBUG] skipping chatter (no hiring signal):', visibleText.slice(0, 80))
+    return null
+  }
 
   const anchor = findPermalinkAnchor(postEl)
   let postId = null
@@ -754,6 +821,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           maxScrollSeconds: msg.maxScrollSeconds || 60,
           maxPostsPerRun: msg.maxPostsPerRun || 100,
           sourceSlug: msg.sourceSlug || null,
+          verbose: !!msg.verbose,
         })
         const posts = Array.from(result.captured.values()).slice(0, msg.maxPostsPerRun || 100)
         const { selector, elements } = findPosts()

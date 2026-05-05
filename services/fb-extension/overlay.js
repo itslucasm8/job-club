@@ -604,6 +604,9 @@
           <button class="btn btn-secondary" id="run-all-btn" ${running ? 'disabled' : ''}>
             ▶ Scrape all configured groups
           </button>
+          <button class="btn btn-amber" id="run-verbose-btn" ${running ? 'disabled' : ''} title="Debug scrape on this tab — verbose console logs, NO backend writes, tab stays open">
+            🔬 Debug scrape (this tab, console logs)
+          </button>
         </div>
 
         <div class="links">
@@ -625,6 +628,10 @@
     }
     if (!running) {
       $('run-all-btn').addEventListener('click', () => runAllGroups())
+    }
+    const verboseBtn = $('run-verbose-btn')
+    if (verboseBtn && !running) {
+      verboseBtn.addEventListener('click', () => runVerboseDebug(currentGroup?.slug || null))
     }
 
     const reg = $('register-link')
@@ -803,6 +810,28 @@
         alert('Erreur: ' + chrome.runtime.lastError.message)
       }
       refresh()
+    })
+  }
+
+  /** Debug scrape on the current tab. Opens DevTools-friendly console logs
+   *  (prefixed [JC-DEBUG]), does NOT ingest results to the backend, does
+   *  NOT close the tab. Pure observation mode for figuring out why scrolls
+   *  stale early or why specific posts get rejected. */
+  function runVerboseDebug(sourceSlug) {
+    console.log('[JC-DEBUG] === Starting verbose scrape on this tab ===')
+    console.log('[JC-DEBUG] Tab URL:', location.href)
+    console.log('[JC-DEBUG] Source slug:', sourceSlug || '(none — ad-hoc)')
+    console.log('[JC-DEBUG] Note: results NOT sent to backend in this mode.')
+    chrome.runtime.sendMessage({ type: 'verboseScrape', sourceSlug }, (resp) => {
+      if (chrome.runtime.lastError) {
+        console.error('[JC-DEBUG] runtime error:', chrome.runtime.lastError.message)
+        return
+      }
+      if (resp?.ok) {
+        console.log('[JC-DEBUG] === DONE ===', resp.summary)
+      } else {
+        console.error('[JC-DEBUG] failed:', resp?.error)
+      }
     })
   }
 
