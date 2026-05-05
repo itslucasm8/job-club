@@ -221,12 +221,19 @@ async function runOneGroup(group) {
   // We open www directly — mbasic was retired by FB for modern UAs (any
   // mbasic.facebook.com URL redirects to www with ?__mmr=1&_rdr).
   await patchGroup(group.slug, () => ({ status: 'opening_tab', startedAt: new Date().toISOString() }))
-  const tab = await chrome.tabs.create({ url: group.groupUrl, active: true })
+  // active: false → tab opens in the background of the user's Brave window
+  // and does NOT steal focus. The user keeps doing whatever they were doing.
+  // If a future FB rollout starts gating render on document visibility (we
+  // saw signs of this in earlier dev), fall back to
+  //   chrome.windows.create({ focused: false, type: 'popup', ...dimensions })
+  // which keeps the tab "active in its own window" → "visible" by
+  // Chromium's per-tab model, without yanking the user's main window.
+  const tab = await chrome.tabs.create({ url: group.groupUrl, active: false })
   try {
     await waitForTabReady(tab.id)
     // Give the FB feed time to hydrate + render initial posts before scraping.
-    // 5s is conservative; FB's first-paint is usually 2-3s on broadband.
-    await new Promise(r => setTimeout(r, 5000))
+    // Background tabs may need a touch more — bump from 5s to 7s.
+    await new Promise(r => setTimeout(r, 7000))
     await patchGroup(group.slug, () => ({ status: 'scraping' }))
     const result = await sendMessageWithRetry(tab.id, {
       type: 'scrape',
