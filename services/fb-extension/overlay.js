@@ -457,21 +457,25 @@
   }
 
   // ─── Data ───────────────────────────────────────────────────────────────
+  // Proxy through the SW: MV3 content scripts are subject to CORS even with
+  // host_permissions, so a direct fetch from facebook.com→thejobclub.com.au
+  // gets rejected. The SW has extension privileges and bypasses CORS.
   async function loadGroups() {
-    try {
-      const cfg = await chrome.storage.sync.get(['extensionToken', 'backendUrl'])
-      const token = cfg.extensionToken
-      const backend = cfg.backendUrl || BACKEND_DEFAULT
-      if (!token) { groups = []; return }
-      const res = await fetch(`${backend}/api/extension/groups`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      })
-      if (!res.ok) { groups = []; return }
-      const data = await res.json()
-      groups = Array.isArray(data?.groups) ? data.groups : []
-    } catch {
-      groups = []
-    }
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage({ type: 'getGroups' }, (resp) => {
+          if (chrome.runtime.lastError || !resp?.ok) {
+            groups = []
+          } else {
+            groups = Array.isArray(resp.groups) ? resp.groups : []
+          }
+          resolve()
+        })
+      } catch {
+        groups = []
+        resolve()
+      }
+    })
   }
 
   async function refresh() {

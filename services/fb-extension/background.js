@@ -650,6 +650,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true })
     return false
   }
+  if (msg?.type === 'getGroups') {
+    // Content scripts in MV3 are subject to CORS even with host_permissions
+    // (different from MV2). Proxy this through the SW so the overlay can
+    // populate its group list without hitting facebook.com→thejobclub.com.au
+    // CORS rejection.
+    apiFetch('/api/extension/groups')
+      .then(data => sendResponse({ ok: true, groups: Array.isArray(data?.groups) ? data.groups : [] }))
+      .catch(e => sendResponse({ ok: false, error: e?.message || String(e), groups: [] }))
+    return true
+  }
   if (msg?.type === 'scrapeProgress') {
     // Forwarded by content.js every few iterations during a scrape. Updates
     // the current group's captured count + latest 3 post snippets so the
