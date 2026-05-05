@@ -6,8 +6,9 @@ http://scraper:8091 (Docker network) for adapters whose
 JobSource.adapter == 'scrapling'.
 
 Each adapter is a small Python module under adapters/. They get a URL +
-params and return a list of candidate dicts in the shape ingestCandidate
-expects. We don't talk to the database — Next.js handles persistence.
+params and return a list of listings (URLs + cheap signals) the runner
+can feed into its existing LLM extraction path. We don't talk to the
+database — Next.js handles persistence.
 """
 import hmac
 import logging
@@ -46,21 +47,27 @@ def authorized(request: Request) -> bool:
 
 
 class ScrapeRequest(BaseModel):
-    adapter: str = Field(..., description="Registered adapter name, e.g. 'gumtree'")
+    adapter: str = Field(..., description="Registered adapter name")
     url: str = Field(..., description="Source URL to scrape")
     params: dict[str, Any] = Field(default_factory=dict)
 
 
-class Candidate(BaseModel):
-    sourceUrl: str
+class Listing(BaseModel):
+    url: str
     sourceJobId: str | None = None
-    raw: dict[str, Any]
+    title: str | None = None
+    snippet: str | None = None
+    postedAt: str | None = None
+    # If the adapter pre-extracted structured fields, runner skips LLM
+    # extraction for this listing. Most adapters return None here; only
+    # adapters with deterministic page structure should populate it.
+    raw: dict[str, Any] | None = None
     sourceText: str | None = None
 
 
 class ScrapeResponse(BaseModel):
     ok: bool
-    candidates: list[Candidate] = []
+    listings: list[Listing] = []
     errors: list[str] = []
     debug: dict[str, Any] = Field(default_factory=dict)
 
@@ -91,7 +98,7 @@ async def scrape(req: ScrapeRequest, request: Request) -> ScrapeResponse:
         result = await impl.scrape(req.url, req.params)
         return ScrapeResponse(
             ok=True,
-            candidates=result.get("candidates", []),
+            listings=result.get("listings", []),
             errors=result.get("errors", []),
             debug=result.get("debug", {}),
         )
