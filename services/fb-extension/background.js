@@ -254,27 +254,15 @@ async function runOneGroup(group) {
   // We open www directly — mbasic was retired by FB for modern UAs (any
   // mbasic.facebook.com URL redirects to www with ?__mmr=1&_rdr).
   await patchGroup(group.slug, () => ({ status: 'opening_tab', startedAt: new Date().toISOString() }))
-  // We use chrome.windows.create instead of chrome.tabs.create, with
-  // focused:false. Why: FB's React refuses to hydrate posts on a tab whose
-  // document.visibilityState === 'hidden', so a background tab in the user's
-  // main Brave window captures empty <article> shells (proved by today's
-  // diagnostic — textLen:0 across all candidates). A new Brave WINDOW with
-  // focused:false dodges that: the tab is "active in its own window" so
-  // visibilityState === 'visible' (FB hydrates normally), but the window
-  // itself is unfocused so the user's foreground app/window keeps OS focus.
-  // type:'popup' makes the window chromeless (no tab bar) — visually flags
-  // it as a worker, takes less screen space when it briefly appears.
-  const win = await chrome.windows.create({
-    url: group.groupUrl,
-    focused: false,
-    type: 'popup',
-    width: 900,
-    height: 700,
-    top: 120,
-    left: 120,
-  })
-  const tab = win?.tabs?.[0]
-  if (!tab?.id) throw new Error('Failed to open scrape window')
+  // active: true is required for reliable FB rendering. We tested both
+  // background tabs (active:false) and unfocused popup windows
+  // (chrome.windows.create + focused:false) — both produced empty article
+  // shells (textLen:0) because FB's React gates content hydration on
+  // document.visibilityState === 'visible' AND apparently on the window
+  // being a "real" foreground window. Only an active tab in the user's
+  // main Brave window reliably renders posts. Trade-off: scrape tabs
+  // briefly steal focus during a multi-group run.
+  const tab = await chrome.tabs.create({ url: group.groupUrl, active: true })
   try {
     await waitForTabReady(tab.id)
     // Give the FB feed time to hydrate + render initial posts before scraping.
@@ -311,8 +299,7 @@ async function runOneGroup(group) {
       posts: [],
     }
   } finally {
-    // Close the whole popup window (which closes the tab too).
-    try { await chrome.windows.remove(win.id) } catch {/* swallow */}
+    try { await chrome.tabs.remove(tab.id) } catch {/* swallow */}
   }
 }
 
