@@ -1,27 +1,28 @@
 // Content script — runs on facebook.com/groups/* pages. Receives a 'scrape'
 // message from the background service worker, auto-scrolls the feed at
-// human pace, and returns captured post data.
+// human pace, expands collapsed posts ("See more"), captures top-level
+// posts (filtering out nested comments), and returns captured post data.
 //
-// Day 2 = scaffold + smoke test. Day 3 fills in the actual scraping logic.
-// For now this script: detects the feed container, responds with a count
-// of post-like elements visible, no actual data extraction yet.
+// Strategy (2026-05-05): we always run on www.facebook.com — mbasic has been
+// effectively retired by FB (any modern UA gets redirected away with
+// ?__mmr=1&_rdr). Capture-everything: the LLM in the backend decides which
+// captures are jobs and which to discard. The only client-side filtering is
+// "top-level post, not a nested comment" which is a structural disambiguation,
+// not a content judgement.
 
 console.log('[fb-ext content] loaded on', location.href)
 
 // ─── Selectors ────────────────────────────────────────────────────────────
 // FB rotates class names but role-based attributes are stable across rotations.
-// Multiple selectors with graceful degradation — first non-empty wins.
 
-const IS_MBASIC = location.hostname === 'mbasic.facebook.com'
-const IS_MOBILE = location.hostname === 'm.facebook.com' || IS_MBASIC
+const IS_MOBILE = location.hostname === 'm.facebook.com'
 
-// Mobile FB uses plain <article> tags with real <a href> permalinks.
-// data-ft is FB's instrumentation attribute that ONLY appears on top-level
-// feed posts, not on comments or sub-elements. Requiring it eliminates the
-// "captured a comment as a post" failure mode we saw on the first run.
+// Mobile FB (m.facebook.com) uses plain <article> tags with explicit data-ft.
+// We rarely land here in 2026 (FB serves www to most UAs) but the path is
+// kept as a fallback in case the office machine ever gets routed to m.
 const MOBILE_SELECTORS = [
   'article[data-ft]',
-  '[data-tracking-duration-id] article',             // newer mobile rollout
+  '[data-tracking-duration-id] article',
 ]
 
 // Desktop FB virtualizes everything. The reliable discriminator is the
@@ -85,17 +86,31 @@ function findPostsByPermalink() {
   return { selector: 'permalink-walk', elements }
 }
 
-// Design principle: scrape everything that looks like a feed item, let
-// the backend playbook + LLM decide what's a job and what isn't. NO
-// client-side filtering of comments / sidebar cards / engagement cards —
-// the LLM rejects those cleanly with structured failure reasons stored in
-// ExtensionCapture. False negatives at the capture layer are far worse
-// than false positives, because the admin debug page can review
-// false-positives but never sees what was filtered out.
+// Design principle: capture everything that looks like a top-level feed
+// post — let the backend LLM decide which are jobs. The only client-side
+// filtering is "top-level vs nested": on www, comments inside expanded
+// posts also have role="article", so a naive `[role="feed"] [role="article"]`
+// selector returns posts AND their comments. We need the post wrapper, not
+// each comment, otherwise the LLM ends up classifying comment text and
+// the real post body never gets captured.
+
+/** True if `el` is a top-level feed post (its nearest [role="article"]
+ *  ancestor is the feed container itself, not another article = comment). */
+function isTopLevelPost(el) {
+  let p = el.parentElement
+  while (p && p !== document.body) {
+    if (p.getAttribute && p.getAttribute('role') === 'feed') return true
+    if (p !== el && p.getAttribute && p.getAttribute('role') === 'article') return false
+    p = p.parentElement
+  }
+  // No [role="feed"] ancestor — keep it (mobile pages don't always wrap in
+  // a feed role, and we'd rather have a false positive the LLM rejects than
+  // a missed job).
+  return true
+}
 
 function findPosts() {
-  // Mobile path: plain <article> tags. Capture everything that looks
-  // like a feed item — the LLM will distinguish jobs from non-jobs.
+  // m.facebook.com fallback path (rare in 2026).
   if (IS_MOBILE) {
     for (const sel of MOBILE_SELECTORS) {
       const els = Array.from(document.querySelectorAll(sel))
@@ -103,26 +118,51 @@ function findPosts() {
     }
   }
 
-  // Desktop / mobile-redirected-to-desktop: every [role=article] inside
-  // the main feed container is fair game. We deliberately do NOT filter
-  // out comments here — the LLM does that downstream by recognizing
-  // comment-shaped content and rejecting it with a structured reason
-  // stored in ExtensionCapture.
-  const articles = Array.from(document.querySelectorAll('[role="feed"] [role="article"]'))
-  if (articles.length >= 1) {
-    return { selector: '[role="feed"] [role="article"]', elements: articles }
+  // www path: every [role="article"] inside the feed, FILTERED to top-level
+  // (excludes comments rendered inside expanded posts).
+  const allInFeed = Array.from(document.querySelectorAll('[role="feed"] [role="article"]'))
+  const topLevel = allInFeed.filter(isTopLevelPost)
+  if (topLevel.length >= 1) {
+    return { selector: '[role="feed"] [role="article"] (top-level)', elements: topLevel }
   }
 
-  // Fallback: any [role=article] anywhere on the page.
-  const globalArticles = Array.from(document.querySelectorAll('[role="article"]'))
-  if (globalArticles.length >= 1) {
-    return { selector: '[role="article"]', elements: globalArticles }
+  // No [role="feed"] container — try articles with aria-posinset (canonical
+  // top-level discriminator that sidesteps the nested-comment problem).
+  const posInset = Array.from(document.querySelectorAll('[role="article"][aria-posinset]'))
+  if (posInset.length >= 1) {
+    return { selector: '[role="article"][aria-posinset]', elements: posInset }
   }
 
-  // Last resort: walk for permalink anchors and climb up. Catches rollouts
-  // where the wrapper isn't a [role=article].
-  const byPermalink = findPostsByPermalink()
-  return byPermalink
+  // Last resort: walk for permalink anchors and climb up.
+  return findPostsByPermalink()
+}
+
+/** Find and click any "See more" / "Voir plus" expand buttons inside a post
+ *  to reveal the collapsed body. Returns true if a click happened so the
+ *  caller can wait briefly for the expansion to render. */
+function expandSeeMore(postEl) {
+  // FB renders the expand control as a clickable div/span with role=button.
+  // Match by visible text — class names rotate, text doesn't. We're locale-
+  // aware because Lucas's office machine session is in French; users on the
+  // FB account language will see English/French/etc. Cover the common ones.
+  const buttons = postEl.querySelectorAll('div[role="button"], span[role="button"], [tabindex="0"]')
+  let clicked = false
+  for (const b of buttons) {
+    const text = (b.innerText || b.textContent || '').trim().toLowerCase()
+    if (!text || text.length > 30) continue
+    if (
+      text === 'see more' ||
+      text === 'voir plus' ||
+      text === 'show more' ||
+      text === 'plus' ||
+      text === 'leer más' ||
+      text === 'mostra altro' ||
+      text === 'mehr anzeigen'
+    ) {
+      try { b.click(); clicked = true } catch {/* swallow */}
+    }
+  }
+  return clicked
 }
 
 // ─── Auto-scroll helper (used in Day 3 — skeleton here for review) ────────
@@ -131,177 +171,9 @@ function jitter(min, max) {
   return min + Math.random() * (max - min)
 }
 
-// ─── mbasic.facebook.com paginated scrape ─────────────────────────────────
-// mbasic is the no-JavaScript HTML-only mobile FB. Posts render as plain
-// <article data-ft> tags with explicit "?bacr=…" pagination links. No
-// virtualization, no React, no anti-bot. We fetch each page directly
-// using the authenticated session cookies and parse with DOMParser, so
-// we never have to navigate the tab itself.
-
-const MBASIC_POST_SELECTORS = [
-  'article[data-ft]',
-  '[data-ft] article',
-  '#m_group_stories_container article',
-  'article',
-]
-
-/** Find the next-page link in an mbasic document. mbasic uses query-param
- *  pagination — typical hrefs contain `?bacr=` or `?p=`. The link's visible
- *  text is "See More Posts" / "Voir plus de publications" / similar. */
-function findMbasicNextPage(doc) {
-  const links = doc.querySelectorAll('a[href]')
-  for (const a of links) {
-    const href = a.getAttribute('href') || ''
-    if (!href.startsWith('/groups/')) continue
-    if (!(href.includes('bacr=') || href.includes('?p=') || href.includes('&p=') || href.includes('multi_permalinks='))) continue
-    const text = (a.textContent || '').trim().toLowerCase()
-    if (
-      text.includes('see more') ||
-      text.includes('voir plus') ||
-      text.includes('plus de publications') ||
-      text.includes('show more') ||
-      text.includes('more posts') ||
-      text === 'more' ||
-      text === 'plus'
-    ) {
-      return new URL(href, location.origin).toString()
-    }
-  }
-  return null
-}
-
-/** Rewrite any facebook.com host to mbasic.facebook.com and strip tracking
- *  query params. mbasic anchor permalinks routinely point to www (FB design),
- *  but www only returns a JS SPA shell to fetch() — the real post body never
- *  renders. mbasic returns the full body in static HTML. */
-function toMbasicUrl(url) {
-  try {
-    const u = new URL(url, location.origin)
-    if (u.hostname.endsWith('facebook.com') && u.hostname !== 'mbasic.facebook.com') {
-      u.hostname = 'mbasic.facebook.com'
-    }
-    const drop = []
-    for (const k of u.searchParams.keys()) {
-      if (k.startsWith('__') || k === 'fbclid' || k === 'comment_id' || k === 'reply_comment_id' || k === 'notif_id') drop.push(k)
-    }
-    for (const k of drop) u.searchParams.delete(k)
-    return u.toString()
-  } catch { return url }
-}
-
-/** Fetch the dedicated permalink page for a post and return the full <article>
- *  HTML — uncollapsed, including the full body that's hidden behind "See more"
- *  on the feed list view. Returns null on fetch failure. */
-async function fetchFullPost(permalinkUrl) {
-  try {
-    const url = toMbasicUrl(permalinkUrl)
-    const res = await fetch(url, { credentials: 'include', headers: { 'Accept': 'text/html' } })
-    // Defensive: if FB redirected us off mbasic (e.g. to www login wall), the
-    // body is a JS shell with no post content — bail rather than capture noise.
-    const finalUrl = res.url || url
-    if (!/mbasic\.facebook\.com/.test(finalUrl)) return null
-    const html = await res.text()
-    const doc = new DOMParser().parseFromString(html, 'text/html')
-    // The dedicated post page renders the post as the first <article> on
-    // the page. Subsequent <article> elements are comments — skip those by
-    // taking only the first.
-    for (const sel of MBASIC_POST_SELECTORS) {
-      const a = doc.querySelector(sel)
-      if (a) return a
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-
-/** Scrape an mbasic group feed across multiple pages by fetching each page's
- *  HTML and parsing it. For each discovered post, additionally fetch its
- *  dedicated permalink page to get the FULL post body (mbasic feed pages
- *  show only previews with "See more" collapse). Stays on the initial tab —
- *  no navigation. */
-async function scrapeMbasic({ maxPages = 10, maxPostsPerRun = 100 }) {
-  const start = Date.now()
-  const captured = new Map()
-  let url = location.href
-  let pages = 0
-  let stopReason = 'no_more_pages'
-
-  // Phase 1: collect article references from feed pages.
-  const feedArticles = []  // { article, permalinkUrl }
-  while (pages < maxPages && url && feedArticles.length < maxPostsPerRun) {
-    let doc
-    try {
-      if (pages === 0) {
-        doc = document
-      } else {
-        const html = await fetch(url, { credentials: 'include', headers: { 'Accept': 'text/html' } }).then(r => r.text())
-        doc = new DOMParser().parseFromString(html, 'text/html')
-      }
-    } catch (e) {
-      stopReason = 'fetch_error'
-      break
-    }
-
-    let articles = []
-    for (const sel of MBASIC_POST_SELECTORS) {
-      const found = Array.from(doc.querySelectorAll(sel))
-      if (found.length >= 1) { articles = found; break }
-    }
-
-    for (const a of articles) {
-      const anchor = findPermalinkAnchor(a)
-      if (!anchor) continue
-      const href = anchor.getAttribute('href')
-      const permalinkUrl = absoluteHref(href)
-      const postId = postIdFromHref(href)
-      if (!postId || !permalinkUrl) continue
-      if (captured.has(postId)) continue
-      // Mark as seen now to avoid re-fetching across pages.
-      captured.set(postId, null)
-      feedArticles.push({ article: a, permalinkUrl, postId })
-      if (feedArticles.length >= maxPostsPerRun) break
-    }
-
-    if (feedArticles.length >= maxPostsPerRun) { stopReason = 'count'; break }
-
-    const nextUrl = findMbasicNextPage(doc)
-    if (!nextUrl || nextUrl === url) { stopReason = 'no_more_pages'; break }
-    url = nextUrl
-    pages++
-    await new Promise(r => setTimeout(r, jitter(600, 1000)))
-  }
-
-  // Phase 2: for each discovered post, fetch its permalink page to get
-  // the full uncollapsed body. Replace the feed-preview article with the
-  // standalone-post article before extraction.
-  for (const item of feedArticles) {
-    const fullArticle = await fetchFullPost(item.permalinkUrl)
-    const sourceEl = fullArticle || item.article
-    const post = extractPost(sourceEl)
-    if (post) {
-      // Force the postId/postUrl to the values we already discovered, since
-      // the standalone page might use a slightly different anchor structure.
-      post.postId = item.postId
-      post.postUrl = item.permalinkUrl
-      captured.set(item.postId, post)
-    } else {
-      captured.delete(item.postId)
-    }
-    // Light pacing between full-post fetches.
-    await new Promise(r => setTimeout(r, jitter(300, 600)))
-  }
-
-  // Strip null placeholders.
-  for (const [k, v] of captured) if (!v) captured.delete(k)
-
-  return {
-    stopReason,
-    seconds: (Date.now() - start) / 1000,
-    pagesScraped: pages + 1,
-    captured,
-  }
-}
+// (mbasic.facebook.com strategy removed 2026-05-05 — FB redirects mbasic to
+// www for any modern UA, the two-pass code never actually fired in production
+// and was masking the real problem on www.)
 
 /** Mobile FB doesn't always lazy-load — sometimes it uses a "See more
  *  posts" / "Voir plus de publications" link at the bottom that needs to
@@ -327,19 +199,43 @@ function clickLoadMore() {
   return false
 }
 
-async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleStopAfter = 4, warmupSeconds = 15 }) {
+async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleStopAfter = 6, warmupSeconds = 25 }) {
   const start = Date.now()
   let staleScrolls = 0
   const captured = new Map()
+  // Track which post elements we've already expanded so we don't keep
+  // clicking "See more" on the same one every iteration.
+  const expanded = new WeakSet()
   let lastSeenSize = 0
   // Mobile gets faster scroll cadence — markup is lighter and renders quickly.
-  // Desktop keeps the slower cadence due to React virtualization hydration.
-  const scrollMin = IS_MOBILE ? 800 : 2500
+  // www requires patience: React virtualization renders posts in batches as
+  // they enter the viewport, and "See more" expansion needs ~300ms to settle.
+  const scrollMin = IS_MOBILE ? 800 : 3000
   const scrollMax = IS_MOBILE ? 1800 : 4500
   while (true) {
     const elapsed = (Date.now() - start) / 1000
     if (elapsed >= maxScrollSeconds) break
     const { elements } = findPosts()
+    // Step 1 — expand collapsed posts before reading their bodies. Without
+    // this, captured HTML is the truncated preview ("We have a position
+    // going in loganholme."), the LLM can't extract, and we lose real jobs.
+    let didExpand = false
+    for (const el of elements) {
+      if (expanded.has(el)) continue
+      if (expandSeeMore(el)) {
+        expanded.add(el)
+        didExpand = true
+      } else {
+        // Even posts without "See more" — mark as visited so we don't probe
+        // them again. extractPost is cheap so this is purely an optimization.
+        expanded.add(el)
+      }
+    }
+    // Give FB ~400ms to expand the bodies before we read the DOM.
+    if (didExpand) {
+      await new Promise(r => setTimeout(r, 400))
+    }
+    // Step 2 — extract from the (now-expanded) DOM.
     for (const el of elements) {
       const post = extractPost(el)
       if (post && !captured.has(post.postId)) {
@@ -658,17 +554,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'scrape') {
     (async () => {
       try {
-        // mbasic uses fetch-based pagination across multiple HTML pages.
-        // m./desktop fall back to the legacy infinite-scroll path.
-        const result = IS_MBASIC
-          ? await scrapeMbasic({
-              maxPages: msg.maxPages || 10,
-              maxPostsPerRun: msg.maxPostsPerRun || 100,
-            })
-          : await autoScroll({
-              maxScrollSeconds: msg.maxScrollSeconds || 60,
-              maxPostsPerRun: msg.maxPostsPerRun || 100,
-            })
+        const result = await autoScroll({
+          maxScrollSeconds: msg.maxScrollSeconds || 60,
+          maxPostsPerRun: msg.maxPostsPerRun || 100,
+        })
         const posts = Array.from(result.captured.values()).slice(0, msg.maxPostsPerRun || 100)
         const { selector, elements } = findPosts()
         const diagnostic = posts.length === 0 ? diagnoseDom() : undefined
@@ -677,8 +566,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           diagnostic,
           posts,
           selector,
-          mode: IS_MBASIC ? 'mbasic' : 'scroll',
-          pagesScraped: result.pagesScraped,
+          mode: 'scroll',
           totalElements: elements.length,
           extractedCount: posts.length,
           stopReason: result.stopReason,

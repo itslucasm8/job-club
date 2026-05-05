@@ -134,30 +134,15 @@ async function sendMessageWithRetry(tabId, msg, retries = 5) {
 
 // ─── The run ──────────────────────────────────────────────────────────────
 
-/** Rewrite www/m FB group URLs to mbasic.facebook.com — the no-JavaScript
- *  HTML-only mobile site. Posts render as plain <article data-ft> tags
- *  with real <a href> permalinks and explicit "?bacr=..." pagination
- *  links. No virtualization, no React, no anti-bot. Cookies share across
- *  .facebook.com so the spare-account session works. */
-function toMobileFbUrl(url) {
-  try {
-    const u = new URL(url)
-    if (u.hostname === 'www.facebook.com' || u.hostname === 'facebook.com' || u.hostname === 'm.facebook.com') {
-      u.hostname = 'mbasic.facebook.com'
-      return u.toString()
-    }
-    return url
-  } catch { return url }
-}
-
 async function runOneGroup(group) {
   const start = Date.now()
   // active: true is REQUIRED — FB throttles SPA hydration (IntersectionObserver,
   // requestIdleCallback) on background tabs, so the feed never renders any
   // [role="article"] elements. The tradeoff is the tab visibly pops open during
   // a run; on the office machine that's fine and the tab closes when done.
-  const mobileUrl = toMobileFbUrl(group.groupUrl)
-  const tab = await chrome.tabs.create({ url: mobileUrl, active: true })
+  // We open www directly — mbasic was retired by FB for modern UAs (any
+  // mbasic.facebook.com URL redirects to www with ?__mmr=1&_rdr).
+  const tab = await chrome.tabs.create({ url: group.groupUrl, active: true })
   try {
     await waitForTabReady(tab.id)
     // Give the FB feed time to hydrate + render initial posts before scraping.
