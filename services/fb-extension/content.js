@@ -137,31 +137,90 @@ function findPosts() {
   return findPostsByPermalink()
 }
 
-/** Find and click any "See more" / "Voir plus" expand buttons inside a post
- *  to reveal the collapsed body. Returns true if a click happened so the
- *  caller can wait briefly for the expansion to render. */
-function expandSeeMore(postEl) {
-  // FB renders the expand control as a clickable div/span with role=button.
-  // Match by visible text — class names rotate, text doesn't. We're locale-
-  // aware because Lucas's office machine session is in French; users on the
-  // FB account language will see English/French/etc. Cover the common ones.
-  const buttons = postEl.querySelectorAll('div[role="button"], span[role="button"], [tabindex="0"]')
-  let clicked = false
-  for (const b of buttons) {
-    const text = (b.innerText || b.textContent || '').trim().toLowerCase()
-    if (!text || text.length > 30) continue
-    if (
-      text === 'see more' ||
-      text === 'voir plus' ||
-      text === 'show more' ||
-      text === 'plus' ||
-      text === 'leer más' ||
-      text === 'mostra altro' ||
-      text === 'mehr anzeigen'
-    ) {
-      try { b.click(); clicked = true } catch {/* swallow */}
-    }
+// Track per-post expansion attempts. WeakMap auto-cleans when FB virtualizes
+// the element away. Allows up to 3 retries: first click sometimes lands too
+// early (before FB hydrates the button), or doesn't trigger React's handler.
+const expansionState = new WeakMap()  // Element → { attempts, expanded }
+const MAX_EXPAND_ATTEMPTS = 3
+
+/** Trigger a click that React's event delegation will actually catch. Plain
+ *  `el.click()` fails on a lot of React-rendered controls because React
+ *  listens via synthetic events keyed on pointer/mouse events, not the
+ *  programmatic `click()` shortcut. Dispatch the full sequence. */
+function reactSafeClick(el) {
+  const opts = { bubbles: true, cancelable: true, view: window, button: 0 }
+  try {
+    el.dispatchEvent(new PointerEvent('pointerdown', opts))
+    el.dispatchEvent(new MouseEvent('mousedown', opts))
+    el.dispatchEvent(new PointerEvent('pointerup', opts))
+    el.dispatchEvent(new MouseEvent('mouseup', opts))
+    el.dispatchEvent(new MouseEvent('click', opts))
+    return true
+  } catch {
+    try { el.click(); return true } catch { return false }
   }
+}
+
+/** Heuristic match for the "See more" expand button. FB renders this in many
+ *  shapes: <div role="button">See more</div>, <span tabindex="0">… See more</span>,
+ *  with leading "..." or zero-width-space prefixes. Strict equality misses
+ *  those. We use `.includes()` with a length cap so we don't match longer
+ *  unrelated buttons like "Click here to see more results from this group". */
+function isSeeMoreButton(el) {
+  const text = (el.innerText || el.textContent || '').trim().toLowerCase()
+  if (!text || text.length > 25) return false
+  return (
+    text.includes('see more') ||
+    text.includes('voir plus') ||
+    text.includes('show more') ||
+    text === 'plus' ||
+    text === 'mehr' ||
+    text === 'mehr anzeigen' ||
+    text === 'leer más' ||
+    text === 'mostra altro' ||
+    text === 'see more posts' ||
+    text === 'lire la suite'
+  )
+}
+
+/** Returns true if there's still a See-more button visible inside the post,
+ *  meaning the body is still collapsed. Used as the success check after a
+ *  click — if the button is gone, expansion worked. */
+function isStillCollapsed(postEl) {
+  const candidates = postEl.querySelectorAll('div[role="button"], span[role="button"], [tabindex="0"]')
+  for (const el of candidates) {
+    if (isSeeMoreButton(el)) return true
+  }
+  return false
+}
+
+/** Find and click any "See more" / "Voir plus" expand buttons inside a post.
+ *  Returns true if at least one click was attempted. Per-element retry state
+ *  is tracked so the autoScroll loop comes back to a post on subsequent
+ *  iterations if the first click didn't expand it. */
+function expandSeeMore(postEl) {
+  const state = expansionState.get(postEl) || { attempts: 0, expanded: false }
+  if (state.expanded) return false
+  if (state.attempts >= MAX_EXPAND_ATTEMPTS) return false
+  // Confirm the post is actually collapsed before doing work — short posts
+  // don't render "See more" and we'd waste cycles trying to find one.
+  if (state.attempts > 0 && !isStillCollapsed(postEl)) {
+    expansionState.set(postEl, { ...state, expanded: true })
+    return false
+  }
+  const candidates = postEl.querySelectorAll('div[role="button"], span[role="button"], [tabindex="0"]')
+  let clicked = false
+  for (const el of candidates) {
+    if (!isSeeMoreButton(el)) continue
+    // Scroll the button into view first — FB's IntersectionObserver may
+    // refuse to render the expanded body unless the button is visible.
+    try { el.scrollIntoView({ block: 'nearest', behavior: 'instant' }) } catch {}
+    if (reactSafeClick(el)) clicked = true
+  }
+  expansionState.set(postEl, {
+    attempts: state.attempts + 1,
+    expanded: clicked,  // optimistic; the next iteration verifies via isStillCollapsed
+  })
   return clicked
 }
 
@@ -203,9 +262,11 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
   const start = Date.now()
   let staleScrolls = 0
   const captured = new Map()
-  // Track which post elements we've already expanded so we don't keep
-  // clicking "See more" on the same one every iteration.
-  const expanded = new WeakSet()
+  // Per-post expansion state lives in the module-level expansionState
+  // WeakMap (set by expandSeeMore). We don't track "already extracted"
+  // here because the captured Map already keys by postId — re-extraction
+  // on later iterations is cheap and lets us catch expanded bodies that
+  // weren't ready the first time around.
   let lastSeenSize = 0
   let lastProgressSent = 0
   // Expose live progress for overlay.js on the SAME tab (same isolated
@@ -260,26 +321,30 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
     // Step 1 — expand collapsed posts before reading their bodies. Without
     // this, captured HTML is the truncated preview ("We have a position
     // going in loganholme."), the LLM can't extract, and we lose real jobs.
+    // expandSeeMore tracks per-post retry state internally so a post that
+    // didn't expand on the first click gets another shot next iteration.
     let didExpand = false
     for (const el of elements) {
-      if (expanded.has(el)) continue
-      if (expandSeeMore(el)) {
-        expanded.add(el)
-        didExpand = true
-      } else {
-        // Even posts without "See more" — mark as visited so we don't probe
-        // them again. extractPost is cheap so this is purely an optimization.
-        expanded.add(el)
-      }
+      if (expandSeeMore(el)) didExpand = true
     }
-    // Give FB ~400ms to expand the bodies before we read the DOM.
+    // Give FB ~800ms to render the expanded bodies before we read the DOM.
+    // Bumped from 400ms — a few rollouts hydrate slowly enough that 400ms
+    // captured the still-truncated body even after a successful click.
     if (didExpand) {
-      await new Promise(r => setTimeout(r, 400))
+      await new Promise(r => setTimeout(r, 800))
     }
-    // Step 2 — extract from the (now-expanded) DOM.
+    // Step 2 — extract from the (now-expanded) DOM. We re-extract on every
+    // iteration even for posts already in `captured`: a post's expanded body
+    // may not have been ready on its first capture pass, and overwriting
+    // the Map entry with the fresh fuller version is what we want.
     for (const el of elements) {
       const post = extractPost(el)
-      if (post && !captured.has(post.postId)) {
+      if (!post) continue
+      const existing = captured.get(post.postId)
+      // Only overwrite if new capture has more content (post body grew
+      // because See-more finally expanded). Avoids cases where a re-render
+      // briefly returns a smaller HTML.
+      if (!existing || (post.html?.length || 0) > (existing.html?.length || 0)) {
         captured.set(post.postId, post)
       }
     }
