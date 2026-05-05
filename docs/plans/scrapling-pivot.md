@@ -23,33 +23,44 @@ New sidecar service `services/scrapling-scraper/` (sibling of `services/claude-p
 
 ## Phases
 
-### Phase 1 — Service skeleton
-- `services/scrapling-scraper/` directory with Dockerfile, requirements.txt, app.py
-- `/scrape` and `/health` endpoints
-- `docker-compose.yml` integration
-- Smoke test: fetch any public page
+### Phase 1 — Service skeleton ✅ shipped (commit 18008b9)
+- `services/scrapling-scraper/` with Dockerfile, FastAPI app, /health + /scrape
+- Wired into docker-compose as `scraper` service
+- Bearer auth via SCRAPER_SECRET
 
-### Phase 2 — First adapter: Gumtree
-- Port `src/lib/sourcing/adapters/gumtree-html.ts` to Python
-- Use Scrapling's `Fetcher` (HTTP tier — Gumtree doesn't need stealth)
-- Validate output format matches `ingestCandidate` expectations
-- A/B against existing TS adapter on the same URLs
+### Phase 2 — First adapters ✅ shipped (commit 11aa591)
+- Pivoted: Gumtree didn't exist as an automated source. Ported workforce_australia
+  + harvest_trail instead — both share the same backend, only keywords differ.
+- One Python implementation registered against both names.
 
-### Phase 3 — Wire into runner
-- Add `JobSource.adapter = 'scrapling'` value
-- Runner branches: when adapter is `scrapling`, POST to scraper service and feed result into `ingestCandidate`
-- Migrate Gumtree sources from `gumtree-html` → `scrapling`
-- Keep old TS adapter dormant for 1 week as fallback
+### Phase 3 — Wire into runner ✅ shipped (commit 11aa591)
+- Approach: kept existing TS adapter slugs/registry. Swapped the `discover()`
+  implementation to call `scraplingDiscover()` instead of `proxyFetchHtml + cheerio`.
+- Same JobSource rows; rollback is `git revert`.
+- Added `src/lib/sourcing/scrapling-client.ts` as the thin TS→sidecar HTTP client.
 
-### Phase 4 — Seek revival
-- Currently dead. Port to Scrapling using `StealthyFetcher` if it triggers bot detection.
-- Real value-add for cohort — restoring a major source.
+### Phase 4 — Generic HTML adapter ✅ shipped
+- Pivoted: Seek isn't dead (5 slices ok in prod with totalSeen 40-118 each).
+- Higher-leverage move: built a `generic_html` Scrapling adapter that mirrors
+  generic_career_page.ts's contract (selector + pattern + heuristic).
+- One Python file now backs all 21 generic_career_page-shaped sources, including
+  Seek slices, small employer career pages, and any future addition via UI.
+- generic-career-page.ts now delegates to `scraplingDiscover('generic_html', ...)`.
 
-### Phase 5 — Deploy + observe
-- VPS deploy via existing pattern (git pull + docker compose up -d --build)
-- 48h observation window
-- Tune throttling, retry, error handling
-- Document the "add a new Scrapling adapter" recipe
+### Phase 5 — Deploy + observe (awaiting VPS deploy)
+- One-time setup: add SCRAPER_SECRET + SCRAPER_URL to .env.production
+- `git pull && docker compose up -d --build` (Playwright image ~1.5GB; 5-10 min first build)
+- 48h observation: ingestion rates per source, no regressions vs pre-pivot baseline
+- Smoke test path: `docker compose exec app wget -qO- http://scraper:8091/health`
+
+## Bonus shipped alongside (commit ef17b37)
+
+The validated FB DOM spec from a sister-project debugging session was applied
+to `services/fb-extension/content.js` — replacing the dead
+`[role="article"][aria-posinset]` selector with `[role="feed"] > div`
+gated on `[data-ad-rendering-role="story_message"]`, plus virtualization-
+aware incremental capture. content.js shrunk from 850 → 330 lines.
+This is independent from the Scrapling pivot but lands in the same deploy.
 
 ## Out of scope (explicitly)
 
