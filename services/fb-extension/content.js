@@ -118,22 +118,25 @@ function findPosts() {
     }
   }
 
-  // www path: every [role="article"] inside the feed, FILTERED to top-level
-  // (excludes comments rendered inside expanded posts).
+  // PRIMARY: [role="article"][aria-posinset] — FB's canonical "this is feed
+  // post #N" attribute. Comments, suggested-groups cards, ads, and
+  // engagement widgets all have role="article" but ONLY top-level feed
+  // posts get aria-posinset. This sidesteps the comment-leak problem
+  // structurally rather than relying on isTopLevelPost's ancestor walk.
+  const posInset = Array.from(document.querySelectorAll('[role="article"][aria-posinset]'))
+  if (posInset.length >= 1) {
+    return { selector: '[role="article"][aria-posinset]', elements: posInset }
+  }
+
+  // FALLBACK 1: top-level [role="article"] inside [role="feed"]. Used when
+  // FB rolls out a layout that omits aria-posinset (rare but happens).
   const allInFeed = Array.from(document.querySelectorAll('[role="feed"] [role="article"]'))
   const topLevel = allInFeed.filter(isTopLevelPost)
   if (topLevel.length >= 1) {
     return { selector: '[role="feed"] [role="article"] (top-level)', elements: topLevel }
   }
 
-  // No [role="feed"] container — try articles with aria-posinset (canonical
-  // top-level discriminator that sidesteps the nested-comment problem).
-  const posInset = Array.from(document.querySelectorAll('[role="article"][aria-posinset]'))
-  if (posInset.length >= 1) {
-    return { selector: '[role="article"][aria-posinset]', elements: posInset }
-  }
-
-  // Last resort: walk for permalink anchors and climb up.
+  // FALLBACK 2: walk for permalink anchors and climb up.
   return findPostsByPermalink()
 }
 
@@ -163,23 +166,38 @@ function reactSafeClick(el) {
 
 /** Heuristic match for the "See more" expand button. FB renders this in many
  *  shapes: <div role="button">See more</div>, <span tabindex="0">… See more</span>,
- *  with leading "..." or zero-width-space prefixes. Strict equality misses
- *  those. We use `.includes()` with a length cap so we don't match longer
- *  unrelated buttons like "Click here to see more results from this group". */
+ *  with leading "..." or zero-width-space prefixes. We use `.includes()` with
+ *  a length cap so we don't match unrelated buttons like "Click here to see
+ *  more results from this group". Also catches aria-expanded="false" elements
+ *  which is React's structured way of marking a collapsible.
+ *  IMPORTANT: skip "See more posts" (the page-level pagination link, not the
+ *  per-post expand) — clicking that triggers feed pagination, not body expand. */
 function isSeeMoreButton(el) {
   const text = (el.innerText || el.textContent || '').trim().toLowerCase()
-  if (!text || text.length > 25) return false
+  if (text === 'see more posts' || text === 'voir plus de publications') return false
+  if (!text || text.length > 25) {
+    // Even with no/long text, an aria-expanded="false" element is a strong
+    // signal it's a collapsible we should click to expand.
+    if (el.getAttribute && el.getAttribute('aria-expanded') === 'false' && text.length <= 60) {
+      return true
+    }
+    return false
+  }
   return (
     text.includes('see more') ||
     text.includes('voir plus') ||
     text.includes('show more') ||
+    text.includes('lire la suite') ||
+    text.includes('continue reading') ||
+    text.includes('ver más') ||
     text === 'plus' ||
+    text === 'more' ||
     text === 'mehr' ||
     text === 'mehr anzeigen' ||
     text === 'leer más' ||
     text === 'mostra altro' ||
-    text === 'see more posts' ||
-    text === 'lire la suite'
+    text === '…more' ||
+    text === '...more'
   )
 }
 
@@ -187,7 +205,7 @@ function isSeeMoreButton(el) {
  *  meaning the body is still collapsed. Used as the success check after a
  *  click — if the button is gone, expansion worked. */
 function isStillCollapsed(postEl) {
-  const candidates = postEl.querySelectorAll('div[role="button"], span[role="button"], [tabindex="0"]')
+  const candidates = postEl.querySelectorAll('div[role="button"], span[role="button"], [tabindex="0"], [aria-expanded="false"], a[role="button"]')
   for (const el of candidates) {
     if (isSeeMoreButton(el)) return true
   }
@@ -208,7 +226,7 @@ function expandSeeMore(postEl) {
     expansionState.set(postEl, { ...state, expanded: true })
     return false
   }
-  const candidates = postEl.querySelectorAll('div[role="button"], span[role="button"], [tabindex="0"]')
+  const candidates = postEl.querySelectorAll('div[role="button"], span[role="button"], [tabindex="0"], [aria-expanded="false"], a[role="button"]')
   let clicked = false
   for (const el of candidates) {
     if (!isSeeMoreButton(el)) continue
@@ -258,7 +276,42 @@ function clickLoadMore() {
   return false
 }
 
-async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleStopAfter = 6, warmupSeconds = 25, sourceSlug = null }) {
+/** Drive the page's scroll position the way a human does — real WheelEvent
+ *  on the document, plus a Page Down keypress, plus a fallback scrollBy.
+ *  Why: modern FB gates lazy-load on user-input events. Plain
+ *  window.scrollBy(0, N) changes the scroll number but doesn't fire `wheel`
+ *  or `keydown`, so FB's React doesn't know to fetch more posts and the
+ *  feed stays frozen at the top 5–7. We dispatch the inputs FB is listening
+ *  for, then fall back to scrollBy in case some rollouts ignore wheel events.
+ */
+function userScroll(deltaY) {
+  // 1. WheelEvent on document — bubbles to React handlers on body / feed.
+  try {
+    const evt = new WheelEvent('wheel', {
+      deltaY, deltaMode: 0, bubbles: true, cancelable: true, view: window,
+    })
+    document.dispatchEvent(evt)
+  } catch {/* swallow */}
+  // 2. WheelEvent on the feed container too, in case React listens there.
+  try {
+    const feed = document.querySelector('[role="feed"]') || document.scrollingElement
+    if (feed && feed !== document) {
+      feed.dispatchEvent(new WheelEvent('wheel', {
+        deltaY, deltaMode: 0, bubbles: true, cancelable: true, view: window,
+      }))
+    }
+  } catch {/* swallow */}
+  // 3. Page Down keydown — some FB layouts respond to keyboard scroll.
+  try {
+    document.body.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'PageDown', code: 'PageDown', keyCode: 34, which: 34, bubbles: true,
+    }))
+  } catch {/* swallow */}
+  // 4. Belt-and-braces — actually move the scroll position.
+  try { window.scrollBy(0, deltaY) } catch {/* swallow */}
+}
+
+async function autoScroll({ maxScrollSeconds = 120, maxPostsPerRun = 100, staleStopAfter = 10, warmupSeconds = 25, sourceSlug = null }) {
   const start = Date.now()
   let staleScrolls = 0
   const captured = new Map()
@@ -374,7 +427,15 @@ async function autoScroll({ maxScrollSeconds = 60, maxPostsPerRun = 100, staleSt
       staleScrolls = 0
       lastSeenSize = captured.size
     }
-    window.scrollBy(0, window.innerHeight * 0.8)
+    // Drive scroll via real input events so FB's lazy-load fires. Plus
+    // scroll the LAST captured/visible article into view: forces FB's
+    // IntersectionObserver to register that we've moved past the top
+    // and need more posts loaded below.
+    const stride = Math.max(window.innerHeight * 0.85, 600)
+    userScroll(stride)
+    if (elements.length > 0) {
+      try { elements[elements.length - 1].scrollIntoView({ block: 'end', behavior: 'instant' }) } catch {}
+    }
     await new Promise(r => setTimeout(r, jitter(scrollMin, scrollMax)))
   }
   try { window.__jcScrapeStatus = { ...window.__jcScrapeStatus, active: false } } catch {}
