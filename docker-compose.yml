@@ -24,6 +24,7 @@ services:
       - '3030:3000'
     depends_on:
       - db
+      - scraper
     env_file:
       - .env.production
     extra_hosts:
@@ -35,6 +36,23 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  scraper:
+    build:
+      context: ./services/scrapling-scraper
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    # No port exposure — only the app container needs to reach this,
+    # via the compose network at http://scraper:8091.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # Playwright base image is ~1.5GB; first cold start under load can take
+      # 60s+ before uvicorn binds. Generous start_period avoids false-failures.
+      start_period: 60s
 
 volumes:
   pg-data:
