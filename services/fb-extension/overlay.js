@@ -348,7 +348,7 @@
     if (currentGroup) {
       sourceBanner = `
         <div class="source-banner">
-          ✓ This group is registered as <b>${escapeHtml(currentGroup.slug)}</b>
+          ✓ On registered group <b>${escapeHtml(currentGroup.slug)}</b> — "Scrape this tab" will use it.
         </div>
       `
     } else {
@@ -356,11 +356,15 @@
       if (m) {
         sourceBanner = `
           <div class="source-banner warn">
-            This group isn't registered yet. <a href="#" id="register-link">+ Register it</a> before scraping.
+            This group isn't registered yet. <a href="#" id="register-link">+ Register it</a> before scraping just this one.
           </div>
         `
       } else {
-        sourceBanner = `<div class="source-banner warn">This page isn't a Facebook group — overlay only works on group feeds.</div>`
+        sourceBanner = `
+          <div class="source-banner">
+            Not on a group page. Use <b>Scrape all configured groups</b> below, or open a group to scrape it directly.
+          </div>
+        `
       }
     }
 

@@ -37,9 +37,7 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.facebook.com/groups/*",
-        "*://m.facebook.com/groups/*",
-        "*://mbasic.facebook.com/groups/*"
+        "*://*.facebook.com/*"
       ],
       "js": ["overlay.js", "content.js"],
       "run_at": "document_idle"

@@ -387,34 +387,28 @@ async function runOnTab(tabId, sourceSlug) {
 
 // ─── Toolbar icon click ───────────────────────────────────────────────────
 // With no default_popup set in manifest, clicking the icon fires this handler
-// directly. Behavior: if the active tab is a FB group, ping the overlay to
-// expand. Otherwise focus an existing FB group tab, or open the first
-// registered group as a fallback.
+// directly. Behavior: if the active tab is already on facebook.com, just
+// expand the overlay there. Otherwise open FB home as a fresh tab so the
+// user can navigate to whichever group they want from inside the overlay.
 
 chrome.action.onClicked.addListener(async (tab) => {
-  const isOnGroup = tab?.url && /facebook\.com\/groups\//.test(tab.url)
-  if (isOnGroup) {
+  const isOnFb = tab?.url && /^https?:\/\/[^/]*facebook\.com\//.test(tab.url)
+  if (isOnFb) {
     try {
       await chrome.tabs.sendMessage(tab.id, { type: 'expandOverlay' })
-    } catch {/* content script may not be ready yet — just leave the overlay collapsed */}
+    } catch {/* content script may not be ready yet — overlay will still mount */}
     return
   }
-  const fbTabs = await chrome.tabs.query({ url: '*://*.facebook.com/groups/*' })
+  // Not on FB at all — focus an existing FB tab if there is one, else open
+  // FB home. We don't auto-navigate into a group; the user picks where to go.
+  const fbTabs = await chrome.tabs.query({ url: '*://*.facebook.com/*' })
   if (fbTabs.length > 0) {
     await chrome.tabs.update(fbTabs[0].id, { active: true })
     if (fbTabs[0].windowId) await chrome.windows.update(fbTabs[0].windowId, { focused: true })
     try { await chrome.tabs.sendMessage(fbTabs[0].id, { type: 'expandOverlay' }) } catch {}
     return
   }
-  // No FB group tab open — open one. Prefer the first registered group so
-  // the user lands somewhere immediately useful; fall back to FB's groups
-  // feed if we can't fetch the group list.
-  let url = 'https://www.facebook.com/groups/feed/'
-  try {
-    const { groups } = await apiFetch('/api/extension/groups')
-    if (Array.isArray(groups) && groups[0]?.groupUrl) url = groups[0].groupUrl
-  } catch {/* fall through */}
-  await chrome.tabs.create({ url, active: true })
+  await chrome.tabs.create({ url: 'https://www.facebook.com/', active: true })
 })
 
 // ─── Message routing ──────────────────────────────────────────────────────
