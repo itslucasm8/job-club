@@ -5,15 +5,18 @@ FROM mcr.microsoft.com/playwright/python:v1.49.0-jammy
 WORKDIR /app
 
 COPY requirements.txt .
-# Install Python deps, then run `scrapling install` which downloads the
-# Playwright browsers StealthySession needs (Firefox + Chromium with stealth
-# patches). The Playwright base image ships system deps but NOT browser
-# binaries — without this step, AsyncStealthySession crashes at first request
-# with "BrowserType.launch_persistent_context: Executable doesn't exist".
-# NO `|| true` — fail the build loudly if install breaks rather than ship a
-# broken container.
+# Scrapling 0.4.x's StealthySession is built on `patchright` (undetected
+# Playwright fork), which ships its OWN browser install command separate
+# from the vanilla `playwright install` baked into the base image. Without
+# `patchright install chromium`, AsyncStealthySession crashes at first
+# request with "BrowserType.launch_persistent_context: Executable doesn't
+# exist". `scrapling install` is also run for any future-proofing it does
+# (registering stealth patches etc.) — costs nothing if a no-op.
+# NO `|| true` — fail the build loudly if install breaks rather than ship
+# a broken container.
 RUN pip install --no-cache-dir -r requirements.txt \
- && scrapling install
+ && scrapling install \
+ && patchright install chromium
 
 COPY app.py .
 COPY adapters ./adapters
