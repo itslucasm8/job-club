@@ -55,12 +55,26 @@ model Job {
                          // Frozen at approve time — not auto-refreshed when reference data changes
                          // (run scripts/reassess-eligibility.js if needed).
   expiresAt   DateTime? // Auto-set to 30 days after creation if not specified
+  // Notification fan-out tracking. Approve route writes the Job in a
+  // transaction with the JobCandidate update; notification matching runs
+  // outside the transaction (slow, hits Resend) and flips this flag on
+  // success. A retry cron picks up rows where notificationsSent=false and
+  // notificationsAttemptedAt is older than 5 minutes — so a Resend blip or
+  // app crash mid-fanout never silently drops subscriber alerts.
+  notificationsSent          Boolean   @default(false)
+  notificationsAttemptedAt   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   savedBy     SavedJob[]
   @@index([active, expiresAt])
   @@index([eligible88Days])
   @@index([active, expiresAt, state, category])
+  // Partial unique index — prevents duplicate Jobs for the same source URL
+  // (e.g. same listing approved twice from two candidate rows). Postgres
+  // treats NULLs as distinct so manually-published jobs without a sourceUrl
+  // are unaffected.
+  @@unique([sourceUrl], map: "Job_sourceUrl_unique")
+  @@index([notificationsSent, notificationsAttemptedAt])
 }
 
 model SavedJob {

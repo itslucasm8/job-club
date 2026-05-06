@@ -133,6 +133,10 @@ export default function AdminCandidatesPage() {
   // Bulk-action state
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkActing, setBulkActing] = useState<{ phase: 'approving' | 'rejecting'; done: number; total: number } | null>(null)
+  // Per-row failure list from the most recent bulk action. Cleared on the
+  // next bulk action; admin sees what specifically failed instead of just a
+  // count alert.
+  const [bulkErrors, setBulkErrors] = useState<{ id: string; title: string; reason: string }[]>([])
 
   // Manual publish modal — replaces the standalone /admin/publish page in the
   // daily flow. Sources are the primary intake; this is the escape hatch.
@@ -286,21 +290,29 @@ export default function AdminCandidatesPage() {
     if (ids.length === 0) return
     if (!confirm(`Approve ${ids.length} candidate${ids.length > 1 ? 's' : ''}? This publishes them to the live feed.`)) return
     setBulkActing({ phase: 'approving', done: 0, total: ids.length })
+    setBulkErrors([])
+    const errors: { id: string; title: string; reason: string }[] = []
     let okCount = 0
-    let failCount = 0
     for (let i = 0; i < ids.length; i++) {
       const id = ids[i]
+      const c = candidates.find(x => x.id === id)
+      const title = (c?.rawData as any)?.title || id
       try {
         const res = await fetch(`/api/admin/candidates/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         if (res.ok) okCount++
-        else failCount++
-      } catch { failCount++ }
+        else {
+          const data = await res.json().catch(() => ({}))
+          errors.push({ id, title, reason: data?.error || `HTTP ${res.status}` })
+        }
+      } catch (e: any) {
+        errors.push({ id, title, reason: e?.message || 'Network error' })
+      }
       setBulkActing(prev => prev ? { ...prev, done: i + 1 } : prev)
     }
     setBulkActing(null)
     setSelected(new Set())
+    setBulkErrors(errors)
     await fetchCandidates()
-    if (failCount > 0) alert(`${okCount} approved, ${failCount} failed.`)
   }
 
   async function bulkReject(reason: string) {
@@ -308,10 +320,13 @@ export default function AdminCandidatesPage() {
     if (ids.length === 0) return
     if (!confirm(`Reject ${ids.length} candidate${ids.length > 1 ? 's' : ''} with reason "${reason}"?`)) return
     setBulkActing({ phase: 'rejecting', done: 0, total: ids.length })
+    setBulkErrors([])
+    const errors: { id: string; title: string; reason: string }[] = []
     let okCount = 0
-    let failCount = 0
     for (let i = 0; i < ids.length; i++) {
       const id = ids[i]
+      const c = candidates.find(x => x.id === id)
+      const title = (c?.rawData as any)?.title || id
       try {
         const res = await fetch(`/api/admin/candidates/${id}/reject`, {
           method: 'POST',
@@ -319,14 +334,19 @@ export default function AdminCandidatesPage() {
           body: JSON.stringify({ reason }),
         })
         if (res.ok) okCount++
-        else failCount++
-      } catch { failCount++ }
+        else {
+          const data = await res.json().catch(() => ({}))
+          errors.push({ id, title, reason: data?.error || `HTTP ${res.status}` })
+        }
+      } catch (e: any) {
+        errors.push({ id, title, reason: e?.message || 'Network error' })
+      }
       setBulkActing(prev => prev ? { ...prev, done: i + 1 } : prev)
     }
     setBulkActing(null)
     setSelected(new Set())
+    setBulkErrors(errors)
     await fetchCandidates()
-    if (failCount > 0) alert(`${okCount} rejected, ${failCount} failed.`)
   }
 
   async function importFromUrl() {
@@ -605,6 +625,26 @@ export default function AdminCandidatesPage() {
           <option value="oldest">Oldest first</option>
         </select>
       </div>
+
+      {/* Per-row failures from the most recent bulk action. Shown until the
+          next bulk action clears it or the user dismisses. */}
+      {bulkErrors.length > 0 && (
+        <div className="mb-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-red-800">
+            <span>{bulkErrors.length} action{bulkErrors.length > 1 ? 's' : ''} failed</span>
+            <div className="flex-1" />
+            <button onClick={() => setBulkErrors([])} className="text-red-700 hover:text-red-900">Dismiss</button>
+          </div>
+          <ul className="mt-1 space-y-0.5 text-[11px] text-red-900 max-h-40 overflow-y-auto">
+            {bulkErrors.map((e) => (
+              <li key={e.id} className="flex gap-2">
+                <span className="truncate flex-1 font-semibold">{e.title}</span>
+                <span className="text-red-700">{e.reason.slice(0, 80)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Bulk action bar — sticky */}
       {someSelected && (
