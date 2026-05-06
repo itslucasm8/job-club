@@ -200,7 +200,25 @@ export default function ExtensionsPage() {
               {runs.map(r => {
                 const dur = r.completedAt ? Math.round((new Date(r.completedAt).getTime() - new Date(r.startedAt).getTime()) / 1000) : null
                 const groups = (r.groupRuns || []).length
-                const status = r.errorMessage ? '✗ erreur' : r.completedAt ? '✓ ok' : '⌛ en cours'
+                // Distinguish three failure modes so the team can act:
+                //   "✗ erreur" (red) — scraper genuinely broke
+                //   "⌛ orphelin" (gray) — heartbeat never closed (browser/SW
+                //     died mid-run); reaped retroactively. Not actionable.
+                //   "✓ ok" (green) — clean completion
+                //   "⌛ en cours" — still running
+                const isOrphan = (r.errorMessage || '').startsWith('orphaned')
+                let statusLabel = '✓ ok'
+                let statusClass = 'text-green-700'
+                if (isOrphan) {
+                  statusLabel = '⌛ orphelin'
+                  statusClass = 'text-stone-500'
+                } else if (r.errorMessage) {
+                  statusLabel = '✗ erreur'
+                  statusClass = 'text-red-700'
+                } else if (!r.completedAt) {
+                  statusLabel = '⌛ en cours'
+                  statusClass = 'text-amber-700'
+                }
                 return (
                   <tr key={r.id} className="border-t border-stone-100 hover:bg-stone-50">
                     <td className="py-1">{fmtTime(r.startedAt)}</td>
@@ -208,7 +226,7 @@ export default function ExtensionsPage() {
                     <td className="py-1 text-right tabular-nums">{r.totalPosts}</td>
                     <td className="py-1 text-right tabular-nums">{groups}</td>
                     <td className="py-1">{r.triggeredBy || '—'}</td>
-                    <td className="py-1">{status}</td>
+                    <td className={`py-1 ${statusClass}`} title={r.errorMessage || ''}>{statusLabel}</td>
                   </tr>
                 )
               })}

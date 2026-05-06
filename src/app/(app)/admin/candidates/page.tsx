@@ -687,7 +687,12 @@ export default function AdminCandidatesPage() {
                           </div>
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <span className="text-[10px] font-semibold uppercase tracking-wide text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded">{c.source}</span>
-                            <span className="text-[10px] text-stone-400">{timeAgo(c.createdAt)}</span>
+                            <span className="text-[10px] text-stone-400">captured {timeAgo(c.createdAt)}</span>
+                            {raw.postedAt && (
+                              <span className="text-[10px] text-stone-500 italic" title={`Posted on FB: ${raw.postedAt}`}>
+                                · posted {String(raw.postedAt).slice(0, 28)}
+                              </span>
+                            )}
                             <EligibilityBadge raw={raw} />
                             <PayBadge raw={raw} />
                             {/* Quality + classifier badges only when expanded — keep collapsed rows scannable */}

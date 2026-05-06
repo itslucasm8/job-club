@@ -210,9 +210,46 @@ function expandSeeMore(postEl) {
   return reactSafeClick(btn)
 }
 
-// ─── Field extraction (per spec Section 5) ───────────────────────────────
+// ─── Login / CAPTCHA wall detection ───────────────────────────────────────
+// FB occasionally challenges accounts with a login wall, a "Confirm it's
+// you" checkpoint, or a CAPTCHA. Without an explicit detection step the
+// scrape just returns 0 posts and the team thinks the group is empty —
+// the worst kind of silent failure. Detect common signals up front and
+// surface a clear stopReason so the overlay can prompt re-login.
 
-const MAX_HTML_BYTES = 50_000
+const LOGIN_WALL_SELECTORS = [
+  'form[action*="/login/"]',
+  'input[name="email"][type="text"]',
+  'input[name="pass"]',
+  '#login_form',
+  '#loginbutton',
+  'div[data-testid="royal_login_form"]',
+]
+
+const CHECKPOINT_PATH_RE = /\/(login|checkpoint|recover|two_step_verification|security)\b/i
+
+function detectLoginWall() {
+  // URL-based: any redirect off the group page is a fast signal.
+  if (CHECKPOINT_PATH_RE.test(location.pathname)) {
+    return { blocked: true, reason: `Redirected to ${location.pathname} — FB account needs re-login or security check` }
+  }
+  // DOM-based: login form rendered inline (happens when session expires while
+  // the tab is open and FB swaps the body for a login prompt).
+  for (const sel of LOGIN_WALL_SELECTORS) {
+    if (document.querySelector(sel)) {
+      return { blocked: true, reason: `Login wall detected (${sel}) — FB account session expired` }
+    }
+  }
+  // Body-text heuristic: catch checkpoint pages without our specific selectors.
+  const bodyText = (document.body?.innerText || '').slice(0, 800)
+  if (/please log in|connectez-vous|verify (your|it's) you|confirm your identity|security check/i.test(bodyText)
+      && !document.querySelector('[role="feed"]')) {
+    return { blocked: true, reason: 'Body text indicates FB security challenge and no feed is present' }
+  }
+  return { blocked: false }
+}
+
+// ─── Field extraction (per spec Section 5) ───────────────────────────────
 
 function isObfuscation(s) {
   if (!s) return false
@@ -237,7 +274,7 @@ function htmlEscape(s) {
 
 /** Build a minimal, signal-dense HTML payload from extracted markers.
  *  Replaces FB's bloated outerHTML — see anti-scrape note in extractPost. */
-function buildCleanHtml({ author, body, titleText, descText, hasPhoto, permalink }) {
+function buildCleanHtml({ author, body, titleText, descText, hasPhoto, photoAlts, permalink }) {
   const parts = ['<article>']
   parts.push(`<h2 class="author">${htmlEscape(author)}</h2>`)
   if (body) {
@@ -247,6 +284,15 @@ function buildCleanHtml({ author, body, titleText, descText, hasPhoto, permalink
   if (titleText) parts.push(`<h3 class="card-title">${htmlEscape(titleText)}</h3>`)
   if (descText) parts.push(`<p class="card-desc">${htmlEscape(descText)}</p>`)
   if (hasPhoto) parts.push('<meta name="has-photo" content="true">')
+  // Image alt-text — many farm-job posts put the contact phone/email in the
+  // image, captured here as a figcaption so the LLM can read it as text. We
+  // skip alts that match the FB anti-scrape obfuscation pattern, and cap at
+  // 2 unique non-empty alts to stay under the signal-density budget.
+  if (Array.isArray(photoAlts)) {
+    for (const alt of photoAlts) {
+      parts.push(`<figcaption>${htmlEscape(alt)}</figcaption>`)
+    }
+  }
   if (permalink) parts.push(`<link rel="canonical" href="${htmlEscape(permalink)}">`)
   parts.push('</article>')
   return parts.join('\n')
@@ -295,6 +341,20 @@ function extractPost(postEl) {
     return true
   })
   const hasPhoto = contentImgs.length > 0
+  // Collect up to 2 unique, non-obfuscated alt texts. FB's accessibility
+  // alt-text often contains "May be an image of text that says: [post text]"
+  // — that's exactly the OCR-style content we want for image-only job posts.
+  const photoAlts = []
+  const seenAlts = new Set()
+  for (const img of contentImgs) {
+    const alt = (img.getAttribute('alt') || '').trim()
+    if (!alt || alt.length < 8 || alt.length > 500) continue
+    if (isObfuscation(alt)) continue
+    if (seenAlts.has(alt)) continue
+    seenAlts.add(alt)
+    photoAlts.push(alt)
+    if (photoAlts.length >= 2) break
+  }
 
   // PHOTO CAPTION MERGE — when FB splits long captions across story_message
   // (truncated) and description (rest), prefer the description.
@@ -331,7 +391,7 @@ function extractPost(postEl) {
   // find the actual job ad. Build a minimal clean payload from the markers
   // we already extracted. The backend's text-extraction sees only the real
   // content. ~10x size reduction; ~100x signal density.
-  const html = buildCleanHtml({ author, body, titleText, descText, hasPhoto, permalink })
+  const html = buildCleanHtml({ author, body, titleText, descText, hasPhoto, photoAlts, permalink })
   if (html.length < 100) return null
 
   return {
@@ -579,6 +639,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'scrape') {
     (async () => {
       try {
+        // Bail fast if FB is showing a login wall or security check. Without
+        // this we'd return 0 posts and the team would assume the group is
+        // empty rather than realizing the FB account needs re-login.
+        const wall = detectLoginWall()
+        if (wall.blocked) {
+          sendResponse({
+            ok: true,
+            posts: [],
+            stopReason: 'login_required',
+            error: wall.reason,
+            scrollSeconds: 0,
+          })
+          return
+        }
         const result = await autoScroll({
           maxScrollSeconds: msg.maxScrollSeconds || 90,
           maxPostsPerRun: msg.maxPostsPerRun || 50,

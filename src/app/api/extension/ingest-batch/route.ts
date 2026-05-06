@@ -197,15 +197,55 @@ export async function POST(req: Request) {
     lastRunError = `No job listings in ${softRejects} captured post(s) — LLM filtered all as non-jobs`.slice(0, 500)
   }
 
-  await prisma.jobSource.update({
-    where: { slug: sourceSlug },
-    data: {
-      lastRunAt: new Date(),
-      lastRunStatus,
-      lastRunError,
-      totalSeen: { increment: postsRaw.length },
-    },
-  }).catch(() => {})
+  // Mirror the runner's health-tracking discipline so the extension path
+  // also benefits from auto-disable safety. Mirrors src/lib/sourcing/runner.ts:
+  //   - 'ok' / 'partial' / 'no_jobs_found' resets consecutiveFailures (the
+  //     pipeline is healthy even if this run found no jobs — soft rejects
+  //     are not failures).
+  //   - 'error' increments consecutiveFailures; at 2 we mark healthStatus
+  //     'broken'; at 3 we auto-disable the source so a stuck FB group can't
+  //     burn LLM tokens forever.
+  const FAIL_BROKEN_THRESHOLD = 2
+  const FAIL_AUTODISABLE_THRESHOLD = 3
+  if (lastRunStatus === 'error') {
+    const updated = await prisma.jobSource.update({
+      where: { slug: sourceSlug },
+      data: {
+        lastRunAt: new Date(),
+        lastRunStatus,
+        lastRunError,
+        totalSeen: { increment: postsRaw.length },
+        consecutiveFailures: { increment: 1 },
+      },
+      select: { consecutiveFailures: true, healthStatus: true, enabled: true },
+    }).catch(() => null)
+    if (updated) {
+      const followUp: any = {}
+      if (updated.consecutiveFailures >= FAIL_BROKEN_THRESHOLD && updated.healthStatus !== 'broken') {
+        followUp.healthStatus = 'broken'
+      }
+      if (updated.consecutiveFailures >= FAIL_AUTODISABLE_THRESHOLD && updated.enabled) {
+        followUp.enabled = false
+      }
+      if (Object.keys(followUp).length > 0) {
+        await prisma.jobSource.update({ where: { slug: sourceSlug }, data: followUp }).catch(() => {})
+      }
+    }
+  } else {
+    await prisma.jobSource.update({
+      where: { slug: sourceSlug },
+      data: {
+        lastRunAt: new Date(),
+        lastRunStatus,
+        lastRunError,
+        totalSeen: { increment: postsRaw.length },
+        consecutiveFailures: 0,
+        // Promote 'broken' → 'working' on a healthy run; leave 'partial' /
+        // 'unverified' alone so the operator's labelling doesn't get stomped.
+        ...(lastRunStatus === 'ok' ? { healthStatus: 'working' } : {}),
+      },
+    }).catch(() => {})
+  }
 
   logger.info('extension ingest-batch', {
     route: '/api/extension/ingest-batch',
