@@ -185,6 +185,12 @@ async function appendRecentCaptures(sourceSlug, groupName, captures) {
 // the runBusy lock would orphan and block all future runs.
 const API_TIMEOUT_MS = 120_000
 
+// Chunk size for /api/extension/ingest-batch. The backend processes posts
+// serially (one LLM call per post, ~5-10s each). With 25+ captures we hit
+// the 120s timeout. Chunking to 5 posts/request keeps each call under ~50s
+// and gives the user progressive ingest counts as each chunk lands.
+const INGEST_CHUNK_SIZE = 5
+
 async function apiFetch(path, opts = {}) {
   const { token, backend } = await getConfig()
   if (!token) throw new Error('Token non configuré (ouvrir les options)')
@@ -211,6 +217,53 @@ async function apiFetch(path, opts = {}) {
   } finally {
     clearTimeout(timer)
   }
+}
+
+// Chunked ingest. Splits posts into INGEST_CHUNK_SIZE-sized batches, POSTs
+// each, and aggregates the response counts. A single chunk failure logs but
+// doesn't abort the whole batch — partial ingestion is better than none.
+//
+// Optionally calls onChunkComplete(aggregateSoFar) after each chunk so the
+// caller can update the overlay's per-group progress in real time.
+async function postIngestBatchChunked(sourceSlug, posts, extra = {}, onChunkComplete = null) {
+  const aggregate = {
+    ok: true,
+    sourceSlug,
+    received: posts.length,
+    ingested: 0,
+    duplicates: 0,
+    errors: 0,
+    byMode: { playbook: 0, full: 0, failed: 0 },
+    errorDetails: [],
+  }
+  for (let i = 0; i < posts.length; i += INGEST_CHUNK_SIZE) {
+    const chunk = posts.slice(i, i + INGEST_CHUNK_SIZE)
+    try {
+      const resp = await apiFetch('/api/extension/ingest-batch', {
+        method: 'POST',
+        body: JSON.stringify({ sourceSlug, posts: chunk, ...extra }),
+      })
+      aggregate.ingested += resp?.ingested || 0
+      aggregate.duplicates += resp?.duplicates || 0
+      aggregate.errors += resp?.errors || 0
+      if (resp?.byMode) {
+        aggregate.byMode.playbook += resp.byMode.playbook || 0
+        aggregate.byMode.full += resp.byMode.full || 0
+        aggregate.byMode.failed += resp.byMode.failed || 0
+      }
+      if (Array.isArray(resp?.errorDetails)) {
+        aggregate.errorDetails.push(...resp.errorDetails)
+      }
+    } catch (e) {
+      console.warn('[fb-ext] ingest chunk failed', { sourceSlug, chunkIndex: i / INGEST_CHUNK_SIZE, error: e?.message })
+      aggregate.errors += chunk.length
+      aggregate.errorDetails.push({ postId: 'chunk', reason: e?.message || String(e) })
+    }
+    if (onChunkComplete) {
+      try { await onChunkComplete(aggregate) } catch {/* don't let UI updates break ingest */}
+    }
+  }
+  return aggregate
 }
 
 // ─── Tab orchestration helpers ────────────────────────────────────────────
@@ -361,20 +414,28 @@ async function runAll(triggeredBy = 'manual') {
       if (groupResult.posts.length > 0) {
         await patchGroup(group.slug, () => ({ status: 'ingesting' }))
         try {
-          const ingestResp = await apiFetch('/api/extension/ingest-batch', {
-            method: 'POST',
-            body: JSON.stringify({
-              sourceSlug: groupResult.sourceSlug,
-              posts: groupResult.posts,
+          const ingestResp = await postIngestBatchChunked(
+            groupResult.sourceSlug,
+            groupResult.posts,
+            {
               scrapedAt: new Date().toISOString(),
               scrollDuration: groupResult.scrollDuration,
-            }),
-          })
-          groupSummary.ingested = ingestResp?.ingested ?? 0
-          groupSummary.duplicates = ingestResp?.duplicates ?? 0
-          groupSummary.extractionErrors = ingestResp?.errors ?? 0
-          if (ingestResp?.errors > 0) summary.totalErrors += ingestResp.errors
-          if (Array.isArray(ingestResp?.errorDetails) && ingestResp.errorDetails.length > 0) {
+            },
+            // Live progress per chunk so the overlay reflects partial counts.
+            async (agg) => {
+              await patchGroup(group.slug, () => ({
+                status: 'ingesting',
+                ingested: agg.ingested,
+                duplicates: agg.duplicates,
+                extractionErrors: agg.errors,
+              }))
+            },
+          )
+          groupSummary.ingested = ingestResp.ingested
+          groupSummary.duplicates = ingestResp.duplicates
+          groupSummary.extractionErrors = ingestResp.errors
+          if (ingestResp.errors > 0) summary.totalErrors += ingestResp.errors
+          if (ingestResp.errorDetails.length > 0) {
             groupSummary.errorSamples = ingestResp.errorDetails.slice(0, 3)
           }
           await patchGroup(group.slug, () => ({
@@ -492,19 +553,27 @@ async function runOnTab(tabId, sourceSlug) {
     if (posts.length > 0) {
       await patchGroup(sourceSlug, () => ({ status: 'ingesting' }))
       try {
-        const ingestResp = await apiFetch('/api/extension/ingest-batch', {
-          method: 'POST',
-          body: JSON.stringify({
-            sourceSlug, posts,
+        const ingestResp = await postIngestBatchChunked(
+          sourceSlug,
+          posts,
+          {
             scrapedAt: new Date().toISOString(),
             scrollDuration: groupSummary.scrollDuration,
-          }),
-        })
-        groupSummary.ingested = ingestResp?.ingested ?? 0
-        groupSummary.duplicates = ingestResp?.duplicates ?? 0
-        groupSummary.extractionErrors = ingestResp?.errors ?? 0
-        if (ingestResp?.errors > 0) summary.totalErrors += ingestResp.errors
-        if (Array.isArray(ingestResp?.errorDetails) && ingestResp.errorDetails.length > 0) {
+          },
+          async (agg) => {
+            await patchGroup(sourceSlug, () => ({
+              status: 'ingesting',
+              ingested: agg.ingested,
+              duplicates: agg.duplicates,
+              extractionErrors: agg.errors,
+            }))
+          },
+        )
+        groupSummary.ingested = ingestResp.ingested
+        groupSummary.duplicates = ingestResp.duplicates
+        groupSummary.extractionErrors = ingestResp.errors
+        if (ingestResp.errors > 0) summary.totalErrors += ingestResp.errors
+        if (ingestResp.errorDetails.length > 0) {
           groupSummary.errorSamples = ingestResp.errorDetails.slice(0, 3)
         }
         await patchGroup(sourceSlug, () => ({
