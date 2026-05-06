@@ -247,15 +247,27 @@ export default function AdminSourcesPage() {
 
   async function bulkSetEnabled(enabled: boolean) {
     const slugs = Array.from(selected)
-    await Promise.all(
-      slugs.map(slug =>
-        fetch(`/api/admin/sources/${encodeURIComponent(slug)}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled }),
-        }).catch(() => null)
-      )
+    setError(null)
+    const results = await Promise.all(
+      slugs.map(async (slug) => {
+        try {
+          const res = await fetch(`/api/admin/sources/${encodeURIComponent(slug)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled }),
+          })
+          return { slug, ok: res.ok, status: res.status }
+        } catch {
+          return { slug, ok: false, status: 0 }
+        }
+      })
     )
+    const failed = results.filter(r => !r.ok)
+    if (failed.length > 0) {
+      setError(
+        `${failed.length} source${failed.length === 1 ? '' : 's'} not updated: ${failed.slice(0, 3).map(f => f.slug).join(', ')}${failed.length > 3 ? '…' : ''}`,
+      )
+    }
     setSelected(new Set())
     await loadSources()
   }
@@ -441,14 +453,13 @@ export default function AdminSourcesPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-stone-900 truncate">{s.label}</span>
-                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${pill.className}`}>
+                    <span
+                      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${pill.className}`}
+                      title={s.healthStatus === 'broken' && s.lastRunError ? s.lastRunError : undefined}
+                    >
                       {pill.label}
+                      {s.healthStatus === 'broken' && s.consecutiveFailures > 1 && ` · ${s.consecutiveFailures} fails`}
                     </span>
-                    {s.consecutiveFailures >= 2 && (
-                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-700" title={s.lastRunError || 'Recent failures'}>
-                        {s.consecutiveFailures} fails
-                      </span>
-                    )}
                   </div>
                   <div className="text-[10px] text-stone-500 truncate">
                     {host && <span>{host} · </span>}

@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { ingestCandidate } from './ingest'
 import type { ListingStub, SourceAdapter, AdapterRunResult } from './adapters/types'
-import { getAdapter, listAdaptersForSlugsAsync } from './adapters/registry'
+import { listAdaptersForSlugsAsync } from './adapters/registry'
 import { canonicalizeUrl } from './url-canonical'
 import {
   loadEffectivePlaybook,
@@ -483,12 +483,28 @@ export async function executeRun(runId: string, slugs: string[]) {
   })
 }
 
+// Adapters the runner knows how to instantiate. `extension` and `manual`
+// are not runnable from a scheduled run — they need browser-extension input
+// or human entry.
+const RUNNABLE_ADAPTERS = new Set([
+  'workforce_australia',
+  'harvest_trail',
+  'generic_career_page',
+  'greenhouse_api',
+  'workable_api',
+  'lever_api',
+])
+
 export async function resolveSlugsToRun(requested: string[] | undefined): Promise<string[]> {
   if (requested && requested.length > 0) return requested
-  // Default: every enabled JobSource that has an adapter we know how to run.
+  // Default: every enabled JobSource whose adapter is one we can build dynamically.
+  // Earlier this used the sync `getAdapter()` which only knew the two static
+  // adapters (workforce_australia, harvest_trail) — so a no-args run silently
+  // dropped every generic/ATS row. We now check by adapter type instead, which
+  // matches what `getAdapterAsync` will actually accept.
   const sources = await prisma.jobSource.findMany({
     where: { enabled: true, adapter: { not: null } },
     select: { slug: true, adapter: true },
   })
-  return sources.filter(s => !!s.adapter && getAdapter(s.slug) != null).map(s => s.slug)
+  return sources.filter(s => !!s.adapter && RUNNABLE_ADAPTERS.has(s.adapter)).map(s => s.slug)
 }

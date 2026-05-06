@@ -21,26 +21,40 @@ export async function POST(req: Request) {
     }
 
     // Refuse to start a new run if one is already running. Multiple concurrent
-    // runs would just queue behind the proxy's single Playwright instance.
-    const inFlight = await prisma.sourcingRun.findFirst({
-      where: { status: 'running' },
-      orderBy: { startedAt: 'desc' },
-    })
-    if (inFlight) {
-      return NextResponse.json({
-        error: 'Un scan est déjà en cours',
-        runId: inFlight.id,
-      }, { status: 409 })
+    // runs would just queue behind the proxy's single Playwright instance and
+    // double-spend on Claude tokens. The check + create runs in a serializable
+    // transaction so two near-simultaneous clicks can't both pass the guard
+    // and create overlapping runs (TOCTOU).
+    let run: { id: string }
+    try {
+      run = await prisma.$transaction(async (tx) => {
+        const inFlight = await tx.sourcingRun.findFirst({
+          where: { status: { in: ['pending', 'running'] } },
+          orderBy: { startedAt: 'desc' },
+          select: { id: true },
+        })
+        if (inFlight) {
+          throw Object.assign(new Error('in_flight'), { runId: inFlight.id })
+        }
+        return tx.sourcingRun.create({
+          data: {
+            status: 'pending',
+            sourceSlugs: slugs as any,
+            totalSources: slugs.length,
+            triggeredBy: (session.user as any).id || (session.user as any).email || null,
+          },
+          select: { id: true },
+        })
+      }, { isolationLevel: 'Serializable' })
+    } catch (e: any) {
+      if (e?.message === 'in_flight') {
+        return NextResponse.json({
+          error: 'Un scan est déjà en cours',
+          runId: e.runId,
+        }, { status: 409 })
+      }
+      throw e
     }
-
-    const run = await prisma.sourcingRun.create({
-      data: {
-        status: 'pending',
-        sourceSlugs: slugs as any,
-        totalSources: slugs.length,
-        triggeredBy: (session.user as any).id || (session.user as any).email || null,
-      },
-    })
 
     // Fire-and-forget. The runner is responsible for updating SourcingRun
     // status as it progresses; the UI polls /api/admin/sources/run/[id].
