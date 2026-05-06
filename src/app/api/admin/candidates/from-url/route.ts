@@ -6,6 +6,7 @@ import { extractFromUrl, proxyResultToRaw } from '@/lib/sourcing/extractor'
 import { proxyExtract, isProxyConfigured } from '@/lib/sourcing/claude-proxy'
 import { ingestCandidate } from '@/lib/sourcing/ingest'
 import type { CandidateRaw } from '@/lib/sourcing/ingest'
+import { validateAdminUrl } from '@/lib/sourcing/url-safety'
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
@@ -19,6 +20,10 @@ export async function POST(req: Request) {
     const pasteText: string = (body.page_text || '').toString().trim()
     if (!url || !/^https?:\/\//i.test(url)) {
       return NextResponse.json({ error: 'URL invalide' }, { status: 400 })
+    }
+    const safety = validateAdminUrl(url)
+    if (!safety.ok) {
+      return NextResponse.json({ error: safety.reason }, { status: 400 })
     }
 
     let raw: CandidateRaw

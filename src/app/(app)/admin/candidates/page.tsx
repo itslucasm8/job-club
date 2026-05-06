@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import ManualPublishForm from '@/components/ManualPublishForm'
+import { useToast } from '@/components/Toast'
 
 type Candidate = {
   id: string
@@ -157,6 +158,7 @@ const VERDICT_ICON: Record<VerdictTone, { glyph: string, cls: string, title: str
 
 export default function AdminCandidatesPage() {
   const { data: session } = useSession()
+  const { toast } = useToast()
   const searchParams = useSearchParams()
   const router = useRouter()
   const sourceFilter = searchParams.get('source') || ''
@@ -189,6 +191,15 @@ export default function AdminCandidatesPage() {
   // next bulk action; admin sees what specifically failed instead of just a
   // count alert.
   const [bulkErrors, setBulkErrors] = useState<{ id: string; title: string; reason: string }[]>([])
+  // Pending bulk-action confirmation. We replace window.confirm() with a
+  // styled modal that previews exactly which titles are being acted on,
+  // and demands typed-confirmation when bulk-approving auto_rejected
+  // candidates (because the classifier already flagged those as risky).
+  const [bulkConfirm, setBulkConfirm] = useState<
+    | null
+    | { kind: 'approve'; ids: string[]; titles: string[]; requireTyped: boolean }
+    | { kind: 'reject'; reason: string; ids: string[]; titles: string[] }
+  >(null)
 
   // Manual publish modal — replaces the standalone /admin/publish page in the
   // daily flow. Sources are the primary intake; this is the escape hatch.
@@ -309,10 +320,18 @@ export default function AdminCandidatesPage() {
       const res = await fetch(`/api/admin/candidates/${id}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
       if (res.ok) {
         setCandidates(c => c.filter(x => x.id !== id))
-        setStatusCounts(prev => ({ ...prev, pending: Math.max(0, (prev.pending || 0) - 1), approved: (prev.approved || 0) + 1 }))
+        // Optimistic count update — decrement source tab and bump approved.
+        // The next refetch will reconcile if the server sees something
+        // different, but admin doesn't have to wait for it.
+        setStatusCounts(prev => ({
+          ...prev,
+          [status]: Math.max(0, (prev[status] || 0) - 1),
+          approved: (prev.approved || 0) + 1,
+        }))
+        toast('success', 'Approuvée')
       } else {
         const err = await res.json().catch(() => ({}))
-        alert(err.error || 'Error')
+        toast('error', err?.error || `Erreur ${res.status}`)
       }
     } finally { setActingId(null) }
   }
@@ -327,20 +346,47 @@ export default function AdminCandidatesPage() {
       })
       if (res.ok) {
         setCandidates(c => c.filter(x => x.id !== id))
-        setStatusCounts(prev => ({ ...prev, [status]: Math.max(0, (prev[status] || 0) - 1), rejected: (prev.rejected || 0) + 1 }))
+        setStatusCounts(prev => ({
+          ...prev,
+          [status]: Math.max(0, (prev[status] || 0) - 1),
+          rejected: (prev.rejected || 0) + 1,
+        }))
+        toast('success', 'Rejetée')
       } else {
-        alert('Error')
+        const err = await res.json().catch(() => ({}))
+        toast('error', err?.error || `Erreur ${res.status}`)
       }
     } finally { setActingId(null) }
   }
 
-  // Bulk approve. Sequential so the live counter is accurate and we don't
-  // hammer the approve endpoint (each approval does Job creation +
-  // notifications matching, which isn't free).
-  async function bulkApprove() {
+  function bulkApprove() {
     const ids = Array.from(selected)
     if (ids.length === 0) return
-    if (!confirm(`Approve ${ids.length} candidate${ids.length > 1 ? 's' : ''}? This publishes them to the live feed.`)) return
+    const titles = ids
+      .map(id => (candidates.find(c => c.id === id)?.rawData as any)?.title || id)
+    // Auto_rejected = classifier already flagged red signals. Bulk-approving
+    // those defeats the safety net, so we require typed confirmation.
+    setBulkConfirm({
+      kind: 'approve',
+      ids,
+      titles,
+      requireTyped: status === 'auto_rejected',
+    })
+  }
+
+  function bulkReject(reason: string) {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    const titles = ids
+      .map(id => (candidates.find(c => c.id === id)?.rawData as any)?.title || id)
+    setBulkConfirm({ kind: 'reject', reason, ids, titles })
+  }
+
+  // Sequential so the live counter is accurate and we don't hammer the
+  // approve endpoint (each approval does Job creation + notifications
+  // matching, which isn't free).
+  async function runBulkApprove(ids: string[]) {
+    setBulkConfirm(null)
     setBulkActing({ phase: 'approving', done: 0, total: ids.length })
     setBulkErrors([])
     const errors: { id: string; title: string; reason: string }[] = []
@@ -364,13 +410,13 @@ export default function AdminCandidatesPage() {
     setBulkActing(null)
     setSelected(new Set())
     setBulkErrors(errors)
+    if (okCount > 0) toast('success', `${okCount} approuvée${okCount > 1 ? 's' : ''}`)
+    if (errors.length > 0) toast('error', `${errors.length} échec${errors.length > 1 ? 's' : ''}`)
     await fetchCandidates()
   }
 
-  async function bulkReject(reason: string) {
-    const ids = Array.from(selected)
-    if (ids.length === 0) return
-    if (!confirm(`Reject ${ids.length} candidate${ids.length > 1 ? 's' : ''} with reason "${reason}"?`)) return
+  async function runBulkReject(ids: string[], reason: string) {
+    setBulkConfirm(null)
     setBulkActing({ phase: 'rejecting', done: 0, total: ids.length })
     setBulkErrors([])
     const errors: { id: string; title: string; reason: string }[] = []
@@ -398,6 +444,8 @@ export default function AdminCandidatesPage() {
     setBulkActing(null)
     setSelected(new Set())
     setBulkErrors(errors)
+    if (okCount > 0) toast('success', `${okCount} rejetée${okCount > 1 ? 's' : ''}`)
+    if (errors.length > 0) toast('error', `${errors.length} échec${errors.length > 1 ? 's' : ''}`)
     await fetchCandidates()
   }
 
@@ -783,6 +831,17 @@ export default function AdminCandidatesPage() {
                     >
                       {icon.glyph}
                     </span>
+                    {sortMode === 'smart' && status === 'pending' && (
+                      <span
+                        className="text-[10px] font-mono text-stone-400 tabular-nums w-6 text-right hidden sm:inline-block flex-shrink-0"
+                        title="Smart-sort score (higher = approve-friendly: 88 days, pay clear, no red flags)"
+                      >
+                        {(() => {
+                          const s = approvalScore(c)
+                          return s > 0 ? `+${s}` : `${s}`
+                        })()}
+                      </span>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-bold text-stone-900 truncate">{raw.title || '(no title)'}</span>
@@ -837,6 +896,17 @@ export default function AdminCandidatesPage() {
             })}
           </div>
         </>
+      )}
+
+      {bulkConfirm && (
+        <BulkConfirmModal
+          state={bulkConfirm}
+          onCancel={() => setBulkConfirm(null)}
+          onConfirm={() => {
+            if (bulkConfirm.kind === 'approve') runBulkApprove(bulkConfirm.ids)
+            else runBulkReject(bulkConfirm.ids, bulkConfirm.reason)
+          }}
+        />
       )}
 
       {manualOpen && (
@@ -1009,6 +1079,105 @@ function CompactField({ label, value }: { label: string, value: any }) {
     <div>
       <div className="text-[10px] font-semibold text-stone-500 uppercase">{label}</div>
       <div className="text-sm text-stone-800 truncate">{value || '—'}</div>
+    </div>
+  )
+}
+
+/** Styled bulk-action confirmation. Replaces window.confirm() so admins can
+ *  see exactly which titles are being acted on (catches "I forgot I had 3
+ *  selected from earlier"), and so we can demand typed confirmation when
+ *  bulk-approving auto_rejected candidates (those were classifier-flagged
+ *  for a reason). */
+function BulkConfirmModal({
+  state,
+  onCancel,
+  onConfirm,
+}: {
+  state:
+    | { kind: 'approve'; ids: string[]; titles: string[]; requireTyped: boolean }
+    | { kind: 'reject'; reason: string; ids: string[]; titles: string[] }
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const [typed, setTyped] = useState('')
+  const requireTyped = state.kind === 'approve' && state.requireTyped
+  const typedOk = !requireTyped || typed.trim().toUpperCase() === 'OUI'
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+      if (e.key === 'Enter' && typedOk) onConfirm()
+    }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onCancel, onConfirm, typedOk])
+
+  const isApprove = state.kind === 'approve'
+  const headlineColor = isApprove ? 'text-green-900' : 'text-red-900'
+  const buttonBg = isApprove ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto" onClick={onCancel}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg my-8" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-3 border-b border-stone-200">
+          <div className={`text-base font-extrabold ${headlineColor}`}>
+            {isApprove
+              ? `Approve ${state.ids.length} candidate${state.ids.length > 1 ? 's' : ''}?`
+              : `Reject ${state.ids.length} candidate${state.ids.length > 1 ? 's' : ''}?`}
+          </div>
+          <div className="text-xs text-stone-500 mt-0.5">
+            {isApprove
+              ? 'These will be published to the live feed. Subscribers matching the state/category will be notified.'
+              : <>Reason: <span className="font-semibold text-stone-700">&quot;{state.reason}&quot;</span></>}
+          </div>
+        </div>
+
+        <div className="px-5 py-3">
+          <div className="text-[11px] font-semibold text-stone-500 uppercase mb-1">Titles affected</div>
+          <ul className="bg-stone-50 border border-stone-200 rounded p-2 max-h-56 overflow-y-auto text-xs space-y-0.5">
+            {state.titles.map((t, i) => (
+              <li key={i} className="truncate">{t}</li>
+            ))}
+          </ul>
+
+          {requireTyped && (
+            <div className="mt-3 p-3 rounded border border-red-300 bg-red-50">
+              <div className="text-xs font-semibold text-red-900 mb-2">
+                ⚠ These were auto-rejected by the classifier (likely scam, locals-only, or not WHV-friendly). Type <span className="font-mono">OUI</span> to confirm you&apos;ve reviewed them and still want to publish.
+              </div>
+              <input
+                type="text"
+                value={typed}
+                onChange={e => setTyped(e.target.value)}
+                placeholder="OUI"
+                className="w-full px-3 py-2 rounded border border-red-300 bg-white text-sm font-mono focus:outline-none focus:border-red-500"
+                autoFocus
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-stone-200 flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 rounded-lg text-sm font-bold bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!typedOk}
+            className={`px-4 py-1.5 rounded-lg text-sm font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed ${buttonBg}`}
+          >
+            {isApprove ? `✓ Approve ${state.ids.length}` : `✗ Reject ${state.ids.length}`}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1194,7 +1363,7 @@ function EditCandidateForm({
   onSave: (fields: Partial<EditFields>) => void
   onSaveAndApprove: (fields: Partial<EditFields>) => void
 }) {
-  const [form, setForm] = useState<EditFields>({
+  const initial: EditFields = {
     title: raw.title || '',
     company: raw.company || '',
     state: raw.state || '',
@@ -1205,13 +1374,49 @@ function EditCandidateForm({
     description: raw.description || '',
     applyUrl: raw.applyUrl || '',
     eligible88Days: !!raw.eligible88Days,
-  })
+  }
+  const [form, setForm] = useState<EditFields>(initial)
   const set = <K extends keyof EditFields>(k: K, v: EditFields[K]) => setForm(p => ({ ...p, [k]: v }))
+
+  // Track whether the user has changed anything since open. We use this to
+  // gate Cancel (confirm before discard) and to show a small "unsaved" hint.
+  const dirty = useMemo(
+    () => (Object.keys(initial) as (keyof EditFields)[]).some(k => initial[k] !== form[k]),
+    // initial is recreated on every render but its values are the original raw,
+    // so referential equality on form is what matters here.
+    [form] // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
+  // Browser-level guard: if the user navigates away or closes the tab with
+  // unsaved changes, prompt before unloading. Doesn't catch SPA navigation
+  // (router.push) — for that we rely on the cancelGuard below.
+  useEffect(() => {
+    if (!dirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      // Most browsers ignore the message and show a generic "Leave site?" prompt.
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
+  function cancelGuard() {
+    if (dirty && !window.confirm('Discard unsaved changes?')) return
+    onCancel()
+  }
 
   return (
     <div className="space-y-3">
-      <div className="text-[10px] font-semibold text-purple-700 uppercase">
-        Edit — any change re-runs verification (88 days + award)
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] font-semibold text-purple-700 uppercase">
+          Edit — any change re-runs verification (88 days + award)
+        </div>
+        {dirty && (
+          <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+            ● Unsaved
+          </span>
+        )}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FieldInput label="Title" value={form.title} onChange={v => set('title', v)} required />
@@ -1254,7 +1459,7 @@ function EditCandidateForm({
           {saving ? '…' : 'Save + Approve'}
         </button>
         <button
-          onClick={onCancel}
+          onClick={cancelGuard}
           disabled={saving}
           className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 transition disabled:opacity-50"
         >

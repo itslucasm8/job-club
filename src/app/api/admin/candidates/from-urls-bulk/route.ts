@@ -4,13 +4,22 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { extractFromUrl } from '@/lib/sourcing/extractor'
 import { ingestCandidate } from '@/lib/sourcing/ingest'
+import { validateAdminUrl } from '@/lib/sourcing/url-safety'
 
 // Long-running because each URL hits the headless Chromium fetcher + Claude
 // extract (~5-15s each). With concurrency=4 and 20 URLs that's ~50-75s worst
 // case, well under 300s.
 export const maxDuration = 300
 
+// Per-batch URL cap. Sized so that worst-case latency (cap * per-URL time /
+// concurrency) stays under maxDuration: 30 URLs × ~15s ÷ 4 workers ≈ 113s.
+// Going higher risks the route timing out at the proxy layer; going lower
+// makes batch import painful for daily admin imports of 20-30 listings.
 const MAX_URLS = 30
+
+// Per-batch concurrency. Bounded by what the Claude proxy + headless
+// Chromium can handle without thrashing. We measured 4 as the sweet spot:
+// 5+ starts queueing in the proxy and per-URL latency balloons.
 const CONCURRENCY = 4
 
 type UrlResult =
@@ -62,12 +71,15 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const rawUrls: string[] = Array.isArray(body.urls) ? body.urls : []
-    // Normalise: trim, drop blanks, drop dupes within the batch, keep only http(s).
+    // Normalise: trim, drop blanks, drop dupes within the batch, keep only
+    // http(s), drop URLs that fail SSRF safety (private IPs, internal docker
+    // service names, blocked schemes).
     const urls = Array.from(
       new Set(
         rawUrls
           .map((u) => (u || '').toString().trim())
           .filter((u) => /^https?:\/\//i.test(u))
+          .filter((u) => validateAdminUrl(u).ok)
       )
     )
 
