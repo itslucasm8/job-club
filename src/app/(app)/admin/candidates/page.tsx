@@ -3,7 +3,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import ManualPublishForm from '@/components/ManualPublishForm'
+import JobCard from '@/components/JobCard'
 import { useToast } from '@/components/Toast'
+import { REJECT_REASONS } from '@/lib/reject-reasons'
 
 type Candidate = {
   id: string
@@ -52,17 +54,6 @@ const STATUS_TABS: { key: StatusFilter; label: string }[] = [
   { key: 'auto_rejected', label: 'Auto-rejected' },
   { key: 'approved', label: 'Approved' },
   { key: 'rejected', label: 'Rejected' },
-]
-
-const REJECT_REASONS = [
-  'Locals only',
-  'Not WHV-friendly',
-  'Suspected scam',
-  'Not enough info',
-  'Duplicate',
-  'Out of geo',
-  'Wrong category',
-  'Other',
 ]
 
 // Score a candidate for the "approve-first" sort. Higher = more attractive
@@ -1040,6 +1031,12 @@ function ExpandedCandidate({
         </div>
       )}
 
+      {/* Preview-as-job-card — shows what subscribers will see if approved.
+          Catches "phone number lost in formatting", "description rendered
+          weird", "category badge looks off" before publishing. Hidden by
+          default to keep the action-focused layout clean. */}
+      <PreviewToggle candidate={candidate} raw={raw} />
+
       {/* Everything else lives behind one toggle — eligibility table,
           classifier JSON, source text, extraction notes. Shown for the 5%
           of cases where admin wants to dig in. */}
@@ -1079,6 +1076,60 @@ function CompactField({ label, value }: { label: string, value: any }) {
     <div>
       <div className="text-[10px] font-semibold text-stone-500 uppercase">{label}</div>
       <div className="text-sm text-stone-800 truncate">{value || '—'}</div>
+    </div>
+  )
+}
+
+/** Preview-as-job-card. Renders the public JobCard with a synthesized Job
+ *  object built from candidate.rawData + sourceUrl. Read-only — onSave/onClick
+ *  no-op. Wraps in `pointer-events-none` so the card looks live but admin can't
+ *  accidentally click anything. */
+function PreviewToggle({ candidate, raw }: { candidate: Candidate, raw: any }) {
+  const [open, setOpen] = useState(false)
+  const previewJob = useMemo(() => ({
+    id: candidate.id,
+    title: raw.title || '(no title)',
+    company: raw.company || '?',
+    state: raw.state || '?',
+    location: raw.location || '',
+    category: raw.category || 'other',
+    type: raw.type || 'casual',
+    pay: raw.pay || null,
+    description: raw.description || '',
+    createdAt: candidate.createdAt,
+    eligible88Days: raw.eligibility_88_days === true || !!raw.eligible88Days,
+    eligibilityData: {
+      eligibility_88_days: raw.eligibility_88_days ?? null,
+      eligibility_confidence: raw.eligibility_confidence ?? null,
+      pay_status: raw.pay_status ?? null,
+      award_id: raw.award_id ?? null,
+      award_min_casual_hourly: raw.award_min_casual_hourly ?? null,
+      award_min_hourly: raw.award_min_hourly ?? null,
+      pay_gap: raw.pay_gap ?? null,
+    },
+  }), [candidate.id, candidate.createdAt, raw])
+  return (
+    <div className="pt-1">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="text-[11px] font-semibold text-stone-500 hover:text-stone-800"
+      >
+        {open ? '▾' : '▸'} Preview as subscribers will see it
+      </button>
+      {open && (
+        <div className="mt-2 p-3 rounded bg-stone-100 border border-stone-200">
+          <div className="text-[10px] uppercase font-semibold text-stone-500 mb-2">Live feed preview</div>
+          <div className="pointer-events-none">
+            <JobCard
+              job={previewJob}
+              saved={false}
+              onSave={() => {}}
+              onClick={() => {}}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
