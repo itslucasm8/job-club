@@ -16,6 +16,14 @@ import {
 
 const DEFAULT_MAX_LISTINGS_PER_SOURCE = 30
 const DEFAULT_EXTRACT_CONCURRENCY = 4
+// Wall-clock budget per source. Per-listing extraction has its own 60s+120s+120s
+// timeout stack, but those compose poorly: 30 listings × 300s worst case × 1/4
+// concurrency = 37 min on a single source. This deadline guarantees the
+// pipeline never spends more than 5 min on one source before moving on.
+// When it fires, the in-flight extractions keep running in the background
+// (we can't cancel a forked Claude CLI from here) but the runner stops
+// awaiting and the source is recorded as a deadline failure.
+const PER_SOURCE_DEADLINE_MS = 5 * 60 * 1000
 
 /** Map a free-text failure_reason from the extractor into a coarse tag the
  *  playbook proposer can group on. Keep the set small — Claude only needs
@@ -446,17 +454,44 @@ export async function executeRun(runId: string, slugs: string[]) {
       }).catch(() => {})
     }
 
-    const result = await runOneSource(adapter, onListingDone, onListingsDiscovered).catch((e): AdapterRunResult => ({
-      slug: adapter.slug,
-      status: 'error',
-      listingsFound: 0,
-      listingsNew: 0,
-      imported: 0,
-      duplicates: 0,
-      errors: 1,
-      errorMessage: e?.message || String(e),
-      durationMs: 0,
-    }))
+    const sourceStart = Date.now()
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined
+    const deadlinePromise = new Promise<AdapterRunResult>((resolve) => {
+      deadlineTimer = setTimeout(() => {
+        const errorMessage = `source deadline ${PER_SOURCE_DEADLINE_MS / 1000}s exceeded`
+        // Persist failure so healthStatus + consecutiveFailures track this
+        // even though runOneSource never returned. Fire-and-forget: we're
+        // about to move on to the next source either way.
+        markSourceFailure(adapter.slug, errorMessage).catch(() => {})
+        resolve({
+          slug: adapter.slug,
+          status: 'error',
+          listingsFound: 0,
+          listingsNew: 0,
+          imported: 0,
+          duplicates: 0,
+          errors: 1,
+          errorMessage,
+          durationMs: Date.now() - sourceStart,
+        })
+      }, PER_SOURCE_DEADLINE_MS)
+    })
+
+    const result = await Promise.race([
+      runOneSource(adapter, onListingDone, onListingsDiscovered).catch((e): AdapterRunResult => ({
+        slug: adapter.slug,
+        status: 'error',
+        listingsFound: 0,
+        listingsNew: 0,
+        imported: 0,
+        duplicates: 0,
+        errors: 1,
+        errorMessage: e?.message || String(e),
+        durationMs: Date.now() - sourceStart,
+      })),
+      deadlinePromise,
+    ])
+    if (deadlineTimer) clearTimeout(deadlineTimer)
     perSourceResults.push(result)
     // Reconcile listingsNew at source completion (we don't know it during discovery).
     totals.totalListingsNew += result.listingsNew

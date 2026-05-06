@@ -18,16 +18,30 @@ file replaces a per-site adapter for each.
 import logging
 import re
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from scrapling.fetchers import AsyncStealthySession
 
 log = logging.getLogger("generic_html")
 
+# Match job-board-ish path segments. Applied to the URL PATH only — earlier
+# we ran .search() on the full URL, which made every link on a host like
+# "careers.compass-group.com.au" match (the regex hit "careers" in the
+# hostname) and the adapter slurped /me/settings, /help-hub, /why-compass
+# as if they were job listings. Using the parsed path scopes the heuristic
+# to actual path segments like /careers/job/123.
 HEURISTIC_RE = re.compile(
     r"/(jobs?|careers?|positions?|roles?|opportunities?|vacancies)\b",
     re.IGNORECASE,
 )
+
+
+def matches_heuristic(absolute_url: str) -> bool:
+    try:
+        path = urlparse(absolute_url).path or "/"
+    except Exception:
+        return False
+    return bool(HEURISTIC_RE.search(path))
 
 
 def to_absolute(base: str, href: str) -> str | None:
@@ -87,7 +101,7 @@ async def scrape(url: str, params: dict[str, Any]) -> dict[str, Any]:
         elif not job_link_selector:
             # No explicit selector + no explicit pattern → heuristic, otherwise
             # we'd import every nav link on the page.
-            if not HEURISTIC_RE.search(absolute):
+            if not matches_heuristic(absolute):
                 continue
 
         if absolute in seen:
