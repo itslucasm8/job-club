@@ -103,6 +103,58 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(hours / 24)}d ago`
 }
 
+type VerdictTone = 'good' | 'meh' | 'bad'
+
+/** Derive a one-line "is this a good job?" verdict from data we already have
+ *  (classifier flags + eligibility + extracted fields). No LLM call needed —
+ *  same UX as an AI summary, deterministic and editable. The headline is the
+ *  small italic line under the title; tone drives the icon color (✓/⚠/✗) on
+ *  the dense list row.
+ *
+ *  Order matters: hard blockers first, then quality issues, then positives.
+ *  We stop as soon as we have a confident bad verdict so the headline reads
+ *  cleanly ("Probably skip: locals-only language" not "good but locals-only"). */
+function deriveVerdict(raw: any, score: any): { tone: VerdictTone, headline: string } {
+  const desc = String(raw?.description || '')
+  const pay = String(raw?.pay || '').trim()
+  const hasContact = /(?:[\w.+-]+@[\w-]+\.[\w.-]+|\b04\d{2}[\s-]?\d{3}[\s-]?\d{3}\b|\bwhatsapp\b|\bcall\w*\b|https?:\/\/\S+|\bwww\.\S+)/i.test(desc)
+
+  // Hard red flags — these block approval regardless of other signals.
+  if (score?.has_scam_red_flags) return { tone: 'bad', headline: 'Probably skip — scam red flags' }
+  if (score?.has_locals_only_red_flag) return { tone: 'bad', headline: 'Probably skip — locals-only language' }
+  if (score?.is_backpacker_suitable === false) return { tone: 'bad', headline: 'Probably skip — not WHV-friendly' }
+  if (!raw?.state) return { tone: 'bad', headline: 'Edit needed — state missing (blocks approval)' }
+
+  // Build a concise "+/-" digest of positive and negative signals.
+  const pos: string[] = []
+  const neg: string[] = []
+  if (raw?.eligibility_88_days === true) pos.push('88-day')
+  if (raw?.pay_status === 'above') pos.push('pay above award')
+  else if (raw?.pay_status === 'at') pos.push('pay at award')
+  else if (raw?.pay_status === 'below') neg.push('pay below award')
+  else if (raw?.pay_status === 'piece_rate') neg.push('piecework only')
+  if (hasContact) pos.push('contact ✓')
+  else neg.push('contact missing')
+  if (desc.length < 150) neg.push('short description')
+  if (!pay) neg.push('pay missing')
+
+  const tone: VerdictTone = neg.length === 0 ? 'good' : pos.length > neg.length ? 'meh' : 'meh'
+  let headline: string
+  if (tone === 'good') {
+    headline = 'Likely good' + (pos.length ? ' — ' + pos.slice(0, 3).join(', ') : '')
+  } else {
+    headline = 'Look closer — ' + neg.slice(0, 2).join(', ')
+    if (pos.length) headline += ' (but ' + pos.slice(0, 2).join(', ') + ')'
+  }
+  return { tone, headline }
+}
+
+const VERDICT_ICON: Record<VerdictTone, { glyph: string, cls: string, title: string }> = {
+  good: { glyph: '✓', cls: 'text-green-600',  title: 'Likely good' },
+  meh:  { glyph: '⚠', cls: 'text-amber-600',  title: 'Look closer' },
+  bad:  { glyph: '✗', cls: 'text-red-600',    title: 'Probably skip' },
+}
+
 export default function AdminCandidatesPage() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
@@ -694,135 +746,91 @@ export default function AdminCandidatesPage() {
               <span>Select all visible ({sorted.length})</span>
             </div>
           )}
-          <div className="space-y-2">
+          <div className="divide-y divide-stone-100 bg-white border border-stone-200 rounded-lg overflow-hidden">
             {sorted.map(c => {
               const raw = (c.rawData as any) || {}
               const score = (c.classifierScore as any) || null
+              const verdict = deriveVerdict(raw, score)
+              const icon = VERDICT_ICON[verdict.tone]
               const expanded = expandedId === c.id
               const checked = selected.has(c.id)
               const selectable = status === 'pending' || status === 'auto_rejected'
+              const actionable = c.status === 'pending' || c.status === 'auto_rejected'
               return (
-                <div key={c.id} className={`bg-white border rounded-lg overflow-hidden ${checked ? 'border-purple-300 bg-purple-50/30' : 'border-stone-200'}`}>
-                  <div className="flex items-start gap-2 px-3 py-2.5">
+                <div key={c.id} className={checked ? 'bg-purple-50/50' : ''}>
+                  {/* Dense row — one line summary, click to expand */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setExpandedId(expanded ? null : c.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(expanded ? null : c.id) } }}
+                    className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-stone-50 select-none"
+                  >
                     {selectable && (
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleOne(c.id)}
                         onClick={e => e.stopPropagation()}
-                        className="w-3.5 h-3.5 mt-1 rounded border-stone-400 cursor-pointer flex-shrink-0"
+                        className="w-3.5 h-3.5 rounded border-stone-400 cursor-pointer flex-shrink-0"
                         aria-label={`Select ${raw.title || 'candidate'}`}
                       />
                     )}
-                    <button
-                      onClick={() => setExpandedId(expanded ? null : c.id)}
-                      className="flex-1 text-left min-w-0"
+                    <span
+                      className={`text-base font-bold flex-shrink-0 w-4 text-center ${icon.cls}`}
+                      title={icon.title}
+                      aria-label={icon.title}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-bold text-stone-900 truncate">{raw.title || '(no title)'}</div>
-                          <div className="text-xs text-stone-600 truncate">
-                            {raw.company || '?'} · {raw.location || raw.state || '?'}
-                            {raw.pay && <span className="text-stone-700"> · {raw.pay}</span>}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <span className="text-[10px] font-semibold uppercase tracking-wide text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded">{c.source}</span>
-                            <span className="text-[10px] text-stone-400">captured {timeAgo(c.createdAt)}</span>
-                            {raw.postedAt && (
-                              <span className="text-[10px] text-stone-500 italic" title={`Posted on FB: ${raw.postedAt}`}>
-                                · posted {String(raw.postedAt).slice(0, 28)}
-                              </span>
-                            )}
-                            <EligibilityBadge raw={raw} />
-                            <PayBadge raw={raw} />
-                            {/* Quality + classifier badges only when expanded — keep collapsed rows scannable */}
-                            {expanded && <QualityBadges raw={raw} />}
-                            {expanded && score?.has_locals_only_red_flag && <span className="text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">Locals only</span>}
-                            {expanded && score?.has_scam_red_flags && <span className="text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">⚠ scam</span>}
-                            {expanded && score?.is_backpacker_suitable === false && <span className="text-[10px] font-semibold text-stone-700 bg-stone-200 px-1.5 py-0.5 rounded">Not WHV</span>}
-                          </div>
-                        </div>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 text-stone-400 transition-transform flex-shrink-0 mt-1 ${expanded ? 'rotate-180' : ''}`}>
-                          <path d="M6 9l6 6 6-6"/>
-                        </svg>
+                      {icon.glyph}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-bold text-stone-900 truncate">{raw.title || '(no title)'}</span>
+                        <span className="text-xs text-stone-500 truncate hidden sm:inline">— {raw.location || raw.state || '?'}</span>
                       </div>
-                    </button>
+                      {/* AI-style verdict subtitle, derived client-side */}
+                      <div className="text-[11px] text-stone-500 italic truncate">
+                        {verdict.headline}
+                      </div>
+                    </div>
+                    <span className="text-xs font-semibold text-stone-700 hidden sm:inline-block flex-shrink-0">
+                      {raw.pay || '—'}
+                    </span>
+                    <a
+                      href={c.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      title="Open original listing"
+                      aria-label="Open source"
+                      className="text-stone-400 hover:text-purple-700 px-1 flex-shrink-0"
+                    >
+                      ↗
+                    </a>
                   </div>
 
+                  {/* Expanded: description + actions front and center, nerd-stuff
+                      tucked behind a single 'Show details' toggle. */}
                   {expanded && (
-                    <div className="border-t border-stone-100 px-4 py-3 bg-stone-50 space-y-3">
-                      {editingId === c.id ? (
-                        <EditCandidateForm
-                          raw={raw}
-                          saving={actingId === c.id}
-                          error={editError}
-                          onCancel={() => { setEditingId(null); setEditError(null) }}
-                          onSave={async (fields) => {
-                            const ok = await saveEdit(c.id, fields)
-                            if (ok) setEditingId(null)
-                          }}
-                          onSaveAndApprove={(fields) => saveAndApprove(c.id, fields)}
-                        />
-                      ) : (
-                        <>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                            <Field label="Category" value={raw.category} />
-                            <Field label="Type" value={raw.type} />
-                            <Field label="Pay" value={raw.pay} />
-                            <Field label="State" value={raw.state} />
-                          </div>
-                          <EligibilityPanel raw={raw} />
-                          <div>
-                            <div className="text-[10px] font-semibold text-stone-500 uppercase mb-1">Description</div>
-                            <div className="text-xs text-stone-800 bg-white border border-stone-200 rounded p-2 max-h-48 overflow-y-auto whitespace-pre-wrap">
-                              {raw.description || '(empty)'}
-                            </div>
-                          </div>
-                          <NotesPanel raw={raw} />
-                          <SourceTextPanel raw={raw} />
-                          {score && (
-                            <div>
-                              <div className="text-[10px] font-semibold text-stone-500 uppercase mb-1">Classifier</div>
-                              <pre className="text-[11px] text-stone-700 bg-white border border-stone-200 rounded p-2 overflow-x-auto">{JSON.stringify(score, null, 2)}</pre>
-                            </div>
-                          )}
-                          <div className="flex flex-wrap gap-2">
-                            <a
-                              href={c.sourceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
-                            >
-                              Source ↗
-                            </a>
-                            {(c.status === 'pending' || c.status === 'auto_rejected') && (
-                              <>
-                                <button
-                                  onClick={() => { setEditingId(c.id); setEditError(null) }}
-                                  disabled={actingId === c.id}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition disabled:opacity-50"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => approve(c.id)}
-                                  disabled={actingId === c.id}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
-                                >
-                                  {actingId === c.id ? '…' : 'Approve'}
-                                </button>
-                                <RejectMenu onPick={(reason) => reject(c.id, reason)} disabled={actingId === c.id} />
-                              </>
-                            )}
-                          </div>
-                          {c.rejectReason && (
-                            <div className="text-xs text-stone-600">
-                              <span className="font-semibold">Reason: </span>{c.rejectReason}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
+                    <ExpandedCandidate
+                      candidate={c}
+                      raw={raw}
+                      score={score}
+                      verdict={verdict}
+                      actionable={actionable}
+                      acting={actingId === c.id}
+                      editing={editingId === c.id}
+                      editError={editError}
+                      onApprove={() => approve(c.id)}
+                      onReject={(reason) => reject(c.id, reason)}
+                      onStartEdit={() => { setEditingId(c.id); setEditError(null) }}
+                      onCancelEdit={() => { setEditingId(null); setEditError(null) }}
+                      onSaveEdit={async (fields) => {
+                        const ok = await saveEdit(c.id, fields)
+                        if (ok) setEditingId(null)
+                      }}
+                      onSaveAndApprove={(fields) => saveAndApprove(c.id, fields)}
+                    />
                   )}
                 </div>
               )
@@ -837,6 +845,170 @@ export default function AdminCandidatesPage() {
           onPublished={() => { setManualOpen(false); fetchCandidates() }}
         />
       )}
+    </div>
+  )
+}
+
+/** The expanded candidate body — "decide quickly" layout. Description is the
+ *  big content; approve/reject/source are the big actions; everything else
+ *  (eligibility table, classifier JSON, source text, extraction notes) is
+ *  hidden behind a single "Show technical details" toggle so the average
+ *  triage doesn't see them. */
+function ExpandedCandidate({
+  candidate,
+  raw,
+  score,
+  verdict,
+  actionable,
+  acting,
+  editing,
+  editError,
+  onApprove,
+  onReject,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onSaveAndApprove,
+}: {
+  candidate: Candidate
+  raw: any
+  score: any
+  verdict: { tone: VerdictTone, headline: string }
+  actionable: boolean
+  acting: boolean
+  editing: boolean
+  editError: string | null
+  onApprove: () => void
+  onReject: (reason: string) => void
+  onStartEdit: () => void
+  onCancelEdit: () => void
+  onSaveEdit: (fields: Partial<EditFields>) => Promise<void> | void
+  onSaveAndApprove: (fields: Partial<EditFields>) => Promise<void> | void
+}) {
+  const [detailsOpen, setDetailsOpen] = useState(false)
+
+  if (editing) {
+    return (
+      <div className="border-t border-stone-100 px-4 py-3 bg-stone-50">
+        <EditCandidateForm
+          raw={raw}
+          saving={acting}
+          error={editError}
+          onCancel={onCancelEdit}
+          onSave={onSaveEdit}
+          onSaveAndApprove={onSaveAndApprove}
+        />
+      </div>
+    )
+  }
+
+  const verdictTone = verdict.tone
+  const verdictBg =
+    verdictTone === 'good' ? 'bg-green-50 border-green-200 text-green-900' :
+    verdictTone === 'meh' ? 'bg-amber-50 border-amber-200 text-amber-900' :
+    'bg-red-50 border-red-200 text-red-900'
+
+  return (
+    <div className="border-t border-stone-100 px-4 py-3 bg-stone-50/60 space-y-3">
+      {/* Verdict banner — restate the headline so the eye lands on the
+          decision context first thing after expand. */}
+      <div className={`text-xs font-semibold border rounded px-2.5 py-1.5 ${verdictBg}`}>
+        {verdict.headline}
+      </div>
+
+      {/* The 4 things admin actually decides on. Big, plain. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+        <CompactField label="Company" value={raw.company} />
+        <CompactField label="Location" value={raw.location || raw.state} />
+        <CompactField label="Pay" value={raw.pay} />
+        <CompactField label="Type" value={raw.type} />
+      </div>
+
+      {/* Description — the meat. Plain text, generous height. */}
+      <div>
+        <div className="text-[10px] font-semibold text-stone-500 uppercase mb-1">Description</div>
+        <div className="text-sm text-stone-800 bg-white border border-stone-200 rounded p-3 max-h-72 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+          {raw.description || '(empty)'}
+        </div>
+      </div>
+
+      {/* Actions — always visible, big, color-coded. Source first because
+          admin almost always wants to verify the original before approving. */}
+      {actionable && (
+        <div className="flex flex-wrap gap-2 items-center pt-1">
+          <a
+            href={candidate.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-2 rounded-lg text-sm font-bold bg-stone-100 hover:bg-stone-200 text-stone-800 transition"
+          >
+            ↗ Open source
+          </a>
+          <button
+            onClick={onApprove}
+            disabled={acting}
+            className="px-4 py-2 rounded-lg text-sm font-bold bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
+          >
+            {acting ? '…' : '✓ Approve'}
+          </button>
+          <RejectMenu onPick={onReject} disabled={acting} />
+          <div className="flex-1" />
+          <button
+            onClick={onStartEdit}
+            disabled={acting}
+            title="Edit fields before approving"
+            className="px-2 py-2 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-200 transition disabled:opacity-50"
+          >
+            Edit
+          </button>
+        </div>
+      )}
+
+      {candidate.rejectReason && (
+        <div className="text-xs text-stone-600">
+          <span className="font-semibold">Reason : </span>{candidate.rejectReason}
+        </div>
+      )}
+
+      {/* Everything else lives behind one toggle — eligibility table,
+          classifier JSON, source text, extraction notes. Shown for the 5%
+          of cases where admin wants to dig in. */}
+      <div className="pt-1">
+        <button
+          type="button"
+          onClick={() => setDetailsOpen(o => !o)}
+          className="text-[11px] font-semibold text-stone-500 hover:text-stone-800"
+        >
+          {detailsOpen ? '▾' : '▸'} Technical details (eligibility, classifier, source text)
+        </button>
+        {detailsOpen && (
+          <div className="mt-2 space-y-3">
+            <div className="text-[11px] text-stone-500 flex flex-wrap gap-2">
+              <span className="font-mono bg-stone-100 px-1.5 py-0.5 rounded">{candidate.source}</span>
+              <span>captured {timeAgo(candidate.createdAt)}</span>
+              {raw.postedAt && <span>· posted {String(raw.postedAt).slice(0, 28)}</span>}
+            </div>
+            <EligibilityPanel raw={raw} />
+            <NotesPanel raw={raw} />
+            <SourceTextPanel raw={raw} />
+            {score && (
+              <div>
+                <div className="text-[10px] font-semibold text-stone-500 uppercase mb-1">Classifier raw</div>
+                <pre className="text-[11px] text-stone-700 bg-white border border-stone-200 rounded p-2 overflow-x-auto">{JSON.stringify(score, null, 2)}</pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CompactField({ label, value }: { label: string, value: any }) {
+  return (
+    <div>
+      <div className="text-[10px] font-semibold text-stone-500 uppercase">{label}</div>
+      <div className="text-sm text-stone-800 truncate">{value || '—'}</div>
     </div>
   )
 }
@@ -892,43 +1064,6 @@ function Field({ label, value }: { label: string; value: any }) {
       <div className="text-stone-800 truncate">{value || '—'}</div>
     </div>
   )
-}
-
-function EligibilityBadge({ raw }: { raw: any }) {
-  const det = raw.eligibility_88_days
-  const conf = raw.eligibility_confidence as 'high' | 'medium' | 'low' | undefined
-  const reason = raw.eligibility_reason as string | undefined
-  if (det === undefined && raw.eligible88Days) {
-    return <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded" title="Pre-eligibility-module listing — verify manually">88 days (LLM)</span>
-  }
-  if (det === true) {
-    const cls = conf === 'high' ? 'text-green-700 bg-green-100' : 'text-amber-700 bg-amber-100'
-    return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${cls}`} title={reason || ''}>88 days ✓</span>
-  }
-  if (det === null) {
-    return <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded" title={reason || ''}>88 days ?</span>
-  }
-  return null
-}
-
-function PayBadge({ raw }: { raw: any }) {
-  const status = raw.pay_status as string | undefined
-  const gap = raw.pay_gap as number | undefined
-  const minUsed = raw.award_min_casual_hourly ?? raw.award_min_hourly
-  if (!status || status === 'unknown') return null
-  if (status === 'below') {
-    return <span className="text-[10px] font-semibold text-red-700 bg-red-100 px-1.5 py-0.5 rounded"
-      title={`Below award minimum ${minUsed}/hr (gap ${gap}/hr)`}>$ &lt; award</span>
-  }
-  if (status === 'piece_rate') {
-    return <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded"
-      title="Piecework pay — automatic comparison not possible">piecework</span>
-  }
-  if (status === 'above' || status === 'at') {
-    return <span className="text-[10px] font-semibold text-green-700 bg-green-100 px-1.5 py-0.5 rounded"
-      title={`Award min: ${minUsed}/hr`}>$ ≥ award</span>
-  }
-  return null
 }
 
 function EligibilityPanel({ raw }: { raw: any }) {
@@ -1041,26 +1176,6 @@ function SourceTextPanel({ raw }: { raw: any }) {
         </div>
       )}
     </div>
-  )
-}
-
-function QualityBadges({ raw }: { raw: any }) {
-  const desc = String(raw.description || '')
-  const pay = String(raw.pay || '').trim()
-  const state = raw.state
-  const hasContact = /(?:[\w.+-]+@[\w-]+\.[\w.-]+|\b04\d{2}[\s-]?\d{3}[\s-]?\d{3}\b|\bwhatsapp\b|\bcall\w*\b|https?:\/\/\S+|\bwww\.\S+)/i.test(desc)
-  const issues: { label: string; cls: string; title: string }[] = []
-  if (desc.length < 150) issues.push({ label: 'Short description', cls: 'text-amber-700 bg-amber-100', title: `${desc.length} chars — verify nothing's missing` })
-  if (!pay) issues.push({ label: 'Pay missing', cls: 'text-amber-700 bg-amber-100', title: 'No salary listed' })
-  if (!state) issues.push({ label: 'State missing', cls: 'text-red-700 bg-red-100', title: "Blocks approval — edit the candidate to set state" })
-  if (!hasContact) issues.push({ label: 'No contact', cls: 'text-amber-700 bg-amber-100', title: 'No email/phone detected in the description' })
-  if (issues.length === 0) return null
-  return (
-    <>
-      {issues.map(iss => (
-        <span key={iss.label} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${iss.cls}`} title={iss.title}>{iss.label}</span>
-      ))}
-    </>
   )
 }
 
