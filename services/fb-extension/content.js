@@ -26,9 +26,13 @@ const MARKER_TITLE = '[data-ad-rendering-role="title"]'
 const MARKER_DESC = '[data-ad-rendering-role="description"]'
 const MARKER_META = '[data-ad-rendering-role="meta"]'
 
-// Anti-scrape obfuscation: FB injects random alphanumeric ".com"-suffixed
-// strings into meta and (sometimes) description fields. Always filter.
-const OBFUSCATION_RE = /^[A-Za-z0-9]{4,20}\.com$/
+// Anti-scrape obfuscation: FB injects random alphanumeric strings into
+// meta and (sometimes) description fields. Two forms observed in the wild:
+//   - Short with .com suffix: "1KkWEX.com", "H0n7TQNd0T.com"
+//   - Long pure alphanumeric (30+ chars): "yaJ0wdqvVle4F1fY5c3XjmwIQheem..."
+// Real description text contains spaces, hyphens, punctuation — a continuous
+// 30+-char alphanumeric run is essentially never legitimate at this layer.
+const OBFUSCATION_RE = /^[A-Za-z0-9]+\.com$|^[A-Za-z0-9]{30,}$/
 
 // Diagnostic selectors — reported when no posts are captured, so we can see
 // what FB's actual DOM shape is at the time of a failed run.
