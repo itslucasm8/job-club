@@ -16,11 +16,35 @@ import { authorizeExtensionRequest } from '@/lib/extension-auth'
  *  on runId — sending the same runId twice updates the existing row rather
  *  than creating a new one.
  */
+// Any in-flight ExtensionRun whose start is older than this without a
+// completion is presumed dead — the SW was evicted, the browser crashed, or
+// the user closed the tab mid-run. Heartbeats from later runs reap it so
+// the dashboard doesn't show stale "running" rows forever.
+const ORPHAN_RUN_AGE_MS = 10 * 60 * 1000
+
+async function reapOrphanedRuns() {
+  const cutoff = new Date(Date.now() - ORPHAN_RUN_AGE_MS)
+  try {
+    await prisma.extensionRun.updateMany({
+      where: { completedAt: null, startedAt: { lt: cutoff } },
+      data: {
+        completedAt: new Date(),
+        errorMessage: 'orphaned (heartbeat never closed — tab closed, SW evicted, or browser crashed)',
+      },
+    })
+  } catch {/* swallow — opportunistic cleanup */}
+}
+
 export async function POST(req: Request) {
   const auth = await authorizeExtensionRequest(req)
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
+
+  // Opportunistic cleanup — every heartbeat reaps any stuck ExtensionRun
+  // rows from previous crashed runs. Cheap (single indexed UPDATE) and
+  // runs at the natural cadence of extension activity.
+  await reapOrphanedRuns()
 
   let body: any
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON invalide' }, { status: 400 }) }

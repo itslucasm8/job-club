@@ -59,6 +59,13 @@ export async function POST(req: Request) {
   let ingested = 0
   let duplicates = 0
   let errors = 0
+  // Differentiate "LLM correctly rejected this post as a non-job" (soft —
+  // the pipeline is healthy, the post just wasn't a job listing) from "the
+  // scraper or extractor genuinely broke" (hard — needs investigation).
+  // Used below to set lastRunStatus, so the source dashboard doesn't paint
+  // healthy filtering as a red error.
+  let softRejects = 0
+  let hardErrors = 0
   const byMode = { playbook: 0, full: 0, failed: 0 }
   const errorDetails: { postId: string; reason: string }[] = []
 
@@ -96,6 +103,7 @@ export async function POST(req: Request) {
   for (const p of postsRaw as FbPostInput[]) {
     if (!p?.postId || !p?.postUrl || !p?.html) {
       errors++
+      hardErrors++
       errorDetails.push({ postId: p?.postId || '?', reason: 'missing required field' })
       continue
     }
@@ -105,6 +113,9 @@ export async function POST(req: Request) {
       if (r.extraction.extraction_failed) {
         errors++
         byMode.failed++
+        // Soft reject — the LLM looked at the post and said "this isn't a
+        // job listing" (job seeker, promo, event, etc). Healthy behavior.
+        softRejects++
         const reason = r.extraction.failure_reason || 'unspecified'
         errorDetails.push({ postId: p.postId, reason })
         await recordCapture(p, canonical, 'extraction_failed', { failureReason: reason, extractionMode: r.mode })
@@ -143,6 +154,7 @@ export async function POST(req: Request) {
         await recordCapture(p, canonical, 'duplicate', { extractionMode: r.mode })
       } else {
         errors++
+        hardErrors++
         const reason = (result as any).error || 'ingest error'
         errorDetails.push({ postId: p.postId, reason })
         await recordCapture(p, canonical, 'error', { failureReason: reason, extractionMode: r.mode })
@@ -150,6 +162,7 @@ export async function POST(req: Request) {
     } catch (e: any) {
       Sentry.captureException(e, { tags: { route: 'extension-ingest-batch', sourceSlug, postId: p.postId } })
       errors++
+      hardErrors++
       byMode.failed++
       const reason = e?.message || String(e)
       errorDetails.push({ postId: p.postId, reason })
@@ -157,18 +170,39 @@ export async function POST(req: Request) {
     }
   }
 
-  // Update lastRunAt on the source so the GET /groups endpoint reflects activity.
-  // Persist a compact error summary so we can diagnose silent extraction failures
-  // without needing live docker logs (which rotate).
-  const errorSummary = errors > 0 && ingested === 0
-    ? `${errors}/${postsRaw.length} failed: ${errorDetails.slice(0, 3).map(d => d.reason).join(' | ')}`.slice(0, 500)
-    : null
+  // Update lastRunAt on the source so the GET /groups endpoint reflects
+  // activity. Status is bucketed into 4 outcomes so the dashboard doesn't
+  // paint healthy LLM-filtering as a red error:
+  //   ok            — at least 1 job ingested, no hard errors
+  //   partial       — at least 1 job ingested, but some hard errors too
+  //   no_jobs_found — every post was rejected by the LLM as a non-job
+  //                   (group full of job-seeker posts, promos, events, etc).
+  //                   The pipeline is healthy; the feed just had no jobs.
+  //   error         — at least 1 hard error AND nothing ingested
+  //                   (scraper crash, ingest exception, malformed payload)
+  let lastRunStatus: string
+  if (ingested > 0 && hardErrors === 0) lastRunStatus = 'ok'
+  else if (ingested > 0) lastRunStatus = 'partial'
+  else if (hardErrors === 0 && softRejects > 0) lastRunStatus = 'no_jobs_found'
+  else if (hardErrors > 0) lastRunStatus = 'error'
+  else lastRunStatus = 'ok'  // empty batch — defer to caller
+
+  // Build a status-appropriate summary. For 'no_jobs_found' the summary is
+  // informational (not an error) — the dashboard should style it neutrally.
+  let lastRunError: string | null = null
+  if (lastRunStatus === 'error' || lastRunStatus === 'partial') {
+    const hardSamples = errorDetails.filter(d => d.reason !== 'missing required field' || true).slice(0, 3)
+    lastRunError = `${hardErrors} hard error(s): ${hardSamples.map(d => d.reason).join(' | ')}`.slice(0, 500)
+  } else if (lastRunStatus === 'no_jobs_found') {
+    lastRunError = `No job listings in ${softRejects} captured post(s) — LLM filtered all as non-jobs`.slice(0, 500)
+  }
+
   await prisma.jobSource.update({
     where: { slug: sourceSlug },
     data: {
       lastRunAt: new Date(),
-      lastRunStatus: errors > 0 && ingested === 0 ? 'error' : 'ok',
-      lastRunError: errorSummary,
+      lastRunStatus,
+      lastRunError,
       totalSeen: { increment: postsRaw.length },
     },
   }).catch(() => {})

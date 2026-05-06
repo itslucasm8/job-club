@@ -61,6 +61,110 @@ function findPosts() {
   return { selector: `${POST_CONTAINER_SELECTOR} :has(${MARKER_STORY})`, elements: posts }
 }
 
+// ─── Timestamp hover (forces FB to materialize permalink + absolute date) ─
+// Why this matters: in modern FB Comet, post-timestamp anchors initially
+// render with href="#" and no absolute-date metadata. The /posts/<id>
+// permalink AND the title="Wednesday, May 6, 2026 at 2:30 PM" tooltip date
+// only get populated AFTER the user's mouse hovers the timestamp — that
+// hover triggers a prefetch which mutates the DOM. Without this step ~70%
+// of captures lose both pieces of metadata, so "Source ↗" links go to the
+// group homepage instead of the actual post, and we never know how old a
+// post is. Synthetic pointer events are enough to fire FB's listeners; we
+// don't need a real cursor.
+
+const MONTHS_RE = /\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre|janv|févr|avr|juil|sept|déc)\b/i
+
+/** Heuristic: does this anchor's text look like a post-timestamp string?
+ *  Recognized formats (English + French):
+ *    "5h", "2 h", "3d", "1w", "12s"
+ *    "5 hrs", "2 days ago", "1 minute ago"
+ *    "Just now", "Yesterday", "Today"
+ *    "À l'instant", "Hier", "Aujourd'hui", "Il y a 3 h"
+ *    "May 4", "May 4 at 2:30 PM", "4 May", "4 mai" */
+function isLikelyTimestampAnchor(a) {
+  const text = (a.textContent || '').trim()
+  if (!text || text.length > 40) return false
+  return /^\d+\s*[smhdwy]$/i.test(text)
+      || /^\d+\s*(sec|min|h(?:r|our)?|d(?:ay)?|w(?:k|eek)?|mo(?:nth)?|y(?:r|ear)?)s?(\s*ago)?$/i.test(text)
+      || /^(Just\s*now|Yesterday|Today)\b/i.test(text)
+      || /^(À\s*l'instant|Hier|Aujourd'hui|Il\s+y\s+a)/i.test(text)
+      || /^[A-Za-zÀ-ÿ]{3,9}\s+\d{1,2}/.test(text)         // "May 4" / "mai 4"
+      || /^\d{1,2}\s+[A-Za-zÀ-ÿ]{3,9}/.test(text)         // "4 May" / "4 mai"
+}
+
+/** Find the timestamp anchor inside a post. Prefer the meta region (where
+ *  FB normally puts it) but fall back to scanning all link-role anchors. */
+function findTimestampAnchor(postEl) {
+  const meta = postEl.querySelector(MARKER_META)
+  if (meta) {
+    for (const a of meta.querySelectorAll('a[role="link"], a[href]')) {
+      if (isLikelyTimestampAnchor(a)) return a
+    }
+  }
+  for (const a of postEl.querySelectorAll('a[role="link"], a[href]')) {
+    if (isLikelyTimestampAnchor(a)) return a
+  }
+  return null
+}
+
+function dispatchPointerSequence(el, types) {
+  const rect = el.getBoundingClientRect()
+  const cx = rect.x + Math.max(rect.width / 2, 1)
+  const cy = rect.y + Math.max(rect.height / 2, 1)
+  const opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, button: 0 }
+  for (const type of types) {
+    try {
+      // Most React libraries listen on the Mouse* class; some FB internals
+      // bind to Pointer*. Fire both for max compatibility.
+      if (type.startsWith('pointer')) el.dispatchEvent(new PointerEvent(type, opts))
+      else el.dispatchEvent(new MouseEvent(type, opts))
+    } catch {/* swallow — element may have been removed mid-iteration */}
+  }
+}
+
+function hoverElement(el) {
+  dispatchPointerSequence(el, ['pointerover', 'mouseover', 'pointerenter', 'mouseenter', 'mousemove'])
+}
+
+function unhoverElement(el) {
+  dispatchPointerSequence(el, ['pointerout', 'mouseout', 'pointerleave', 'mouseleave'])
+}
+
+/** Hover every visible post's timestamp anchor to force FB to materialize
+ *  the canonical permalink + absolute-date title. Skips posts that already
+ *  expose a /posts/ link, so the cost is paid once per post (not per
+ *  scroll iteration). Returns the count of posts we actually hovered. */
+async function hoverTimestamps(postElements, settleMs = 500) {
+  const hovered = []
+  for (const post of postElements) {
+    if (post.querySelector('a[href*="/posts/"], a[href*="/permalink/"]')) continue
+    const anchor = findTimestampAnchor(post)
+    if (anchor) {
+      hoverElement(anchor)
+      hovered.push(anchor)
+    }
+  }
+  if (hovered.length === 0) return 0
+  await new Promise(r => setTimeout(r, settleMs))
+  // Move the synthetic pointer away so FB doesn't keep tooltips open over
+  // posts we're about to extract or click See-more on.
+  for (const a of hovered) unhoverElement(a)
+  return hovered.length
+}
+
+/** Extract the post's absolute date from the title="..." attribute that FB
+ *  populates after a hover. Returns the raw FB-formatted string (e.g.
+ *  "Wednesday, May 6, 2026 at 2:30 PM") — backend handles parsing. */
+function extractPostedAt(postEl) {
+  for (const el of postEl.querySelectorAll('[title]')) {
+    const v = (el.getAttribute('title') || '').trim()
+    if (!v || v.length > 80) continue
+    // Date-like signal: must contain a 4-digit year AND a month name.
+    if (/\b(19|20)\d{2}\b/.test(v) && MONTHS_RE.test(v)) return v
+  }
+  return null
+}
+
 // ─── See-more expansion ──────────────────────────────────────────────────
 // Synthetic clicks WORK on this layout (verified empirically: 487→774 chars
 // and 379→1007 chars expansions both succeeded). No chrome.debugger needed.
@@ -233,7 +337,10 @@ function extractPost(postEl) {
   return {
     postId,
     postUrl,
-    postedAt: null, // not in current FB DOM — see spec Section 8
+    // Populated when the timestamp was successfully hovered earlier this
+    // iteration; null if FB hadn't materialized it yet (older posts, or
+    // first-iteration posts that scrolled out before hover-settle).
+    postedAt: extractPostedAt(postEl),
     authorName: author,
     html,
     // Diagnostic-only fields; backend ignores them.
@@ -321,7 +428,14 @@ async function autoScroll({
     const { selector, elements } = findPosts()
     log(`iter ${iter} t=${elapsed.toFixed(1)}s — ${selector} found=${elements.length} captured=${captured.size}`)
 
-    // Step 1 — expand See-more on every visible post (spec Section 7,
+    // Step 1 — hover timestamps on any post that doesn't yet expose a
+    // /posts/ permalink in its DOM. Forces FB to materialize the canonical
+    // permalink href + the absolute-date title attribute. No-op if every
+    // visible post is already permalinked.
+    const hoveredCount = await hoverTimestamps(elements, 500)
+    if (verbose) log(`  hovered ${hoveredCount} timestamps to materialize permalinks`)
+
+    // Step 2 — expand See-more on every visible post (spec Section 7,
     // strategy 1: expand before snapshotting). Cheap if no See-more present.
     let didExpand = false
     for (const el of elements) {
@@ -329,21 +443,38 @@ async function autoScroll({
     }
     if (didExpand) await new Promise(r => setTimeout(r, 500))
 
-    // Step 2 — extract every visible post. The Map keys by postId so re-
-    // captures of the same post (across scroll iterations) overwrite, which
-    // means a post captured pre-expansion gets upgraded to its expanded form
-    // on a later iteration if it stayed in viewport.
+    // Step 3 — extract every visible post. The Map keys by postId so re-
+    // captures of the same post (across scroll iterations) overwrite — a
+    // post captured pre-expansion gets upgraded to its expanded form on a
+    // later iteration if it stayed in viewport. We also upgrade when a
+    // later capture has metadata the first one missed (permalink, postedAt)
+    // — useful when the first hover landed too late to materialize either.
     let added = 0
     for (const el of elements) {
       const post = extractPost(el)
       if (!post) continue
       const existing = captured.get(post.postId)
       const grew = existing && (post.html?.length || 0) > (existing.html?.length || 0)
-      if (!existing || grew) {
-        captured.set(post.postId, post)
+      const gainedPostedAt = existing && !existing.postedAt && post.postedAt
+      const gainedPermalink = existing
+        && !/\/posts\/|\/permalink\//.test(existing.postUrl || '')
+        && /\/posts\/|\/permalink\//.test(post.postUrl || '')
+      if (!existing || grew || gainedPostedAt || gainedPermalink) {
+        // Merge — never lose metadata we already had if the new capture
+        // happened to drop it (e.g. FB rotated the DOM mid-scrape).
+        const merged = existing
+          ? {
+              ...post,
+              postUrl: gainedPermalink ? post.postUrl : (existing.postUrl || post.postUrl),
+              postedAt: post.postedAt || existing.postedAt,
+              html: (post.html?.length || 0) >= (existing.html?.length || 0) ? post.html : existing.html,
+            }
+          : post
+        captured.set(post.postId, merged)
         if (!existing) added += 1
         if (verbose) {
-          log(`  ${existing ? 'GROW' : 'NEW'} ${post.postId} bytes=${post.html.length} text="${extractSnippet(post)}"`)
+          const reason = !existing ? 'NEW' : grew ? 'GROW' : gainedPermalink ? 'PERMALINK' : 'POSTEDAT'
+          log(`  ${reason} ${post.postId} bytes=${merged.html.length} url=${merged.postUrl} postedAt=${merged.postedAt || '—'} text="${extractSnippet(merged)}"`)
         }
       }
     }
