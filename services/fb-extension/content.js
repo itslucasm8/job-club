@@ -124,6 +124,30 @@ function isDescendantOf(el, ancestor) {
   return false
 }
 
+/** HTML-escape user-supplied text for safe insertion into our synthesized payload. */
+function htmlEscape(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]))
+}
+
+/** Build a minimal, signal-dense HTML payload from extracted markers.
+ *  Replaces FB's bloated outerHTML — see anti-scrape note in extractPost. */
+function buildCleanHtml({ author, body, titleText, descText, hasPhoto, permalink }) {
+  const parts = ['<article>']
+  parts.push(`<h2 class="author">${htmlEscape(author)}</h2>`)
+  if (body) {
+    const bodyEsc = htmlEscape(body).replace(/\n/g, '<br>')
+    parts.push(`<div class="body">${bodyEsc}</div>`)
+  }
+  if (titleText) parts.push(`<h3 class="card-title">${htmlEscape(titleText)}</h3>`)
+  if (descText) parts.push(`<p class="card-desc">${htmlEscape(descText)}</p>`)
+  if (hasPhoto) parts.push('<meta name="has-photo" content="true">')
+  if (permalink) parts.push(`<link rel="canonical" href="${htmlEscape(permalink)}">`)
+  parts.push('</article>')
+  return parts.join('\n')
+}
+
 /** djb2 hash → base36 string. Used to build a stable dedupe key from
  *  author + body[:200] when FB doesn't expose a permalink. */
 function hashString(s) {
@@ -175,12 +199,16 @@ function extractPost(postEl) {
   }
   if (isObfuscation(descText)) descText = ''
 
-  // PERMALINK — only sometimes present (FB lazy-loads on hover).
+  // PERMALINK — only sometimes present (FB lazy-loads on hover). Look for
+  // /posts/ or /permalink/ in group context only — FB also has /photo links
+  // inside posts which we explicitly DON'T want as the source URL.
   let permalink = null
-  const permalinkEl = postEl.querySelector('a[href*="/posts/"], a[href*="/permalink/"]')
-  if (permalinkEl) {
-    const href = permalinkEl.getAttribute('href') || ''
-    permalink = absoluteHref(href.split('?')[0])
+  for (const a of postEl.querySelectorAll('a[href]')) {
+    const href = a.getAttribute('href') || ''
+    if (/\/groups\/[\w.-]+\/(posts|permalink)\//.test(href)) {
+      permalink = absoluteHref(href.split('?')[0])
+      break
+    }
   }
 
   // DEDUPE KEY — no stable post ID exists in DOM. author + body[:200] hash
@@ -188,16 +216,19 @@ function extractPost(postEl) {
   const dedupeSource = `${author}::${body.slice(0, 200)}`
   const dedupeHash = hashString(dedupeSource)
   const postId = permalink ? `pl-${hashString(permalink)}` : `dk-${dedupeHash}`
-  const postUrl = permalink || `${location.href.split('?')[0].split('#')[0]}#${postId}`
+  const groupPathBase = `https://www.facebook.com${location.pathname.replace(/\/+$/, '')}`
+  const postUrl = permalink || `${groupPathBase}#${postId}`
 
-  // Cleaned HTML for the LLM. Strip scripts/styles defensively. The post
-  // container itself is a clean unit — no nested-articles to worry about
-  // since comments live in [role="article"], not as feed children.
-  const clone = postEl.cloneNode(true)
-  for (const s of clone.querySelectorAll('script, style, noscript')) s.remove()
-  let html = clone.outerHTML || ''
-  if (html.length > MAX_HTML_BYTES) html = html.slice(0, MAX_HTML_BYTES)
-  if (html.length < 200) return null
+  // SYNTHESIZED HTML — do NOT send FB's outerHTML. FB injects anti-scrape
+  // obfuscation: <blockquote class="html-blockquote"><span>Facebook</span>
+  // </blockquote> repeated dozens of times per photo carousel, plus data-0
+  // through data-19 attributes, plus image alt-text repetition. The cleaned
+  // text gets dominated by "Facebook Facebook Facebook..." and the LLM can't
+  // find the actual job ad. Build a minimal clean payload from the markers
+  // we already extracted. The backend's text-extraction sees only the real
+  // content. ~10x size reduction; ~100x signal density.
+  const html = buildCleanHtml({ author, body, titleText, descText, hasPhoto, permalink })
+  if (html.length < 100) return null
 
   return {
     postId,
